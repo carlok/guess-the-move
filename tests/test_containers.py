@@ -48,15 +48,27 @@ def test_nginx_csp_matches_what_the_app_needs():
     assert "listen 8080;" in conf and "[::]" not in conf  # IPv6 listen fails on hosts without IPv6
 
 
+def local_assets(html: str) -> list[str]:
+    """Every local script, stylesheet and sprite index.html loads, whatever the attribute order (`defer` or not)."""
+    found = re.findall(r'<script\b[^>]*\bsrc="([^"#:]+)"', html) + re.findall(r'<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"#:]+)"', html)
+    found += re.findall(r'<link\b[^>]*\bhref="([^"#:]+\.(?:css|js|svg))"', html)
+    return sorted(set(found))
+
+
+def test_the_image_copies_what_the_page_loads_not_just_theme_js():
+    html = read("web/index.html")
+    assert {"theme.js", "app.js", "sound.js", "stats.js", "backup.js", "level.js", "style.css"} <= set(local_assets(html))
+    assert set(local_assets('<script defer src="a.js"></script><script src="b.js"></script><link rel="stylesheet" href="c.css">')) == {"a.js", "b.js", "c.css"}
+
+
 def test_web_assets_are_csp_clean():
     html = read("web/index.html")
     assert not re.search(r"<script(?![^>]*\bsrc=)[^>]*>", html), "inline <script> would be blocked"
     assert not re.search(r"<style\b", html), "inline <style> would be blocked"
-    for rel in ("web/index.html", "web/app.js", "web/board.js", "web/theme.js", "web/strings.js", "web/pieces.svg"):
+    for rel in ["web/index.html", "web/pieces.svg"] + [f"web/{a}" for a in local_assets(html) if a.endswith(".js")]:
         assert not re.search(r"""\bstyle\s*=\s*["'\\]""", read(rel)), f"inline style= attribute in {rel}"
-    scripts = re.findall(r'<script\s+src="([^"]+)"', html)
-    assert scripts, "no scripts"
-    for src in scripts:  # every script the page loads must be copied into the web image
+    assert len(local_assets(html)) >= 10, "the asset scan found too little: the regex is wrong"
+    for src in local_assets(html):  # every script, stylesheet and sprite the page loads must be copied into the web image
         assert f"web/{src}" in read("containers/web/Containerfile"), f"{src} is not copied into the image"
 
 

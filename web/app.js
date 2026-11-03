@@ -805,7 +805,20 @@
     $('themeToggle').setAttribute('aria-label', dark ? T.toggleThemeToLight : T.toggleThemeToDark);
   }
 
+  /* The scripts this one needs. If one did not load (a 404 from a stale image or a bad deploy, a blocked request) say so
+   * plainly instead of failing on the first move with a console error. GTM_SOUND is optional (the page works without it). */
+  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
+
+  function missingScripts() { return REQUIRED.filter(function (k) { return !window[k]; }); }
+
   function init() {
+    var missing = missingScripts();
+    if (missing.length) {
+      var el = $('prompt');
+      el.hidden = false; $('skeleton').hidden = true;
+      el.textContent = 'Part of the page did not load (' + missing.join(', ') + '). Reload the page; if it persists, the server is missing files (a stale image or deploy).';
+      return;
+    }
     svg = $('boardSvg');
     S.seen = new Set(store.get(SEEN_KEY, []));
     S.history = store.get(HISTORY_KEY, []);

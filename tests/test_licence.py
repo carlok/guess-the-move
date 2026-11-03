@@ -36,3 +36,6 @@ def test_the_in_app_credits_name_everything_notice_lists_and_link_to_it():
     for licence in ("GPL-3.0", "AGPL-3.0", "GPL-2.0-or-later", "ISC", "MIT", "CC0"):
         assert licence in credits, licence
     assert 'id="sourceLink"' in credits
+    assert 'id="authorLink"' in credits and "Carlo Perassi" in credits and "https://github.com/carlok" in credits, "the author and their GitHub"
+    assert "2026" in credits, "the year"
+    assert "Copyright (C) 2026 Carlo Perassi" in read("NOTICE")

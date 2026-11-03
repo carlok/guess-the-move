@@ -5,7 +5,7 @@
  * behaviour is checked in a real browser by web/e2e. The fixtures are SYNTHETIC hand-written evals. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { newDom, loadApp } = require('./harness');
+const { newDom, loadApp, runScript, SCRIPTS } = require('./harness');
 const B = require('../board.js');
 
 const ROOK = {
@@ -1012,4 +1012,23 @@ test('opening the page at #stats before the data has loaded fills in the level c
   assert.equal(levelText(w), null, 'no data yet: no level card');
   release(); await tick();
   assert.match(levelText(w).querySelector('.level-big').textContent, /About \d+/);
+});
+
+test('a script that failed to load is named on the page instead of breaking the first move', async () => {
+  for (const missing of ['stats.js', 'level.js', 'backup.js']) {
+    const dom = newDom(), w = dom.window;
+    w.fetch = async () => ({ ok: true, json: async () => dataOf(ROOK) });
+    SCRIPTS.filter((s) => s !== missing).forEach((s) => runScript(dom, s));
+    await tick();
+    const text = $(w, 'prompt').textContent;
+    assert.match(text, /Part of the page did not load/);
+    assert.ok(text.includes({ 'stats.js': 'GTM_STATS', 'level.js': 'GTM_LEVEL', 'backup.js': 'GTM_BACKUP' }[missing]), text);
+    assert.equal($(w, 'skeleton').hidden, true);
+    assert.equal(w.document.querySelectorAll('[data-sq]').length, 0, 'no half-working board');
+  }
+  const dom = newDom();
+  dom.window.fetch = async () => ({ ok: true, json: async () => dataOf(ROOK) });
+  SCRIPTS.filter((s) => s !== 'sound.js').forEach((s) => runScript(dom, s));
+  await tick();
+  assert.equal(dom.window.document.querySelectorAll('[data-sq]').length, 64, 'sound.js is optional: the page works without it');
 });
