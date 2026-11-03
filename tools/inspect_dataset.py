@@ -44,6 +44,10 @@ def summarise(path: Path, min_elo: int | None = None, max_elo: int | None = None
         "source": data["meta"].get("source"),
         "sampling": data["meta"].get("sampling"),
         "min_clock_seconds": data["meta"].get("min_clock_seconds"),
+        "provenance": data["meta"].get("provenance"),
+        "with_game_block": sum(1 for p in positions if p.get("game")),
+        "dates": sorted({p["game"]["date"] for p in positions if p.get("game") and p["game"].get("date")})[:3],
+        "bands": dict(sorted(Counter(((p["player_elo"] // 200) * 200) for p in positions if p["player_elo"] is not None).items())),
         "problems": problems,
     }
 
