@@ -192,15 +192,15 @@ def test_every_parallel_engine_is_used_and_errors_in_a_worker_surface():
         build_positions(cands[:3], [Lazy(), Lazy()], FakeMaia(), max_abs_cp=None)
 
 
-def test_the_game_provenance_is_copied_into_the_position_and_names_can_be_left_out():
+def test_the_game_provenance_is_copied_into_the_position_and_names_are_stored_only_when_asked_for():
     game = {"white": "alice", "black": "bob", "white_title": "NM", "black_title": None, "white_elo": 1500, "black_elo": 1600,
             "date": "2026.09.01", "time": "00:12:34", "time_control": "600+0", "clock_after_move_s": 412.0}
     c = cand(FEN_B, "g8f6", 5)
     c = type(c)(**{**c.__dict__, "game": game})
-    (kept,) = build_positions([c], FakeEngine(), FakeMaia(), max_abs_cp=None, drop_trivial=False)
+    (kept,) = build_positions([c], FakeEngine(), FakeMaia(), max_abs_cp=None, drop_trivial=False, store_players=True)
     assert kept["game"] == game
-    (anon,) = build_positions([c], FakeEngine(), FakeMaia(), max_abs_cp=None, drop_trivial=False, store_players=False)
-    assert anon["game"]["white"] is None and anon["game"]["black"] is None and anon["game"]["white_title"] is None
+    (anon,) = build_positions([c], FakeEngine(), FakeMaia(), max_abs_cp=None, drop_trivial=False)
+    assert not {"white", "black", "white_title", "black_title"} & set(anon["game"]), "names are not stored unless asked for"
     assert anon["game"]["white_elo"] == 1500 and anon["game"]["date"] == "2026.09.01", "everything but who they are stays"
     (none,) = build_positions([cand(FEN_B, "g8f6", 5)], FakeEngine(), FakeMaia(), max_abs_cp=None, drop_trivial=False)
     assert none["game"] is None

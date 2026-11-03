@@ -144,10 +144,10 @@ _WHO = ("white", "black", "white_title", "black_title")
 
 
 def _game_block(game: dict | None, store_players: bool) -> dict | None:
-    """The PGN header facts about the game; with store_players False, who played (names and titles) is left out."""
+    """The PGN header facts about the game; unless store_players, who played (names and titles) is left out entirely."""
     if game is None:
         return None
-    return {k: (None if (not store_players and k in _WHO) else v) for k, v in game.items()}
+    return {k: v for k, v in game.items() if store_players or k not in _WHO}
 
 
 def _pipeline_commit() -> str | None:
@@ -215,9 +215,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--per-game", type=int, default=2)
     ap.add_argument("--time-controls", help="comma list, e.g. Rapid,Classical")
     ap.add_argument("--max-games", type=int)
-    ap.add_argument("--store-players", action=argparse.BooleanOptionalAction, default=True,
-                    help="keep the Lichess usernames and titles of the two players in each position's `game` block "
-                         "(ratings, date, time control and the rest are kept either way)")
+    ap.add_argument("--store-players", action=argparse.BooleanOptionalAction, default=False,
+                    help="also keep the Lichess usernames and titles of the two players in each position's `game` block. Off by "
+                         "default: the game link (`site`) is the attribution. Ratings, date, time control and the rest are kept either way")
     ap.add_argument("--workers", type=int, default=1, help="engine processes analysing in parallel (one thread each)")
     ap.add_argument("--stratify", action=argparse.BooleanOptionalAction, default=True,
                     help="sample an equal share of every phase x 200-point rating band (default) instead of the population's")

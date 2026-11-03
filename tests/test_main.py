@@ -193,11 +193,12 @@ def headed(white="alice", black="bob"):
 
 
 def test_the_dataset_records_who_what_when_and_with_which_tools(tmp_path):
-    rc, out = run(tmp_path, "--seed", "3", text=headed())
+    rc, out = run(tmp_path, "--seed", "3", "--store-players", text=headed())
     data = json.loads(out.read_text())
     assert rc == 0
     check_dataset(data)
     p = data["positions"][0]
+    assert p["site"] == "https://lichess.org/abcd1234", "the game link is what every position keeps"
     assert p["game"]["white"] == "alice" and p["game"]["black"] == "bob" and p["game"]["date"] == "2026.09.01"
     assert p["game"]["time"] == "00:12:34" and p["game"]["time_control"] == "600+0" and p["game"]["white_elo"] == 1500
     prov = data["meta"]["provenance"]
@@ -208,18 +209,18 @@ def test_the_dataset_records_who_what_when_and_with_which_tools(tmp_path):
     assert prov["tools"]["python_chess"] and prov["tools"]["python"] and "--seed" in prov["command"]
 
 
-def test_players_can_be_left_out_and_the_source_url_loses_its_query_string(tmp_path, monkeypatch):
+def test_names_are_left_out_by_default_and_the_source_url_loses_its_query_string(tmp_path, monkeypatch):
     import io
     import pipeline.build_dataset as bd
 
     monkeypatch.setattr(bd, "open_text", lambda src: io.StringIO(headed()))
     out = tmp_path / "o.json"
     rc = main(["--pgn", "https://example.org/dump.pgn.zst?token=secret", "--out", str(out), "--engine", STUB, "--nodes", "1000",
-               "--candidates", "5", "--keep", "5", "--min-ply", "4", "--max-abs-cp", "100000", "--keep-trivial", "--no-store-players"])
+               "--candidates", "5", "--keep", "5", "--min-ply", "4", "--max-abs-cp", "100000", "--keep-trivial"])
     data = json.loads(out.read_text())
     assert rc == 0 and data["meta"]["provenance"]["players_stored"] is False
     assert data["meta"]["provenance"]["source"]["url"] == "https://example.org/dump.pgn.zst"
-    assert all(p["game"]["white"] is None and p["game"]["black"] is None for p in data["positions"])
+    assert all("white" not in p["game"] and "black" not in p["game"] and p["site"] for p in data["positions"])
     assert "alice" not in out.read_text() and "secret" not in out.read_text() and "bob" not in out.read_text()
 
 
