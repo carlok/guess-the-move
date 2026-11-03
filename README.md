@@ -21,12 +21,15 @@ python3 -m http.server -d web 8000     # then open http://localhost:8000
 ## Tests
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install chess zstandard pytest
-.venv/bin/python -m pytest -q                      # maths, tags, sampler, dataset invariants
-GTM_ENGINE="node tools/engine-node/node_modules/stockfish/bin/stockfish-19-single.js" \
-  .venv/bin/python -m pytest -q                    # + real-engine integration test
-cd web && npm install && npm test                  # scoring parity with Python + DOM flows (jsdom)
+python3.11 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # 3.10-3.12: maia2 (T3) does not install on 3.13+
+(cd web && npm install)
+make test                                          # pytest + node tests
+make coverage                                      # same, plus coverage; fails below the thresholds
+make mutation                                      # optional spot-check of test quality (mutmut, Stryker); not a gate
+GTM_ENGINE=/opt/homebrew/bin/stockfish .venv/bin/python -m pytest -q   # + real-engine integration test
 ```
+
+What is covered: maths, tags, sampler, `build_dataset.main()` end to end (a UCI stub script stands in for the engine and a fake `maia2` module for the model, so no Stockfish or torch is needed), shared Python/JS test vectors (`tests/gen_vectors.py` regenerates them; a test fails if they drift), `hypothesis` property tests, and the DOM flows in jsdom. Thresholds live in `tools/check_coverage.py` and `web/package.json` and only ratchet up. Browser tests (`make e2e`) come with the UI work.
 
 ## Containers (rootless podman)
 

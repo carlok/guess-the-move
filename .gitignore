@@ -19,3 +19,6 @@ mutants/
 coverage.json
 node-compile-cache/
 pytest-of-*/
+stryker-output-*.json
+.stryker-tmp/
+reports/

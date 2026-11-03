@@ -56,6 +56,7 @@ test('analyse: best move in best-move mode', () => {
 
 test('analyse: a worse move is ranked and costed', () => {
   const r = G.analyse(pos, 'g1g2', 'best');
+  assert.deepEqual(r.matched, { best: false, real: false, maia: true }, 'g1g2 is Maia\'s top move but not the best');
   assert.equal(r.you.rank, 3);
   near(r.you.cost, G.winPct(9999) - G.winPct(0));
   assert.equal(r.you.plaus, 0.5);
@@ -82,4 +83,24 @@ test('ties share a rank and count as matching the best evaluation', () => {
   assert.equal(G.rank(p.evals, 'b'), 1);
   assert.equal(G.rank(p.evals, 'c'), 3);
   assert.equal(G.analyse(p, 'b', 'best').matched.best, true);
+});
+
+test('reference moves know whether they are the guess, and fall back to UCI when SAN is missing', () => {
+  const r = G.analyse(pos, 'a1a8', 'best');
+  assert.deepEqual(r.refs.map((x) => x.same), [true, false, false]);
+  assert.deepEqual(r.refs.map((x) => x.san), ['Ra8#', 'Kf1', 'Kg2']);
+  const bare = G.analyse({ ...pos, san: {} }, 'a1a7', 'best');
+  assert.equal(bare.you.san, 'a1a7');
+  assert.equal(bare.refs[0].san, 'a1a8');
+});
+
+test('ties: the first listed move is the best move and the first listed Maia move is Maia\'s top', () => {
+  assert.equal(G.bestMove({ a: 10, b: 10, c: -5 }), 'a');
+  assert.equal(G.maiaTop({ maia: { probs: { a: 0.3, b: 0.3, c: 0.2 } } }), 'a');
+});
+
+test('Maia\'s top move is the most probable one wherever it sits in the list', () => {
+  assert.equal(G.maiaTop({ maia: { probs: { a: 0.1, b: 0.6, c: 0.3 } } }), 'b');
+  assert.equal(G.maiaTop({ maia: null }), null);
+  assert.equal(G.maiaTop({ maia: { elo: 1500 } }), null);
 });

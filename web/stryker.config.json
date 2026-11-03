@@ -1,0 +1,9 @@
+{
+  "mutate": ["scoring.js"],
+  "testRunner": "tap",
+  "tap": { "testFiles": ["test/scoring.test.js", "test/app.test.js"] },
+  "coverageAnalysis": "off",
+  "inPlace": true,
+  "reporters": ["clear-text"],
+  "concurrency": 4
+}

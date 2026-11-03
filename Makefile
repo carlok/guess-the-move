@@ -7,10 +7,11 @@ IN          ?= $(CURDIR)/data
 OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
-.PHONY: help test coverage e2e web-image builder-image run stop dataset
+.PHONY: help test coverage mutation e2e web-image builder-image run stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
+	@echo "make mutation        mutation spot-check (mutmut on winpct/tags, Stryker on scoring.js); not a gate"
 	@echo "make e2e             browser tests (placeholder until the UI work lands)"
 	@echo "make web-image       build $(WEB_IMG)"
 	@echo "make run             serve on http://127.0.0.1:$(PORT) (mounts web/data)"
@@ -27,6 +28,12 @@ coverage:
 	$(PYTHON) -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=json:coverage.json
 	$(PYTHON) tools/check_coverage.py coverage.json
 	cd web && npm run coverage
+
+# Stryker edits web/scoring.js in place and restores it: run on a clean tree (git status).
+mutation:
+	$(PYTHON) -m pip install -q -r requirements-mutation.txt
+	$(PYTHON) -m mutmut run && $(PYTHON) -m mutmut results
+	cd web && npx --yes -p @stryker-mutator/core -p @stryker-mutator/tap-runner stryker run stryker.config.json
 
 e2e:
 	@echo "e2e: no browser tests yet (CONTINUE.md T9)"; exit 1
