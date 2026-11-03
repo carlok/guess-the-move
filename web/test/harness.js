@@ -13,8 +13,13 @@ const rawHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const HTML = rawHtml.replace(SCRIPT_TAG, '');
 const SCRIPTS = Array.from(rawHtml.matchAll(SCRIPT_TAG), (m) => m[1]);
 
+/* The page keeps a 250 ms interval for the timer display; a live interval would keep node waiting after the tests end,
+ * so jsdom windows get a stand-in that records the callbacks (window.__intervals) and lets a test call them. */
 function newDom() {
-  return new JSDOM(HTML, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true });
+  const dom = new JSDOM(HTML, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true });
+  dom.window.__intervals = [];
+  dom.window.setInterval = (fn) => dom.window.__intervals.push(fn);
+  return dom;
 }
 
 function runScript(dom, rel) {

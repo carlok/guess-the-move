@@ -21,6 +21,13 @@
     </div>
     <div class="topbar-actions">
       <a id="demoChip" class="demo-chip" href="#banner" aria-label="Demo data: details at the bottom of the page" hidden>Demo</a>
+      <button id="statsBtn" type="button" class="icon-btn" aria-label="Your stats">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+      </button>
+      <button id="soundToggle" type="button" class="icon-btn" aria-label="Mute sounds">
+        <svg class="icon-sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></svg>
+        <svg class="icon-sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4.702a.7.7 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.7.7 0 0 0 11 19.298z"/><path d="m16.5 14.5 5-5"/><path d="m16.5 9.5 5 5"/></svg>
+      </button>
       <button id="menuBtn" type="button" class="icon-btn" aria-label="Menu: how it works, about the data, credits" aria-expanded="false" aria-controls="menu">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
       </button>
@@ -60,6 +67,8 @@
       </dl>
       <h4>Good to know</h4>
       <ul>
+        <li>A timer runs on each position and starts again with the next one; it pauses when you leave the tab or open a view, and its time goes into your stats. You can hide it in the settings.</li>
+        <li>Moves and results have sounds, made in your browser. The speaker button in the top bar mutes them.</li>
         <li>Nothing is calculated while you play. Every legal move of every position was scored in advance, so the page works with no server.</li>
         <li>Your statistics stay in this browser. Nothing is sent anywhere.</li>
         <li>Move by tapping a piece and then its square, by dragging it, or with the keyboard (arrow keys, Enter, Escape). On touch screens you confirm before the answer is revealed; you can change that in the settings.</li>
@@ -96,9 +105,9 @@
     <button id="onboardingClose" type="button" class="primary">Got it</button>
   </section>
 
-  <main>
+  <main id="gameMain">
     <section class="stage" aria-label="Board">
-      <div id="posInfo" class="posinfo"></div>
+      <div class="posinfo"><span id="posInfo"></span><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
       <div id="boardWrap" class="boardwrap">
         <div id="skeleton" class="skeleton" aria-hidden="true"></div>
         <svg id="boardSvg" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Chess board" tabindex="0">
@@ -146,8 +155,9 @@
       <div id="result" class="result" hidden aria-live="polite"></div>
 
       <details class="stats">
-        <summary>Session stats</summary>
+        <summary>Your stats</summary>
         <div id="stats"></div>
+        <button id="openStats" type="button" class="link">Open the full stats</button>
         <button id="resetStats" type="button" class="link">Reset stats</button>
         <button id="estimateBtn" type="button" class="link" hidden>Estimate my level</button>
         <p id="estimate" class="small" aria-live="polite"></p>
@@ -164,6 +174,7 @@
       </details>
 
       <div class="settings">
+        <label class="check"><input type="checkbox" id="timerToggle"> Show the timer</label>
         <label class="check"><input type="checkbox" id="confirmToggle"> Confirm moves before revealing</label>
         <p class="muted small">Useful on touch screens, where a slip of the finger would reveal the answer.</p>
       </div>
@@ -174,6 +185,20 @@
       <button id="confirm" type="button" class="primary" hidden>Confirm move</button>
       <button id="next" type="button" class="primary" hidden>Next position (n)</button>
     </div>
+  </main>
+
+  <main id="statsView" class="statsview" aria-labelledby="statsTitle" hidden>
+    <div class="statsview-head">
+      <h2 id="statsTitle" tabindex="-1">Your stats</h2>
+      <button id="statsBack" type="button">Back to the board</button>
+    </div>
+    <div class="backup">
+      <button id="exportBtn" type="button">Download my stats</button>
+      <button id="importBtn" type="button">Load stats from a file</button>
+      <input id="importFile" type="file" accept=".json,application/json" hidden>
+      <p id="backupMsg" class="muted small" role="status" aria-live="polite"></p>
+    </div>
+    <div id="statsBody"></div>
   </main>
 
   <footer>
@@ -188,6 +213,9 @@
   <script defer src="strings.js"></script>
   <script defer src="scoring.js"></script>
   <script defer src="board.js"></script>
+  <script defer src="sound.js"></script>
+  <script defer src="stats.js"></script>
+  <script defer src="backup.js"></script>
   <script defer src="app.js"></script>
 </body>
 </html>

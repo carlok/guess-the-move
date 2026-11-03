@@ -11,15 +11,16 @@
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
-  var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500;
+  var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
   var S = {
     data: null, pos: null, parsed: null, legalFrom: {}, flipped: false,
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
-    seen: new Set(), history: []
+    seen: new Set(), history: [], showTimer: true, statsPushed: false
   };
+  var snd = null; // sound effects, made in init()
   var gest = B.gesture();
 
   function $(id) { return document.getElementById(id); }
@@ -42,6 +43,38 @@
   function announce(text) {
     S.liveFlip = !S.liveFlip;
     $('live').textContent = text + (S.liveFlip ? ' ' : '');
+  }
+
+  /* ---------- timer: counts up while a position is open, pauses off-screen, restarts with each position ---------- */
+
+  var timer = { acc: 0, since: null };
+  function nowMs() { return window.Date.now(); }
+  function elapsedMs() { return timer.acc + (timer.since === null ? 0 : nowMs() - timer.since); }
+  function clockText(ms) { return window.GTM_STATS.clock(ms / 1000); }
+  function renderTimer() { $('timer').textContent = clockText(elapsedMs()); }
+  function timerStart() { timer.acc = 0; timer.since = nowMs(); renderTimer(); }
+  function timerPause() { if (timer.since !== null) { timer.acc += nowMs() - timer.since; timer.since = null; } }
+  function timerStop() { timerPause(); renderTimer(); }
+  function timerReset() { timer.acc = 0; timer.since = null; renderTimer(); }
+  function overlayOpen() { return !$('menu').hidden || !$('statsView').hidden || document.hidden === true; }
+  function timerResume() { if (S.pos && !S.revealed && timer.since === null && !overlayOpen()) timer.since = nowMs(); }
+
+  /* ---------- sound ---------- */
+
+  function sfx(name, delay) { if (snd) snd.play(name, delay); }
+  function updateSoundButton() {
+    var on = !snd || snd.isEnabled();
+    $('soundToggle').setAttribute('aria-label', on ? T.sound.on : T.sound.off);
+    $('soundToggle').setAttribute('data-state', on ? 'on' : 'off');
+  }
+  function isCapture(uci) {
+    var mover = S.parsed.board[B.sqIndex(uci.slice(0, 2))];
+    return !!S.parsed.board[B.sqIndex(uci.slice(2, 4))] || (!!mover && mover.toLowerCase() === 'p' && uci[0] !== uci[2]); // en passant
+  }
+  function outcomeSound(r) {
+    if (r.mode === 'predict') return r.matched.real ? 'good' : (r.score >= 70 ? 'fine' : 'bad');
+    if (r.matched.best) return 'good';
+    return r.matched.maia || r.matched.real || r.score >= 70 ? 'fine' : 'bad';
   }
 
   /* ---------- board layers ---------- */
@@ -290,12 +323,15 @@
     renderSquares(); renderPieces();
     setPrompt(); refresh();
     $('boardSvg').setAttribute('aria-label', T.boardLabel + ' ' + (p.stm === 'w' ? 'White' : 'Black') + ' to move.');
+    timerStart(); timerPause(); timerResume(); // a fresh count; stays paused while a view covers the board
   }
+
+  function goNext() { sfx('next'); nextPosition(); }
 
   function nextPosition() {
     var list = applyFilters();
     if (!list.length) {
-      S.pos = null; svgReset(); setPrompt(); refresh(); $('result').hidden = true;
+      S.pos = null; svgReset(); setPrompt(); refresh(); $('result').hidden = true; timerReset();
       $('prompt').textContent = $('unseen').checked ? T.prompt.noneUnseen : T.prompt.none;
       return;
     }
@@ -305,6 +341,7 @@
   function clearSelection() { S.selected = null; S.promo = null; S.pending = null; refresh(); }
 
   function commit(uci) {
+    timerStop();
     S.revealed = true; S.selected = null; S.promo = null; S.pending = null;
     S.result = G.analyse(S.pos, uci, S.pos.custom ? 'best' : S.mode); // an arbitrary position has no real move to predict
     if (!S.pos.custom) {  // the session stats are about the dataset, not about positions pasted in
@@ -313,11 +350,13 @@
       S.history.push({
         id: S.pos.id, mode: S.mode, phase: S.pos.phase, tags: S.pos.tags || [], cost: S.result.you.cost,
         score: S.result.score, mb: S.result.matched.best, mr: S.result.matched.real, mm: S.result.matched.maia, t: Date.now(),
+        dur: Math.round(elapsedMs() / 1000),
         fen: S.pos.fen, uci: uci, opp: S.pos.opp_elo || null // what the level estimate needs
       });
       if (S.history.length > HISTORY_MAX) S.history = S.history.slice(-HISTORY_MAX);
       store.set(HISTORY_KEY, S.history);
     }
+    sfx(isCapture(uci) ? 'capture' : 'move'); sfx(outcomeSound(S.result), 0.16);
     refresh(); renderResult(); renderStats(); applyFilters(); updateEstimate();
     announce(T.live.played(uci.slice(0, 2), uci.slice(2, 4), verdictText(S.result, S.pos)));
   }
@@ -326,6 +365,7 @@
   function propose(uci) {
     if (!S.confirm) return commit(uci);
     S.pending = uci; S.promo = null;
+    sfx('tick');
     refresh();
     announce(T.live.pending(uci.slice(0, 2), uci.slice(2, 4)));
   }
@@ -334,7 +374,7 @@
     var ucis = (S.legalFrom[from] || []).filter(function (u) { return u.slice(2, 4) === to; });
     if (!ucis.length) return false;
     S.selected = from;
-    if (ucis.length > 1) { S.promo = ucis; S.pending = null; refresh(); announce(T.live.promo); return true; }
+    if (ucis.length > 1) { S.promo = ucis; S.pending = null; sfx('tick'); refresh(); announce(T.live.promo); return true; }
     propose(ucis[0]);
     return true;
   }
@@ -347,6 +387,7 @@
     var own = !!S.legalFrom[name];
     S.selected = own && S.selected !== name ? name : null;
     refresh();
+    sfx(S.selected ? 'select' : (own ? 'deselect' : 'error'));
     announce(S.selected ? T.live.selected(name, targets(name).length) : (own ? T.live.cancelled : T.live.noPiece(name)));
   }
 
@@ -405,6 +446,7 @@
     S.kbd = false; S.pid = e.pointerId;
     if (gest.down(sq, e.clientX, e.clientY, !!S.legalFrom[sq], S.selected === sq)) {
       S.selected = sq; S.promo = null; S.pending = null; // select on press, so a drag already shows its targets
+      sfx('select');
       refresh();
     }
     try { svg.setPointerCapture(e.pointerId); } catch (err) { /* not supported or pointer already gone */ }
@@ -425,7 +467,7 @@
     if (res.type === 'drop') {
       endDrag();
       if (sq === res.from) { S.selected = res.from; refresh(); announce(T.live.selected(sq, targets(sq).length)); }
-      else if (!(sq && tryMove(res.from, sq))) { clearSelection(); announce(T.live.dragCancelled); }
+      else if (!(sq && tryMove(res.from, sq))) { clearSelection(); sfx('deselect'); announce(T.live.dragCancelled); }
     } else if (res.type === 'tap') {
       if (res.selectedOnDown) announce(T.live.selected(res.sq, targets(res.sq).length)); else onSquare(res.sq);
     }
@@ -456,11 +498,12 @@
   function onDocKey(e) {
     if (e.key === 'Escape' && menuIsOpen()) { closeMenu(); return; }
     if (menuIsOpen()) return; // the menu is modal: board shortcuts stay off while it is open
+    if (statsIsOpen()) { if (e.key === 'Escape') closeStatsView(); return; }
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
-    if ((e.key === 'n' || e.key === 'N') && S.revealed) nextPosition();
+    if ((e.key === 'n' || e.key === 'N') && S.revealed) goNext();
     if (e.key === 'Escape') {
       if (gest.active()) cancelGesture();
-      else if (!S.revealed && (S.selected || S.promo || S.pending)) { clearSelection(); announce(T.live.cancelled); }
+      else if (!S.revealed && (S.selected || S.promo || S.pending)) { clearSelection(); sfx('deselect'); announce(T.live.cancelled); }
     }
   }
 
@@ -578,6 +621,7 @@
     $('menu').hidden = false; $('menuBackdrop').hidden = false;
     $('menuBtn').setAttribute('aria-expanded', 'true');
     document.documentElement.classList.add('menu-open');
+    timerPause(); sfx('tick');
     $('menuClose').focus();
   }
 
@@ -585,7 +629,8 @@
     $('menu').hidden = true; $('menuBackdrop').hidden = true;
     $('menuBtn').setAttribute('aria-expanded', 'false');
     document.documentElement.classList.remove('menu-open');
-    ($('menuBtn')).focus();
+    timerResume(); sfx('tick');
+    $('menuBtn').focus();
   }
 
   /* Keep Tab inside the open menu (it is modal). */
@@ -597,6 +642,65 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
+  /* ---------- the full stats view (a page of its own, reachable at #stats) ---------- */
+
+  function statsIsOpen() { return !$('statsView').hidden; }
+
+  /* Charts are drawn at the width of the page, so they are redrawn when the window is resized (or the phone turned). */
+  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(S.history, T, { width: $('statsBody').clientWidth || undefined }); }
+
+  function showStats(on) {
+    if (on === statsIsOpen()) return;
+    $('statsView').hidden = !on;
+    $('gameMain').hidden = on;
+    document.querySelector('footer').hidden = on;
+    if (on) { drawStats(); timerPause(); $('statsTitle').focus(); }
+    else { timerResume(); $('statsBtn').focus(); }
+  }
+
+  function openStatsView() {
+    sfx('tick');
+    if (window.location.hash !== '#stats') { S.statsPushed = true; window.location.hash = 'stats'; }
+    showStats(true);
+  }
+
+  function closeStatsView() {
+    sfx('tick');
+    if (S.statsPushed) { S.statsPushed = false; window.history.back(); } // the hashchange below hides the view
+    else { window.history.replaceState(null, '', window.location.pathname + window.location.search); showStats(false); }
+  }
+
+  /* ---------- stats backup: download and load ---------- */
+
+  function backupMsg(t) { $('backupMsg').textContent = t; }
+
+  function exportStats() {
+    var now = nowMs(), body = window.GTM_BACKUP.build(S.history, S.seen, S.data && S.data.meta, now);
+    var url = window.URL.createObjectURL(new window.Blob([JSON.stringify(body, null, 2) + '\n'], { type: 'application/json' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = window.GTM_BACKUP.fileName(now);
+    document.body.appendChild(a); a.click(); a.remove();
+    window.setTimeout(function () { window.URL.revokeObjectURL(url); }, 0);
+    sfx('tick'); backupMsg(T.backup.exported(S.history.length));
+  }
+
+  function importStats(file) {
+    var reader = new window.FileReader();
+    reader.onerror = function () { backupMsg(T.backup.errors.read); };
+    reader.onload = function () {
+      var r = window.GTM_BACKUP.parse(String(reader.result));
+      if (!r.ok) { backupMsg(T.backup.errors[r.error]); return; }
+      var m = window.GTM_BACKUP.merge(S.history, r.history, HISTORY_MAX);
+      S.history = m.history;
+      r.seen.forEach(function (id) { S.seen.add(id); });
+      store.set(HISTORY_KEY, S.history); store.set(SEEN_KEY, Array.from(S.seen));
+      renderStats(); updateEstimate(); if (S.data) applyFilters();
+      drawStats();
+      sfx('good'); backupMsg(T.backup.imported(m.added, m.duplicates, r.skipped));
+    };
+    reader.readAsText(file);
+  }
+
   function updateThemeButton() {
     var dark = window.GTM_THEME && window.GTM_THEME.current() === 'dark';
     $('themeToggle').setAttribute('aria-label', dark ? T.toggleThemeToLight : T.toggleThemeToDark);
@@ -606,6 +710,11 @@
     svg = $('boardSvg');
     S.seen = new Set(store.get(SEEN_KEY, []));
     S.history = store.get(HISTORY_KEY, []);
+    S.showTimer = store.get(TIMER_KEY, true) !== false;
+    $('timerToggle').checked = S.showTimer; $('timer').hidden = !S.showTimer;
+    snd = window.GTM_SOUND ? window.GTM_SOUND.create(window.AudioContext || window.webkitAudioContext, store.get(SOUND_KEY, true) !== false) : null;
+    updateSoundButton();
+    if (window.location.hash === '#stats') showStats(true);
     S.confirm = store.get(CONFIRM_KEY, null);
     if (S.confirm === null) S.confirm = media('(pointer: coarse)'); // a slip of the finger is likelier than a slip of the mouse
     $('confirmToggle').checked = S.confirm;
@@ -643,9 +752,9 @@
       el.addEventListener('change', function () { if (el.checked) { S.mode = el.value; if (!S.revealed) setPrompt(); } });
     });
     ['phase', 'tag', 'unseen'].forEach(function (id) { $(id).addEventListener('change', function () { if (S.data) nextPosition(); }); });
-    $('next').addEventListener('click', nextPosition);
+    $('next').addEventListener('click', goNext);
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
-    $('skip').addEventListener('click', function () { if (S.pos) S.seen.add(S.pos.id); store.set(SEEN_KEY, Array.from(S.seen)); nextPosition(); });
+    $('skip').addEventListener('click', function () { if (S.pos) S.seen.add(S.pos.id); store.set(SEEN_KEY, Array.from(S.seen)); goNext(); });
     $('resetStats').addEventListener('click', function () {
       S.history = []; S.seen = new Set(); store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); renderStats(); updateEstimate(); if (S.data) applyFilters();
     });
@@ -653,7 +762,26 @@
       S.confirm = $('confirmToggle').checked; store.set(CONFIRM_KEY, S.confirm);
       if (!S.confirm && S.pending) { S.pending = null; refresh(); }
     });
-    $('themeToggle').addEventListener('click', function () { window.GTM_THEME.toggle(); updateThemeButton(); });
+    $('themeToggle').addEventListener('click', function () { window.GTM_THEME.toggle(); updateThemeButton(); sfx('tick'); });
+    $('soundToggle').addEventListener('click', function () {
+      if (snd) { snd.setEnabled(!snd.isEnabled()); store.set(SOUND_KEY, snd.isEnabled()); }
+      updateSoundButton(); sfx('tick');
+    });
+    $('timerToggle').addEventListener('change', function () { S.showTimer = $('timerToggle').checked; store.set(TIMER_KEY, S.showTimer); $('timer').hidden = !S.showTimer; });
+    $('statsBtn').addEventListener('click', openStatsView);
+    $('openStats').addEventListener('click', openStatsView);
+    $('statsBack').addEventListener('click', closeStatsView);
+    $('exportBtn').addEventListener('click', exportStats);
+    $('importBtn').addEventListener('click', function () { $('importFile').click(); });
+    $('importFile').addEventListener('change', function () {
+      var f = $('importFile').files && $('importFile').files[0];
+      if (f) importStats(f);
+      $('importFile').value = ''; // the same file can be chosen again
+    });
+    window.addEventListener('resize', function () { if (statsIsOpen()) drawStats(); });
+    window.addEventListener('hashchange', function () { showStats(window.location.hash === '#stats'); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) timerPause(); else timerResume(); });
+    window.setInterval(function () { if (timer.since !== null) renderTimer(); }, 250);
     $('analyseBtn').addEventListener('click', analyseCustom);
     $('estimateBtn').addEventListener('click', estimateLevel);
     $('menuBtn').addEventListener('click', function () { if (menuIsOpen()) closeMenu(); else openMenu(); });

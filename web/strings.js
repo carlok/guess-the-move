@@ -96,6 +96,60 @@
       }
     },
     settings: { confirm: 'Confirm moves before revealing', confirmHelp: 'Useful on touch screens, where a slip of the finger would reveal the answer.' },
+    backup: {
+      exported: function (n) { return 'Downloaded ' + n + ' guesses. Keep the file; "Load stats from a file" brings them back, here or in another browser.'; },
+      imported: function (added, dups, skipped) {
+        return 'Loaded ' + added + ' new guesses' + (dups ? ', ' + dups + ' were already here' : '') + (skipped ? ', ' + skipped + ' entries in the file were not usable and were skipped' : '') + '.';
+      },
+      errors: {
+        size: 'That file is too large to be a stats file.', json: 'That file is not valid JSON.',
+        app: 'That file is not a Guess the Move stats file.', format: 'That stats file is from a version this page does not understand.',
+        empty: 'That stats file has no guess history.', read: 'The file could not be read.'
+      }
+    },
+    timer: { label: 'Time on this position', show: 'Show the timer', showHelp: 'Your time is still recorded for the stats when the timer is hidden.' },
+    sound: { off: 'Turn sounds on', on: 'Mute sounds', setting: 'Sounds' },
+    statsView: {
+      title: 'Your stats', open: 'Open the full stats', back: 'Back to the board', btn: 'Your stats',
+      empty: 'Play a few positions and your charts appear here. Everything stays in this browser.',
+      need: function (n, mode) { return 'Needs at least ' + n + ' guesses in "' + mode + '" mode.'; },
+      modes: { best: 'Find the best move', predict: 'Predict the real move' },
+      kpi: { guesses: 'Guesses', quality: 'Mean move quality', closeness: 'Mean closeness', found: 'Found a best move', real: 'Matched the real move', maia: 'Matched Maia', time: 'Median time' },
+      quality: {
+        title: 'Move quality over time',
+        caption: function (n, k, a, b) { return n + ' guesses. Your first ' + k + ' averaged ' + a + ', your last ' + k + ' averaged ' + b + '. The line is a 10-guess moving average.'; },
+        alt: function (n) { return 'Move quality, 0 to 100, for each of your last ' + n + ' guesses, with a moving average.'; }
+      },
+      closeness: {
+        title: 'Closeness to the real move over time',
+        caption: function (n, k, a, b) { return n + ' guesses. Your first ' + k + ' averaged ' + a + ', your last ' + k + ' averaged ' + b + '.'; },
+        alt: function (n) { return 'Closeness to the real move, 0 to 100, for each of your last ' + n + ' guesses, with a moving average.'; }
+      },
+      cost: {
+        title: 'How much each guess gave up',
+        caption: function (pct) { return pct + '% of your guesses gave up less than 2 win-% points compared with the best move.'; },
+        buckets: ['About the best', 'Under 2 points', '2 to 5', '5 to 10', '10 to 20', '20 or more'],
+        alt: 'Number of guesses by how many win-percentage points they gave up against the best move.'
+      },
+      phases: { opening: 'Opening', middlegame: 'Middlegame', endgame: 'Endgame' },
+      phase: {
+        title: 'Move quality by phase',
+        caption: function (best, worst) { return 'Your best phase is the ' + best.toLowerCase() + ', your weakest the ' + worst.toLowerCase() + '.'; },
+        single: 'Play positions from other phases to compare them.',
+        alt: 'Mean move quality in each game phase.'
+      },
+      agree: {
+        title: 'Who you agree with', best: 'Stockfish', real: 'The real player', maia: 'Maia',
+        caption: 'How often your move was the same as each reference.',
+        alt: 'Share of your guesses that matched Stockfish, the real player and Maia.'
+      },
+      time: {
+        title: 'Time and quality',
+        caption: 'Each dot is a guess: time spent against move quality.',
+        split: function (at, fast, slow) { return 'Guesses taking ' + at + ' or less averaged ' + fast + '; slower ones averaged ' + slow + '.'; },
+        alt: function (n) { return 'Time spent against move quality for ' + n + ' guesses.'; }
+      }
+    },
     menu: { open: 'Menu: how it works, about the data, credits' , close: 'Close the menu' },
     about: {
       loading: 'Loading…',

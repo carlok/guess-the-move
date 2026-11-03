@@ -36,8 +36,23 @@ for (const theme of ['light', 'dark']) {
     await page.locator('#confirm').click();
     await expect(page.locator('#result')).toBeVisible();
     await scan(page, `${theme} reveal`);
-    await page.locator('summary', { hasText: 'Session stats' }).click();
+    await page.locator('summary', { hasText: 'Your stats' }).click();
     await scan(page, `${theme} reveal+stats`);
+  });
+}
+
+for (const theme of ['light', 'dark']) {
+  test(`axe: ${theme} theme, the stats view with charts and the empty stats view`, async ({ page }) => {
+    const history = Array.from({ length: 30 }, (_, i) => ({ id: 'p' + i, mode: i % 5 === 4 ? 'predict' : 'best', phase: ['opening', 'middlegame', 'endgame'][i % 3], tags: [], cost: (i * 3) % 25, score: 35 + ((i * 17) % 60), mb: i % 3 === 0, mr: i % 2 === 0, mm: i % 4 === 0, t: 1_700_000_000_000 + i * 60_000, dur: 6 + ((i * 7) % 50) }));
+    await preset(page, { theme, store: { history } });
+    await serveDataset(page, [ROOK]);
+    await page.goto('/#stats');
+    await expect(page.locator('#statsBody svg.chart')).toHaveCount(6);
+    await scan(page, `${theme} stats`);
+    await page.evaluate(() => { localStorage.removeItem('gtm.v1.history'); });
+    await page.reload();
+    await expect(page.locator('#statsBody .empty')).toBeVisible();
+    await scan(page, `${theme} stats empty`);
   });
 }
 

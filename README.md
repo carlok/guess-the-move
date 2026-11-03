@@ -24,6 +24,14 @@ Move a piece by **tapping it and then its destination**, by **dragging it**, or 
 
 A move reveals the answer and cannot be taken back, so on touch screens the app asks you to **confirm** first: a chosen move is only drawn as a pending arrow until you press "Confirm move" (change your mind by choosing another, or press Escape). That is on by default when the device reports a coarse pointer, off for a mouse, and it is a toggle in the panel (kept in `localStorage`). An undo window was considered and rejected because the reveal itself is the commit.
 
+### Timer, sounds, stats
+
+- **Timer** (m:ss): counts up while a position is open, pauses when you leave the tab or open the menu or stats page, restarts with every position, freezes at the reveal. Each guess records its time. It can be hidden in the settings (the time is still recorded).
+- **Sounds**: select, move, capture (also en passant), a chime for the best move, a neutral pair, a low tone for a poor one, plus small ticks for menus and buttons. They are synthesised in the browser (`web/sound.js`, Web Audio), no audio files. The speaker button in the top bar mutes them; the choice is remembered. Browsers only allow sound after a first click or key press, so nothing plays at load.
+- **Stats page** (chart icon, or `#stats`): tiles and SVG charts drawn from your history: quality over time with a moving average, closeness over time, how much each guess gave up, quality by phase, agreement with Stockfish / the real player / Maia, and time against quality. Each chart has a sentence saying what it shows.
+- **Where it is stored**: `localStorage` in your browser only (keys `gtm.v1.history`, the last 500 guesses, and `gtm.v1.seen`), never sent anywhere. Clearing site data, a private window or another browser or device starts empty.
+- **Download and load**: the stats page has "Download my stats" (plain JSON: `{app, format, exported, dataset, history, seen}`) and "Load stats from a file", which *merges* into what is there (a guess is identified by position and time, so loading the same file twice adds nothing) and validates every entry, since the file is untrusted input. Plain JSON rather than JSONC: any tool reads it, and comments would not survive a load.
+
 ## Tests
 
 ```bash

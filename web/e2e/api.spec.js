@@ -49,7 +49,7 @@ test.describe('with a real api', () => {
   test('estimate my level after five best-move guesses', async ({ page }) => {
     test.setTimeout(90000);
     await page.goto('/');
-    await page.locator('summary', { hasText: 'Session stats' }).click(); // the estimate lives under the stats
+    await page.locator('summary', { hasText: 'Your stats' }).click(); // the estimate lives under the stats
     await expect(page.locator('#estimateBtn')).toBeVisible();
     await expect(page.locator('#estimateBtn')).toBeDisabled();
     for (let i = 0; i < 5; i++) {
@@ -61,7 +61,7 @@ test.describe('with a real api', () => {
       await expect(page.locator('#result')).toBeVisible();
       await page.unroute('**/data/positions.json');
     }
-    await page.locator('summary', { hasText: 'Session stats' }).click();
+    await page.locator('summary', { hasText: 'Your stats' }).click();
     await expect(page.locator('#estimateBtn')).toBeEnabled();
     await page.locator('#estimateBtn').click();
     await expect(page.locator('#estimate')).toContainText(/About \d{4} \(80% range \d{4} to \d{4}\).*Lichess-equivalent/, { timeout: 60000 });

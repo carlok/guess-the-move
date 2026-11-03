@@ -66,6 +66,30 @@ async function playBest(page, pos) {
       await ctx.close();
     }
 
+    // The stats view, seeded with a synthetic history (so the charts have something to show), light and dark, and the top bar.
+    const history = Array.from({ length: 60 }, (_, i) => ({
+      id: 'p' + i, mode: i % 6 === 5 ? 'predict' : 'best', phase: ['opening', 'middlegame', 'endgame'][i % 3], tags: [],
+      cost: Math.max(0, 22 - i * 0.25 + ((i * 7) % 13)), score: Math.min(100, 38 + i * 0.7 + ((i * 17) % 25)),
+      mb: i % 3 === 0, mr: i % 2 === 0, mm: i % 4 === 0, t: 1_700_000_000_000 + i * 90_000, dur: 6 + ((i * 7) % 70)
+    }));
+    for (const vp of VIEWPORTS) {
+      for (const theme of ['light', 'dark']) {
+        const ctx = await browser.newContext({ baseURL: process.env.PW_BASE, ...vp });
+        const page = await ctx.newPage();
+        await page.addInitScript(({ theme, history }) => {
+          localStorage.setItem('gtm.v1.onboarded', 'true'); localStorage.setItem('gtm.v1.theme', JSON.stringify(theme));
+          localStorage.setItem('gtm.v1.history', JSON.stringify(history));
+        }, { theme, history });
+        await page.goto('/');
+        await page.locator('[data-sq]').first().waitFor();
+        if (theme === 'light') await page.screenshot({ path: `${OUT}/after-${vp.name}-topbar.png`, clip: { x: 0, y: 0, width: vp.viewport.width, height: 90 } });
+        await page.goto('/#stats');
+        await page.locator('#statsBody svg.chart').first().waitFor();
+        await page.screenshot({ path: `${OUT}/after-${vp.name}-stats-${theme}.png`, fullPage: true });
+        await ctx.close();
+      }
+    }
+
     // Drag frame sequence on desktop: pressed, mid-flight over a legal square, dropped.
     {
       const base = { baseURL: process.env.PW_BASE, ...VIEWPORTS[0] };

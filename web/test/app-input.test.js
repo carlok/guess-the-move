@@ -28,9 +28,13 @@ const BLACK = {
 const dataOf = (...positions) => ({ schema: 1, meta: { demo: false }, positions });
 const tick = () => new Promise((r) => setTimeout(r, 25));
 
-async function boot(data, { confirm, onboarded = true, theme, media = {}, fetchImpl, online } = {}) {
+async function boot(data, { confirm, onboarded = true, theme, media = {}, fetchImpl, online, audio, clock, hash, ls = {} } = {}) {
   const dom = newDom();
   const w = dom.window;
+  Object.keys(ls).forEach((k) => w.localStorage.setItem('gtm.v1.' + k, JSON.stringify(ls[k])));
+  if (audio) w.AudioContext = audio;
+  if (clock) w.Date.now = () => clock.t;
+  if (hash) w.location.hash = hash;
   if (onboarded) w.localStorage.setItem('gtm.v1.onboarded', 'true');
   if (confirm !== undefined) w.localStorage.setItem('gtm.v1.confirm', JSON.stringify(confirm));
   if (theme) w.localStorage.setItem('gtm.v1.theme', JSON.stringify(theme));
@@ -476,4 +480,306 @@ test('"The data" shows its loading line before the dataset arrives, then fills i
   assert.equal($(w, 'aboutData').textContent, 'Loading…');
   release(); await tick();
   assert.match($(w, 'aboutData').textContent, /1 positions from real Lichess games/);
+});
+
+/* ---------- sounds ---------- */
+
+function fakeAudio() {
+  const log = [];
+  class Ctx {
+    constructor() { this.currentTime = 2; this.sampleRate = 8000; this.state = 'running'; this.destination = {}; }
+    createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+    createOscillator() { return { type: '', frequency: { setValueAtTime(f) { log.push('f' + f); }, exponentialRampToValueAtTime(f) { log.push('glide' + f); } }, connect() {}, start() {}, stop() {} }; }
+    createBuffer(c, n) { return { getChannelData: () => new Float32Array(n) }; }
+    createBufferSource() { return { connect() {}, start() {}, stop() {} }; }
+    createBiquadFilter() { return { type: '', frequency: { value: 0 }, connect() {} }; }
+  }
+  return { Ctx, log };
+}
+const CAPTURE = {
+  ...ROOK, id: 'cap', fen: 'r3k3/8/8/8/8/8/8/R3K3 w - - 0 1', evals: { a1a8: 500, a1a2: 0 }, san: { a1a8: 'Rxa8+', a1a2: 'Ra2' }, real: 'a1a2', maia: null
+};
+const EP = { ...ROOK, id: 'ep', fen: '4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1', evals: { e5d6: 100, e5e6: 0 }, san: { e5d6: 'exd6', e5e6: 'e6' }, real: 'e5e6', maia: null };
+const sq = (w, name) => w.document.querySelector(`[data-sq="${name}"]`);
+
+test('selecting a piece clicks, a plain move thuds and a best move chimes; nothing sounds before the first action', async () => {
+  const { Ctx, log } = fakeAudio();
+  const w = await boot(dataOf(ROOK), { audio: Ctx });
+  assert.deepEqual(log, [], 'no audio activity at load');
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(log.includes('f620'), 'select');
+  log.length = 0;
+  sq(w, 'a8').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(log.includes('glide120') && !log.includes('glide80'), 'a move, not a capture');
+  assert.ok(log.includes('f784'), 'the best move gets the rising chime');
+});
+
+test('a capture and en passant sound heavier; a poor move ends on the low tone; a middling one on the neutral pair', async () => {
+  const cap = fakeAudio();
+  let w = await boot(dataOf(CAPTURE), { audio: cap.Ctx });
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'a8').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(cap.log.includes('glide80'), 'capture');
+  const ep = fakeAudio();
+  w = await boot(dataOf(EP), { audio: ep.Ctx });
+  sq(w, 'e5').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'd6').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(ep.log.includes('glide80'), 'en passant is a capture');
+  const bad = fakeAudio();
+  w = await boot(dataOf(ROOK), { audio: bad.Ctx });
+  sq(w, 'g1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'f1').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(bad.log.includes('glide196'), 'a move that gives up the game');
+  const fine = fakeAudio();
+  w = await boot(dataOf(ROOK), { audio: fine.Ctx });
+  sq(w, 'g1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'g2').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(fine.log.includes('f587') && !fine.log.includes('f784'), 'the real move is neither best nor bad');
+});
+
+test('predict mode: the real move chimes, a distant guess does not', async () => {
+  const a = fakeAudio();
+  let w = await boot(dataOf(ROOK), { audio: a.Ctx });
+  w.document.querySelector('input[value=predict]').click();
+  sq(w, 'g1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'g2').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(a.log.includes('f784'));
+  const b = fakeAudio();
+  w = await boot(dataOf(ROOK), { audio: b.Ctx });
+  w.document.querySelector('input[value=predict]').click();
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'a8').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(!b.log.includes('f784'));
+});
+
+test('other actions have sounds: a stray click is an error tick, deselecting, confirm-pending, skip/next, theme and menu', async () => {
+  const { Ctx, log } = fakeAudio();
+  const w = await boot(dataOf(ROOK, CAPTURE), { audio: Ctx, confirm: true });
+  const heard = (fn) => { log.length = 0; fn(); return log.slice(); };
+  assert.ok(heard(() => sq(w, 'e5').dispatchEvent(new w.MouseEvent('click', { bubbles: true }))).includes('f150'), 'error on an empty square');
+  const first = { from: 'a1', to: 'a8' }; // both fixtures: White to move, rook on a1
+  sq(w, first.from).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(heard(() => sq(w, first.from).dispatchEvent(new w.MouseEvent('click', { bubbles: true }))).includes('f420'), 'deselect');
+  sq(w, first.from).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.ok(heard(() => sq(w, first.to).dispatchEvent(new w.MouseEvent('click', { bubbles: true }))).includes('f880'), 'a pending move ticks');
+  assert.ok(heard(() => docKey(w, 'Escape')).includes('f420'), 'Escape cancels with the deselect sound');
+  assert.ok(heard(() => click(w, 'skip')).includes('f500'), 'skip');
+  assert.ok(heard(() => click(w, 'themeToggle')).includes('f880'), 'theme');
+  assert.ok(heard(() => click(w, 'menuBtn')).includes('f880'), 'menu opens');
+});
+
+test('the speaker button mutes and unmutes, remembers it, and a muted page stays silent', async () => {
+  const { Ctx, log } = fakeAudio();
+  const w = await boot(dataOf(ROOK), { audio: Ctx });
+  assert.match($(w, 'soundToggle').getAttribute('aria-label'), /Mute/);
+  assert.equal($(w, 'soundToggle').getAttribute('data-state'), 'on');
+  click(w, 'soundToggle');
+  assert.match($(w, 'soundToggle').getAttribute('aria-label'), /on$/);
+  assert.equal($(w, 'soundToggle').getAttribute('data-state'), 'off');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.sound')), false);
+  log.length = 0;
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.deepEqual(log, [], 'muted');
+  click(w, 'soundToggle');
+  assert.ok(log.includes('f880'), 'turning sound on confirms with a tick');
+  const quiet = fakeAudio();
+  const w2 = await boot(dataOf(ROOK), { audio: quiet.Ctx, ls: { sound: false } });
+  assert.equal($(w2, 'soundToggle').getAttribute('data-state'), 'off');
+  sq(w2, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.deepEqual(quiet.log, []);
+});
+
+test('without Web Audio the page works and the speaker button still toggles its state', async () => {
+  const w = await boot(dataOf(ROOK));
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'a8').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal($(w, 'result').hidden, false);
+  click(w, 'soundToggle');
+  assert.equal($(w, 'soundToggle').getAttribute('data-state'), 'off');
+});
+
+/* ---------- timer ---------- */
+
+test('the timer counts up from 0:00, restarts with each position and freezes at the reveal; the guess records its time', async () => {
+  const clock = { t: 1_000_000 };
+  const w = await boot(dataOf(ROOK, CAPTURE), { clock });
+  const tickTimer = () => w.__intervals[0]();
+  assert.equal($(w, 'timer').hidden, false);
+  assert.equal($(w, 'timer').textContent, '0:00');
+  clock.t += 65_400; tickTimer();
+  assert.equal($(w, 'timer').textContent, '1:05');
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'a8').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  clock.t += 30_000; tickTimer();
+  assert.equal($(w, 'timer').textContent, '1:05', 'frozen at the reveal');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.history'))[0].dur, 65);
+  click(w, 'next');
+  assert.equal($(w, 'timer').textContent, '0:00', 'a new position starts again');
+  clock.t += 3_000; tickTimer();
+  assert.equal($(w, 'timer').textContent, '0:03');
+});
+
+test('the timer pauses while the menu or the stats view is open and when the tab is hidden', async () => {
+  const clock = { t: 0 };
+  const w = await boot(dataOf(ROOK), { clock });
+  clock.t += 10_000;
+  click(w, 'menuBtn'); clock.t += 100_000; click(w, 'menuClose');
+  clock.t += 5_000;
+  click(w, 'statsBtn'); clock.t += 100_000; click(w, 'statsBack'); await tick();
+  clock.t += 2_000;
+  const hide = (v) => { Object.defineProperty(w.document, 'hidden', { value: v, configurable: true }); w.document.dispatchEvent(new w.Event('visibilitychange')); };
+  hide(true); clock.t += 100_000; hide(false);
+  clock.t += 3_000;
+  w.__intervals[0]();
+  assert.equal($(w, 'timer').textContent, '0:20', '10 + 5 + 2 + 3 seconds, none of the waiting counted');
+});
+
+test('the timer can be hidden in the settings (the time is still recorded) and the choice is remembered', async () => {
+  const clock = { t: 0 };
+  const w = await boot(dataOf(ROOK), { clock });
+  $(w, 'timerToggle').checked = false;
+  $(w, 'timerToggle').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.equal($(w, 'timer').hidden, true);
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.timer')), false);
+  clock.t += 8_000;
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'a8').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.history'))[0].dur, 8);
+  const again = await boot(dataOf(ROOK), { ls: { timer: false } });
+  assert.equal($(again, 'timer').hidden, true); assert.equal($(again, 'timerToggle').checked, false);
+});
+
+test('with no position to show the timer rests at 0:00', async () => {
+  const clock = { t: 0 };
+  const w = await boot(dataOf(ROOK), { clock });
+  clock.t += 9_000;
+  $(w, 'phase').value = 'opening'; $(w, 'phase').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.equal($(w, 'timer').textContent, '0:00');
+  clock.t += 9_000; w.__intervals[0]();
+  assert.equal($(w, 'timer').textContent, '0:00');
+});
+
+/* ---------- the stats view ---------- */
+
+const guess = (i, over = {}) => ({ id: 'p' + i, mode: 'best', phase: 'opening', tags: [], cost: i % 7, score: 50 + (i % 5) * 10, mb: i % 3 === 0, mr: i % 2 === 0, mm: i % 4 === 0, t: 1000 + i, dur: 10 + i, ...over });
+const many = (n) => Array.from({ length: n }, (_, i) => guess(i));
+
+test('the stats view is a page of its own: it hides the board, draws charts from the stored history, and Back returns', async () => {
+  const w = await boot(dataOf(ROOK), { ls: { history: many(12) } });
+  assert.equal($(w, 'statsView').hidden, true);
+  click(w, 'statsBtn');
+  assert.equal($(w, 'statsView').hidden, false);
+  assert.equal($(w, 'gameMain').hidden, true); assert.equal(w.document.querySelector('footer').hidden, true);
+  assert.equal(w.document.activeElement, $(w, 'statsTitle'));
+  assert.equal(w.location.hash, '#stats');
+  assert.ok($(w, 'statsBody').querySelectorAll('svg.chart').length >= 5);
+  assert.equal($(w, 'statsBody').querySelector('.kpi dd').textContent, '12');
+  click(w, 'statsBack'); await tick();
+  assert.equal($(w, 'statsView').hidden, true);
+  assert.equal($(w, 'gameMain').hidden, false);
+  assert.equal(w.location.hash, '');
+  assert.equal(w.document.activeElement, $(w, 'statsBtn'));
+});
+
+test('Escape leaves the stats view; board keys do nothing there; the browser Back button works too', async () => {
+  const w = await boot(dataOf(ROOK));
+  click(w, 'openStats');
+  assert.equal($(w, 'statsView').hidden, false);
+  assert.match($(w, 'statsBody').textContent, /Play a few positions/);
+  docKey(w, 'x');
+  assert.equal($(w, 'statsView').hidden, false);
+  docKey(w, 'Escape'); await tick();
+  assert.equal($(w, 'statsView').hidden, true);
+  click(w, 'statsBtn');
+  w.history.back(); await tick();
+  assert.equal($(w, 'statsView').hidden, true, 'hashchange closes it');
+});
+
+test('#stats opens the view straight away, and closing it then leaves the URL clean', async () => {
+  const w = await boot(dataOf(ROOK), { hash: '#stats', ls: { history: many(3) } });
+  assert.equal($(w, 'statsView').hidden, false);
+  assert.equal($(w, 'statsBody').querySelectorAll('.kpi').length, 7);
+  click(w, 'statsBack');
+  assert.equal($(w, 'statsView').hidden, true);
+  assert.equal(w.location.hash, '');
+});
+
+test('resetting the stats clears the history and the played list; the view then shows the empty message', async () => {
+  const w = await boot(dataOf(ROOK), { ls: { history: many(4), seen: ['p1'] } });
+  click(w, 'resetStats');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.history')).length, 0);
+  click(w, 'statsBtn');
+  assert.match($(w, 'statsBody').textContent, /Play a few positions/);
+});
+
+/* ---------- download and load ---------- */
+
+function spyDownload(w) {
+  const got = { files: [], text: null };
+  const RealBlob = w.Blob;
+  w.Blob = function (parts, o) { got.text = parts.join(''); return new RealBlob(parts, o); };
+  w.URL.createObjectURL = () => 'blob:stats';
+  w.URL.revokeObjectURL = () => { got.revoked = true; };
+  w.HTMLAnchorElement.prototype.click = function () { got.files.push({ href: this.href, name: this.download }); };
+  return got;
+}
+async function loadFile(w, text, name = 'stats.json') {
+  const input = $(w, 'importFile');
+  Object.defineProperty(input, 'files', { value: [new w.File([text], name)], configurable: true });
+  input.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 40));
+}
+
+test('"Download my stats" saves a dated .json with the history and the played list', async () => {
+  const clock = { t: Date.UTC(2026, 10, 4, 9, 0, 0) };
+  const w = await boot(dataOf(ROOK), { clock, ls: { history: many(3), seen: ['p0', 'p1'] } });
+  const got = spyDownload(w);
+  click(w, 'statsBtn'); click(w, 'exportBtn');
+  await tick();
+  assert.deepEqual(got.files, [{ href: 'blob:stats', name: 'guess-the-move-stats-2026-11-04.json' }]);
+  const body = JSON.parse(got.text);
+  assert.equal(body.app, 'guess-the-move'); assert.equal(body.format, 1);
+  assert.equal(body.history.length, 3); assert.deepEqual(body.seen, ['p0', 'p1']);
+  assert.equal(got.revoked, true);
+  assert.match($(w, 'backupMsg').textContent, /Downloaded 3 guesses/);
+});
+
+test('"Load stats from a file" merges what is in the file with what is here, and says what happened', async () => {
+  const w = await boot(dataOf(ROOK), { ls: { history: many(3), seen: ['p0'] } });
+  click(w, 'statsBtn');
+  const file = { app: 'guess-the-move', format: 1, history: [...many(5), { junk: true }], seen: ['p0', 'z9'] };
+  $(w, 'importBtn').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await loadFile(w, JSON.stringify(file));
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.history')).length, 5, '3 already here + 2 new');
+  assert.deepEqual(JSON.parse(w.localStorage.getItem('gtm.v1.seen')).sort(), ['p0', 'z9']);
+  assert.match($(w, 'backupMsg').textContent, /Loaded 2 new guesses, 3 were already here, 1 entries in the file were not usable/);
+  assert.equal($(w, 'statsBody').querySelector('.kpi dd').textContent, '5', 'the charts are redrawn');
+  assert.match($(w, 'stats').textContent, /5/, 'and so is the small summary');
+});
+
+test('a file that is not a stats file changes nothing and is explained', async () => {
+  const w = await boot(dataOf(ROOK), { ls: { history: many(2) } });
+  const msg = async (text) => { await loadFile(w, text); return $(w, 'backupMsg').textContent; };
+  assert.match(await msg('{oops'), /not valid JSON/);
+  assert.match(await msg('{"app":"other"}'), /not a Guess the Move stats file/);
+  assert.match(await msg('{"app":"guess-the-move","format":9,"history":[]}'), /version this page does not understand/);
+  assert.match(await msg('{"app":"guess-the-move","format":1}'), /no guess history/);
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.history')).length, 2);
+});
+
+test('an unreadable file is reported, and a cancelled file dialog does nothing', async () => {
+  const w = await boot(dataOf(ROOK));
+  const RealReader = w.FileReader;
+  w.FileReader = function () { const r = new RealReader(); r.readAsText = function () { setTimeout(() => this.onerror && this.onerror(new w.Event('error')), 0); }; return r; };
+  await loadFile(w, '{}');
+  assert.match($(w, 'backupMsg').textContent, /could not be read/);
+  Object.defineProperty($(w, 'importFile'), 'files', { value: [], configurable: true });
+  $(w, 'importFile').dispatchEvent(new w.Event('change', { bubbles: true }));
+  await tick();
+  assert.match($(w, 'backupMsg').textContent, /could not be read/, 'unchanged');
+});
+
+test('the charts are drawn at the width of the page and redrawn when the window is resized', async () => {
+  const w = await boot(dataOf(ROOK), { ls: { history: many(12) } });
+  Object.defineProperty($(w, 'statsBody'), 'clientWidth', { value: 360, configurable: true });
+  click(w, 'statsBtn');
+  assert.match($(w, 'statsBody').innerHTML, /viewBox="0 0 360 /);
+  Object.defineProperty($(w, 'statsBody'), 'clientWidth', { value: 520, configurable: true });
+  w.dispatchEvent(new w.Event('resize'));
+  assert.match($(w, 'statsBody').innerHTML, /viewBox="0 0 520 /);
+  click(w, 'statsBack'); await tick();
+  Object.defineProperty($(w, 'statsBody'), 'clientWidth', { value: 400, configurable: true });
+  w.dispatchEvent(new w.Event('resize'));
+  assert.match($(w, 'statsBody').innerHTML, /viewBox="0 0 520 /, 'not redrawn while the view is closed');
 });
