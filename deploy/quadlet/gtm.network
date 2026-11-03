@@ -1,0 +1,3 @@
+# Private network shared by the web and api containers (nothing else needs to reach the api).
+[Network]
+NetworkName=gtm

@@ -466,12 +466,14 @@ def test_more_posterior_validation():
 
 
 def test_the_lifespan_closes_the_backends():
-    from starlette.testclient import TestClient
-
     closed = []
     app = create_app(EnginePool([Spy()]), None, on_close=lambda: closed.append(1))
-    with TestClient(app) as c:
-        assert c.get("/healthz").status_code == 200
+
+    async def go():
+        async with app.router.lifespan_context(app):
+            assert closed == []
+
+    asyncio.run(go())
     assert closed == [1]
 
 

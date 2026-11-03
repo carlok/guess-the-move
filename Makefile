@@ -2,12 +2,15 @@
 PODMAN      ?= podman
 WEB_IMG     ?= localhost/gtm-web:dev
 BUILDER_IMG ?= localhost/gtm-builder:dev
+API_IMG     ?= localhost/gtm-api:dev
+NET         ?= gtm
+MODELS      ?= gtm-models
 PORT        ?= 8080
 IN          ?= $(CURDIR)/data
 OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
-.PHONY: help test coverage mutation e2e lighthouse web-image builder-image run stop dataset
+.PHONY: help test coverage mutation e2e lighthouse web-image builder-image api-image api-weights run run-api stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
@@ -16,6 +19,8 @@ help:
 	@echo "make e2e             browser tests in Chrome; GTM_BASE_URL=http://127.0.0.1:8080 targets a running container"
 	@echo "make web-image       build $(WEB_IMG)"
 	@echo "make run             serve on http://127.0.0.1:$(PORT) (mounts web/data)"
+	@echo "make api-image      build $(API_IMG)   (add WITH_MAIA=1 for Maia-2; then 'make api-weights' once)"
+	@echo "make run-api         start the api next to the web container (same network, no published port)"
 	@echo "make stop"
 	@echo "make builder-image   build $(BUILDER_IMG)   (add WITH_MAIA=1 for Maia-2)"
 	@echo "make dataset PGN=/in/games.pgn.zst ARGS='--min-elo 1200 --max-elo 2000 --maia none'"
@@ -54,14 +59,31 @@ builder-image:
 	$(PODMAN) build --build-arg WITH_MAIA=$(or $(WITH_MAIA),0) -t $(BUILDER_IMG) -f containers/builder/Containerfile .
 
 run: web-image
-	$(PODMAN) run --rm -d --name gtm-web -p 127.0.0.1:$(PORT):8080 \
-	  --read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges \
+	-$(PODMAN) network create $(NET)
+	$(PODMAN) run --rm -d --name gtm-web --network $(NET) -p 127.0.0.1:$(PORT):8080 \
+	  --read-only --tmpfs /tmp --tmpfs /etc/nginx/conf.d:rw,uid=101,gid=101,mode=755 --cap-drop=all --security-opt no-new-privileges \
 	  --health-cmd "wget -q -O /dev/null http://127.0.0.1:8080/healthz" --health-interval 30s --health-timeout 3s \
 	  -v $(OUT):/usr/share/nginx/html/data:ro,Z $(WEB_IMG)
 	@echo "http://127.0.0.1:$(PORT)"
 
+api-image:
+	$(PODMAN) build --build-arg WITH_MAIA=$(or $(WITH_MAIA),0) --build-arg MAIA_MODE=$(if $(filter 1,$(WITH_MAIA)),maia2,none) -t $(API_IMG) -f containers/api/Containerfile .
+
+# One-off: download Maia-2's weights (about 280 MB, from Google Drive) into the named volume the api reads.
+api-weights:
+	$(PODMAN) run --rm --user 10001 -v $(MODELS):/models $(API_IMG) python -c "from maia2 import model; model.from_pretrained('rapid', 'cpu', '/models')"
+
+# The api is never published to the host: only the web container reaches it, over the $(NET) network, at /api/.
+run-api: api-image
+	-$(PODMAN) network create $(NET)
+	$(PODMAN) run --rm -d --name gtm-api --network $(NET) --network-alias api \
+	  --read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges --cpus 2 --memory 2g \
+	  -e GTM_API_TRUST_PROXY=1 -v $(MODELS):/models \
+	  --health-cmd "python -c \"import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz')\"" --health-interval 30s --health-timeout 5s \
+	  $(API_IMG)
+
 stop:
-	-$(PODMAN) stop gtm-web
+	-$(PODMAN) stop gtm-web gtm-api
 
 dataset: builder-image
 	@test -n "$(PGN)" || { echo "usage: make dataset PGN=/in/file.pgn.zst|URL [ARGS='...']"; exit 2; }

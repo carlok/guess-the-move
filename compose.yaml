@@ -19,6 +19,9 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /etc/nginx/conf.d:rw,uid=101,gid=101,mode=755   # the entrypoint renders the nginx template here
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
       interval: 30s
@@ -37,14 +40,48 @@ services:
       - ./data:/in:ro,Z
       - ./web/data:/out:Z
 
-  # ---- v2 (not implemented yet; see PROMPT.md "Service architecture") ----------------------------
-  # api:
-  #   build: { context: ., dockerfile: containers/api/Containerfile }
-  #   image: localhost/gtm-api:dev
-  #   environment:
-  #     VALKEY_URL: redis://valkey:6379     # Valkey speaks the Redis protocol
-  #   depends_on: [valkey]
-  #
-  # valkey:                                  # optional; only for shared/anonymous session state
-  #   image: docker.io/valkey/valkey:8-alpine   # verify the tag when enabling
-  #   command: ["valkey-server", "--save", "", "--appendonly", "no"]
+  # The api is optional: `podman compose --profile api up --build`. It is not published to the host; the web container
+  # reaches it at http://api:8000 and exposes it to the browser as /api/. Maia's weights live in the gtm-models volume
+  # (run `make api-weights` once); without them, set GTM_API_MAIA=none.
+  api:
+    profiles: ["api"]
+    build:
+      context: .
+      dockerfile: containers/api/Containerfile
+      args:
+        WITH_MAIA: "1"
+        MAIA_MODE: maia2
+    image: localhost/gtm-api:maia
+    environment:
+      GTM_API_TRUST_PROXY: "1"
+      GTM_API_ENGINES: "2"
+      VALKEY_URL: ""           # set to redis://valkey:6379 together with --profile cache
+    volumes:
+      - gtm-models:/models
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 2
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+    restart: unless-stopped
+
+  # Optional shared analysis cache (Valkey, BSD, speaks the Redis protocol). The api works without it.
+  valkey:
+    profiles: ["cache"]
+    image: docker.io/valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+
+volumes:
+  gtm-models:

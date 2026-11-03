@@ -3,7 +3,9 @@
 # Fully-qualified image name on purpose (podman has no default registry guarantee).
 FROM docker.io/nginxinc/nginx-unprivileged:alpine
 
-COPY containers/web/nginx.conf /etc/nginx/conf.d/default.conf
+# A template, not a ready config: the entrypoint renders it into /etc/nginx/conf.d at start (a tmpfs, so the root
+# filesystem can stay read-only) with the container's DNS resolver filled in, see the /api/ location.
+COPY containers/web/nginx.conf /etc/nginx/templates/default.conf.template
 COPY web/index.html web/style.css web/pieces.svg web/theme.js web/strings.js web/scoring.js web/board.js web/app.js /usr/share/nginx/html/
 # Demo dataset baked in so the image works on its own; compose/Quadlet bind-mount a real one over it.
 COPY web/data/ /usr/share/nginx/html/data/

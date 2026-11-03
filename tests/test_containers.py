@@ -20,7 +20,7 @@ def copy_sources(containerfile: str):
             yield from m.group(1).split()
 
 
-@pytest.mark.parametrize("name", ["web", "builder"])
+@pytest.mark.parametrize("name", ["web", "builder", "api"])
 def test_containerfile_is_sane(name):
     text = read(f"containers/{name}/Containerfile")
     assert not re.search(r"^HEALTHCHECK", text, flags=re.M), "podman builds OCI images, which ignore HEALTHCHECK; set it at run time"
@@ -69,14 +69,47 @@ def test_every_chip_class_has_a_colour():
 def test_compose_file():
     yaml = pytest.importorskip("yaml")
     doc = yaml.safe_load(read("compose.yaml"))
-    web, builder = doc["services"]["web"], doc["services"]["builder"]
+    web, builder, api = doc["services"]["web"], doc["services"]["builder"], doc["services"]["api"]
     assert builder["profiles"] == ["build"], "the builder must not start with `up`"
+    assert api["profiles"] == ["api"] and doc["services"]["valkey"]["profiles"] == ["cache"], "web alone is what `up` starts"
+    assert "ports" not in api and "ports" not in doc["services"]["valkey"], "the api and its cache are never published to the host"
+    assert api["read_only"] is True and api["cap_drop"] == ["ALL"] and api["mem_limit"] and api["cpus"], "container limits"
+    assert "/healthz" in " ".join(api["healthcheck"]["test"])
+    assert "depends_on" not in web, "the static path must not depend on the api"
     assert all(p.startswith("127.0.0.1:") for p in web["ports"]), "bind to loopback by default"
-    for svc in (web, builder):
+    for svc in (web, builder, api):
         assert (ROOT / svc["build"]["dockerfile"]).exists()
     assert web["read_only"] is True
     assert "/healthz" in " ".join(web["healthcheck"]["test"]), "health is defined at run time (OCI images ignore HEALTHCHECK)"
-    assert set(doc["services"]) == {"web", "builder"}, "api/valkey stay commented out until implemented"
+    assert set(doc["services"]) == {"web", "builder", "api", "valkey"}
+    assert "gtm-models" in doc["volumes"]
+
+
+def test_nginx_proxies_the_api_without_needing_it_at_start():
+    conf = read("containers/web/nginx.conf")
+    block = re.search(r"location /api/ \{(.*?)\n    \}", conf, flags=re.S).group(1)
+    assert "resolver ${NGINX_LOCAL_RESOLVERS}" in block and "set $api_upstream" in block and "proxy_pass $api_upstream;" in block, \
+        "a variable upstream, so a missing api host cannot stop nginx from starting"
+    assert "proxy_set_header X-Forwarded-For $remote_addr;" in block, "never append to a client-supplied value"
+    assert "proxy_set_header Host $http_host;" in block and "client_max_body_size" in block
+    assert "add_header" not in block
+    assert "templates/default.conf.template" in read("containers/web/Containerfile")
+
+
+def test_api_container_is_unprivileged_and_does_not_bake_in_weights():
+    text = read("containers/api/Containerfile")
+    assert re.search(r"^USER 10001", text, flags=re.M) and "\"--factory\"" in text and "api.main:build_app" in text
+    assert "--no-access-log" in text, "the app logs method, path and status itself; nothing else"
+    assert "from_pretrained" not in text, "the 280 MB weights belong in the /models volume"
+
+
+def test_api_quadlet_units_share_a_private_network_with_web():
+    web, api = read("deploy/quadlet/guess-the-move-web.container"), read("deploy/quadlet/guess-the-move-api.container")
+    assert "Network=gtm.network" in web and "Network=gtm.network" in api and "NetworkAlias=api" in api
+    assert "PublishPort" not in api, "the api is not published to the host"
+    for key in ("ReadOnly=true", "DropCapability=ALL", "NoNewPrivileges=true", "--memory"):
+        assert key in api
+    assert re.search(r"^NetworkName=gtm", read("deploy/quadlet/gtm.network"), flags=re.M)
 
 
 def test_quadlet_unit():

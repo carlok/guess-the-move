@@ -1,6 +1,6 @@
 # Rootless Quadlet unit (podman >= 4.4). Install:
 #   mkdir -p ~/.config/containers/systemd ~/guess-the-move-data
-#   cp deploy/quadlet/guess-the-move-web.container ~/.config/containers/systemd/
+#   cp deploy/quadlet/gtm.network deploy/quadlet/guess-the-move-web.container ~/.config/containers/systemd/
 #   cp web/data/positions.json ~/guess-the-move-data/        # or the output of the builder
 #   podman build -t localhost/gtm-web:latest -f containers/web/Containerfile .
 #   systemctl --user daemon-reload && systemctl --user start guess-the-move-web
@@ -17,6 +17,8 @@ PublishPort=127.0.0.1:8080:8080
 Volume=%h/guess-the-move-data:/usr/share/nginx/html/data:ro,Z
 ReadOnly=true
 Tmpfs=/tmp
+Tmpfs=/etc/nginx/conf.d:rw,uid=101,gid=101,mode=755
+Network=gtm.network
 NoNewPrivileges=true
 DropCapability=ALL
 HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/healthz

@@ -1,0 +1,31 @@
+# Optional api service (arbitrary FEN/PGN analysis, Elo posterior). Rootless Quadlet, podman >= 4.4. Install next to the web unit:
+#   cp deploy/quadlet/gtm.network deploy/quadlet/guess-the-move-api.container ~/.config/containers/systemd/
+#   make api-image WITH_MAIA=1 API_IMG=localhost/gtm-api:latest && make api-weights API_IMG=localhost/gtm-api:latest
+#   systemctl --user daemon-reload && systemctl --user start guess-the-move-api
+# The web unit reaches it at http://api:8000 over the gtm network; nothing is published to the host.
+[Unit]
+Description=Guess the Move (api)
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=localhost/gtm-api:latest
+ContainerName=gtm-api
+Network=gtm.network
+NetworkAlias=api
+Volume=gtm-models:/models
+Environment=GTM_API_TRUST_PROXY=1 GTM_API_MAIA=maia2 GTM_API_ENGINES=2
+ReadOnly=true
+Tmpfs=/tmp
+NoNewPrivileges=true
+DropCapability=ALL
+PodmanArgs=--cpus=2 --memory=2g
+HealthCmd=python -c "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz')"
+HealthInterval=30s
+HealthTimeout=5s
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
