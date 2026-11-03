@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Maia-3 (decided 2026-11-03, switch written but not run against the real model): `Maia3Backend`, `--maia maia3`, candidates carry up to seven earlier positions, estimator `FINE_GRID`, API/containers default to `maia3`. See `PROMPT.md` 14.1 for what is untested. The shipped dataset is still Maia-2.
 - `api` service (T6): `api/` (Starlette + uvicorn): `GET /healthz`, `POST /v1/analyse` (any FEN, Stockfish evaluations of every legal move, Maia at a given rating), `POST /v1/posterior` (level estimate). Validation, size/node/history/concurrency/time caps, per-client rate limit, same-origin only, no body logging, in-process LRU with optional Valkey. `containers/api`, compose profiles `api` and `cache`, Quadlet units and a private `gtm` network, nginx `/api/` through a variable upstream (web starts and works without the api; `/api/healthz` then answers 200 `unavailable`). The page feature-detects the api and offers "Analyse any position" and "Estimate my level". 53 API tests on fake backends, coverage gate includes `api/`.
 - Estimator (T5): `pipeline/estimator.py`, posterior over the 11 Maia-2 rating buckets with a floored likelihood and an 80% credible interval; `tools/estimator_eval.py` measures calibration on held-out real games.
 - Data (T2/T3): `--min-clock-seconds` (default 30) drops positions where the mover ended under the limit; sampling counts in dataset `meta`; `--maia-home`; Maia-2 backend no longer clamps ratings (maia2 buckets them itself); `tools/maia_probe.py`, `tools/inspect_dataset.py`.

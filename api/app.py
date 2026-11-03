@@ -86,6 +86,7 @@ def create_app(engine, maia, settings: Settings | None = None, cache=None, on_cl
     limiter = RateLimiter(st.rate_per_minute, st.rate_burst)
     state = {"inflight": 0}
     maia_name = maia.name if maia else None
+    grid = maia.grid if maia else GRID
 
     def client_of(request: Request) -> str:
         if st.trust_proxy:
@@ -203,13 +204,13 @@ def create_app(engine, maia, settings: Settings | None = None, cache=None, on_cl
             if move is None or move not in board.legal_moves:
                 raise invalid("a move in the history is not legal in its position", "illegal_move")
             items.append((board, move.uci(), opp))
-        prior = uniform_prior()
+        prior = uniform_prior(grid)
         if body.get("prior") is not None:
             raw = body["prior"]
-            if not isinstance(raw, dict) or set(raw) != {str(e) for e in GRID}:
-                raise invalid(f"prior must give a weight for each of {list(GRID)}")
+            if not isinstance(raw, dict) or set(raw) != {str(e) for e in grid}:
+                raise invalid(f"prior must give a weight for each of {list(grid)}")
             try:
-                weights = {e: float(raw[str(e)]) for e in GRID}
+                weights = {e: float(raw[str(e)]) for e in grid}
             except (TypeError, ValueError):
                 raise invalid("prior weights must be numbers") from None
             total = sum(weights.values())
@@ -220,12 +221,12 @@ def create_app(engine, maia, settings: Settings | None = None, cache=None, on_cl
         observations = []
         for board, move, opp in items:
             legal = {m.uci() for m in board.legal_moves}
-            by = {e: await maia_probs(board.fen(), e, opp, legal) for e in GRID}
+            by = {e: await maia_probs(board.fen(), e, opp, legal) for e in grid}
             observations.append({"move": move, "probs": by})
-        post = posterior(observations, prior)
-        lo, hi = credible_interval(post, 0.8)
+        post = posterior(observations, prior, grid)
+        lo, hi = credible_interval(post, 0.8, grid)
         return {
-            "grid": list(GRID), "posterior": [round(post[e], 4) for e in GRID], "mean": round(sum(e * p for e, p in post.items())),
+            "grid": list(grid), "posterior": [round(post[e], 4) for e in grid], "mean": round(sum(e * p for e, p in post.items())),
             "interval80": [lo, hi], "moves": len(items), "label": "Lichess-equivalent", "model": maia_name,
         }
 

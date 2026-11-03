@@ -5,6 +5,8 @@ BUILDER_IMG ?= localhost/gtm-builder:dev
 API_IMG     ?= localhost/gtm-api:dev
 NET         ?= gtm
 MODELS      ?= gtm-models
+MAIA        ?= maia3
+MAIA_MODEL  ?= maia3-5m
 PORT        ?= 8080
 IN          ?= $(CURDIR)/data
 OUT         ?= $(CURDIR)/web/data
@@ -67,11 +69,13 @@ run: web-image
 	@echo "http://127.0.0.1:$(PORT)"
 
 api-image:
-	$(PODMAN) build --build-arg WITH_MAIA=$(or $(WITH_MAIA),0) --build-arg MAIA_MODE=$(if $(filter 1,$(WITH_MAIA)),maia2,none) -t $(API_IMG) -f containers/api/Containerfile .
+	$(PODMAN) build --build-arg WITH_MAIA=$(or $(WITH_MAIA),0) --build-arg MAIA_MODE=$(if $(filter 1,$(WITH_MAIA)),$(MAIA),none) -t $(API_IMG) -f containers/api/Containerfile .
 
-# One-off: download Maia-2's weights (about 280 MB, from Google Drive) into the named volume the api reads.
+# One-off: download the Maia weights into the named volume the api reads (maia3: from Hugging Face, size by MAIA_MODEL;
+# maia2: about 280 MB from Google Drive, build the image with MAIA=maia2).
 api-weights:
-	$(PODMAN) run --rm --user 10001 -e HOME=/tmp -v $(MODELS):/models $(API_IMG) python -c "from maia2 import model; model.from_pretrained('rapid', 'cpu', '/models')"
+	$(PODMAN) run --rm --user 10001 -e HOME=/tmp -v $(MODELS):/models $(API_IMG) \
+	  $(if $(filter maia2,$(MAIA)),python -c "from maia2 import model; model.from_pretrained('rapid', 'cpu', '/models')",python -m maia3.cache --model $(MAIA_MODEL) --cache-dir /models)
 
 # The api is never published to the host: only the web container reaches it, over the $(NET) network, at /api/.
 # Needs the image from `make api-image` (not a prerequisite: it would rebuild without the arguments you gave there).

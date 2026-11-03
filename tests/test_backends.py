@@ -4,6 +4,7 @@ The UCI stub (tests/fixtures/uci_stub.py) stands in for a real engine; a fake `m
 the model. What a real engine or real Maia weights add is checked separately (GTM_ENGINE, CONTINUE.md T3).
 """
 
+import math
 import sys
 import types
 from fractions import Fraction
@@ -12,7 +13,8 @@ from pathlib import Path
 import chess
 import pytest
 
-from pipeline.backends import Maia2Backend, NullMaia, StockfishBackend
+from pipeline.backends import Maia2Backend, Maia3Backend, NullMaia, StockfishBackend
+from pipeline.estimator import FINE_GRID
 
 STUB = [sys.executable, str(Path(__file__).parent / "fixtures" / "uci_stub.py")]
 FEN = "rnb1kbnr/pppp1ppp/8/4p3/4P2q/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"  # White to move: Nxh4 wins the queen
@@ -124,3 +126,96 @@ def test_maia2_backend_can_still_clamp_when_asked(fake_maia2):
     m.probs(FEN, 1700, 1200)
     assert fake_maia2["each"][3:] == (1500, 1200)
     assert m.name == "maia2-rapid"
+
+
+# --- Maia-3 through fake `maia3` modules: the vocabulary mapping, Black's mirror, history and ratings -------------------------
+
+
+def mirror(uci):
+    return uci[0] + str(9 - int(uci[1])) + uci[2] + str(9 - int(uci[3])) + uci[4:]
+
+
+@pytest.fixture
+def fake_maia3(monkeypatch):
+    """A stand-in for the maia3 package. Tokens are just the FEN strings, the vocabulary is White's view of a few moves,
+    and the 'model' prefers the first legal move of the (possibly mirrored) board with a probability set by the rating."""
+    seen = {"parse": None, "tokenised": [], "window": None, "forward": None}
+    vocab = ["e2e4", "d2d4", "g1f3", "b1c3", "a7a8q"]
+
+    cfg = types.SimpleNamespace(history=8, model_spec="SPEC")
+
+    def parse_args(argv):
+        seen["parse"] = argv
+        return cfg
+
+    def tokenize(board):
+        seen["tokenised"].append(board.fen())
+        return board.fen()
+
+    def window(deq, cfg_, *zeros):
+        seen["window"] = list(deq)
+        return types.SimpleNamespace(unsqueeze=lambda d: None)
+
+    def mask(board, index):
+        views = [mv.uci() if board.turn == chess.WHITE else mirror(mv.uci()) for mv in board.legal_moves]
+        return {index[v] for v in views if v in index}
+
+    modules = {
+        "maia3": types.ModuleType("maia3"),
+        "maia3.dataset": types.SimpleNamespace(tokenize_board=tokenize, get_historical_tokens=window, get_legal_moves_mask=mask),
+        "maia3.model_registry": types.SimpleNamespace(resolve_checkpoint_path=lambda spec, **kw: seen.update(resolve=(spec, kw)) or "/ckpt.pt"),
+        "maia3.uci": types.SimpleNamespace(parse_args=parse_args, load_model=lambda c: seen.update(loaded=c.checkpoint_path) or "MODEL"),
+        "maia3.utils": types.SimpleNamespace(get_all_possible_moves=lambda: vocab, mirror_move=mirror),
+    }
+    for name, mod in modules.items():
+        monkeypatch.setitem(sys.modules, name, mod)
+
+    def forward(self, tokens, elo_self, elo_oppo, legal):
+        seen["forward"] = (elo_self, elo_oppo, sorted(legal))
+        strength = elo_self / 3000
+        ordered = sorted(legal)
+        first, rest = 0.3 + 0.5 * strength, None
+        rest = (1 - first) / (len(ordered) - 1)
+        return {i: (first if k == 0 else rest) for k, i in enumerate(ordered)}
+
+    monkeypatch.setattr(Maia3Backend, "_forward", forward)
+    return seen
+
+
+def test_maia3_backend_loads_the_named_model_on_the_requested_device(fake_maia3):
+    m = Maia3Backend(model="maia3-23m", device="cpu", cache_dir="/hf")
+    assert m.name == "maia3-23m" and fake_maia3["parse"] == ["--model", "maia3-23m", "--device", "cpu", "--no-use-amp"]
+    assert fake_maia3["resolve"][0] == "SPEC" and fake_maia3["resolve"][1]["cache_dir"] == "/hf"
+    assert fake_maia3["loaded"] == "/ckpt.pt"
+    assert Maia3Backend.uses_history is True and Maia3Backend.grid == FINE_GRID
+
+
+def test_maia3_backend_returns_probabilities_over_the_legal_moves_with_the_rating_passed_through(fake_maia3):
+    m = Maia3Backend()
+    board = chess.Board()
+    legal_in_vocab = {mv.uci() for mv in board.legal_moves} & {"e2e4", "d2d4", "g1f3", "b1c3"}
+    probs = m.probs(chess.STARTING_FEN, 1850, 1200)
+    assert set(probs) == legal_in_vocab == {"e2e4", "d2d4", "g1f3", "b1c3"}
+    assert math.isclose(sum(probs.values()), 1.0) and fake_maia3["forward"][:2] == (1850, 1200)
+
+
+def test_maia3_backend_mirrors_blacks_moves_back_to_the_real_board(fake_maia3):
+    m = Maia3Backend()
+    black = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+    probs = m.probs(black, 1500, 1500)
+    assert set(probs) == {mirror(x) for x in ("e2e4", "d2d4", "g1f3", "b1c3")} == {"e7e5", "d7d5", "g8f6", "b8c6"}
+
+
+def test_maia3_backend_feeds_the_model_the_earlier_positions_oldest_first_capped_at_the_window(fake_maia3):
+    m = Maia3Backend()
+    board, fens = chess.Board(), []
+    for san in "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O".split():  # nine earlier positions, oldest first
+        fens.append(board.fen())
+        board.push_san(san)
+    earlier = tuple(fens)
+    m.probs(chess.STARTING_FEN, 1500, 1500, history=earlier)
+    window = fake_maia3["window"]
+    assert len(window) == 8, "the model's window is eight positions: the current one and seven before it"
+    assert window[-1] == chess.STARTING_FEN and window[0] == earlier[-7] and window[-2] == earlier[-1]
+    m.probs(chess.STARTING_FEN, 1500, 1500)
+    assert fake_maia3["window"] == [chess.STARTING_FEN], "no history: just the current position (the model pads it itself)"

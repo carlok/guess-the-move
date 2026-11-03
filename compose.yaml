@@ -50,7 +50,7 @@ services:
       dockerfile: containers/api/Containerfile
       args:
         WITH_MAIA: "1"
-        MAIA_MODE: maia2
+        MAIA_MODE: maia3
     image: localhost/gtm-api:maia
     environment:
       GTM_API_TRUST_PROXY: "1"

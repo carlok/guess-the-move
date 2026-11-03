@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from pipeline.estimator import GRID
+
 
 class EnginePool:
     """A fixed set of engine backends (one UCI process each, Threads=1). A backend serves one search at a time.
@@ -43,6 +45,7 @@ class MaiaRunner:
     def __init__(self, backend):
         self._backend = backend
         self.name = backend.name
+        self.grid = getattr(backend, "grid", GRID)  # the rating grid the level estimator uses with this model
         self._lock = asyncio.Lock()
 
     async def probs(self, fen: str, elo_self: int, elo_oppo: int) -> dict[str, float]:

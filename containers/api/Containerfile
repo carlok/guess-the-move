@@ -1,6 +1,6 @@
 # api image: Stockfish + (optionally) Maia-2 behind a small ASGI app. Build context = repository root:
 #   podman build -t localhost/gtm-api:dev -f containers/api/Containerfile .
-#   podman build --build-arg WITH_MAIA=1 --build-arg MAIA_MODE=maia2 -t localhost/gtm-api:maia -f containers/api/Containerfile .
+#   podman build --build-arg WITH_MAIA=1 --build-arg MAIA_MODE=maia3 -t localhost/gtm-api:maia -f containers/api/Containerfile .
 # (`make api-image` / `make api-image WITH_MAIA=1` pass both arguments.) Runs as an unprivileged user; use --read-only
 # --tmpfs /tmp --cap-drop=all. Maia's 280 MB weights are NOT baked in: they live in the /models volume
 # (`make api-weights` downloads them once).
@@ -18,11 +18,11 @@ RUN apt-get update \
  && mkdir /models && chown gtm:gtm /models
 
 WORKDIR /app
-COPY requirements.txt requirements-api.txt requirements-maia.txt ./
+COPY requirements.txt requirements-api.txt requirements-maia.txt requirements-maia3.txt ./
 RUN pip install -r requirements.txt -r requirements-api.txt \
  && if [ "$WITH_MAIA" = "1" ]; then \
       pip install --index-url https://download.pytorch.org/whl/cpu torch \
-      && pip install -r requirements-maia.txt; \
+      && if [ "$MAIA_MODE" = "maia3" ]; then pip install -r requirements-maia3.txt; else pip install -r requirements-maia.txt; fi; \
     fi
 
 COPY pipeline/ pipeline/

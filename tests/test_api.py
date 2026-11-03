@@ -505,3 +505,52 @@ def test_build_app_wires_maia_and_valkey_from_the_environment(monkeypatch):
         assert len(store.store) == 2, "both the evaluations and the Maia distribution reached Valkey"
     finally:
         app.state.close()
+
+
+def test_the_posterior_uses_the_grid_of_the_model_behind_it():
+    from pipeline.estimator import FINE_GRID
+
+    class Fine(EloAwareMaia):
+        grid = FINE_GRID
+
+    app, _ = build(maia=Fine())
+    body = post(app, "/v1/posterior", {"history": history(["e4"])}).json()
+    assert body["grid"] == list(FINE_GRID) and len(body["posterior"]) == 13
+    prior = {str(e): 1 for e in FINE_GRID}
+    assert post(app, "/v1/posterior", {"history": history(["e4"]), "prior": prior}).status_code == 200
+    assert post(app, "/v1/posterior", {"history": history(["e4"]), "prior": {str(e): 1 for e in GRID}}).status_code == 422
+
+
+def test_build_app_picks_maia3_by_default_with_its_model_and_cache_directory(monkeypatch):
+    import types
+
+    from api.main import build_app
+
+    seen = {}
+
+    class FakeMaia3:
+        grid = ()
+        name = "maia3-23m"
+
+        def __init__(self, model, cache_dir):
+            seen.update(model=model, cache_dir=cache_dir)
+            from pipeline.estimator import FINE_GRID
+            self.grid = FINE_GRID
+
+        def probs(self, fen, a, b):
+            return {}
+
+    import pipeline.backends as pb
+
+    monkeypatch.setattr(pb, "Maia3Backend", FakeMaia3)
+    stub = f"{sys.executable} {Path(__file__).parent / 'fixtures' / 'uci_stub.py'}"
+    for k, v in {"GTM_API_ENGINE": stub, "GTM_API_ENGINES": "1", "GTM_API_MAIA_MODEL": "maia3-23m", "MAIA2_HOME": "/models"}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("GTM_API_MAIA", raising=False)
+    monkeypatch.delenv("VALKEY_URL", raising=False)
+    app = build_app()
+    try:
+        assert seen == {"model": "maia3-23m", "cache_dir": "/models"}
+        assert call(app, "GET", "/healthz").json()["maia"] == "maia3-23m"
+    finally:
+        app.state.close()

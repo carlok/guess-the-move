@@ -150,3 +150,27 @@ def test_the_clock_filter_can_be_switched_off_or_tuned(tmp_path):
     (tmp_path / "five").mkdir()
     rc, out = run(tmp_path / "five", "--per-game", "100", "--candidates", "100", "--keep", "100", "--min-clock-seconds", "5", text=text)
     assert max(p["ply"] for p in json.loads(out.read_text())["positions"]) >= 8, "10 s is above a 5 s limit"
+
+
+def test_maia3_is_given_the_games_earlier_positions_and_named_in_the_meta(tmp_path, monkeypatch):
+    seen = []
+
+    class FakeMaia3(FakeMaia):
+        uses_history = True
+
+        def __init__(self, model="maia3-5m", cache_dir=None):
+            super().__init__()
+            self.name = model
+            seen.append(("init", model, cache_dir))
+
+        def probs(self, fen, elo_self, elo_oppo, history=()):
+            seen.append(("probs", len(history)))
+            return super().probs(fen, elo_self, elo_oppo)
+
+    monkeypatch.setattr(pipeline.backends, "Maia3Backend", FakeMaia3)
+    rc, out = run(tmp_path, "--maia", "maia3", "--maia-model", "maia3-23m", "--maia-home", str(tmp_path / "hf"))
+    assert rc == 0 and seen[0] == ("init", "maia3-23m", str(tmp_path / "hf"))
+    data = json.loads(out.read_text())
+    check_dataset(data)
+    assert data["meta"]["maia"] == "maia3-23m"
+    assert max(n for kind, n in seen[1:] if kind == "probs") == 7 and any(n > 0 for kind, n in seen[1:] if kind == "probs")

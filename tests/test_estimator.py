@@ -4,7 +4,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from pipeline.estimator import FLOOR, GRID, bucket, credible_interval, posterior, uniform_prior
+from pipeline.estimator import FINE_GRID, FLOOR, GRID, bucket, credible_interval, posterior, uniform_prior
 
 MOVES = ["e2e4", "d2d4", "g1f3"]
 
@@ -95,3 +95,15 @@ def test_ratings_map_to_the_maia_bucket_midpoints():
 def test_asking_for_more_mass_than_the_posterior_holds_is_an_error():
     with pytest.raises(AssertionError):
         credible_interval(uniform_prior(), 1.5)
+
+
+def test_a_finer_grid_works_everywhere_a_grid_is_taken():
+    assert FINE_GRID == tuple(range(1000, 2201, 100)) and len(FINE_GRID) == 13
+    prior = uniform_prior(FINE_GRID)
+    assert math.isclose(sum(prior.values()), 1.0) and set(prior) == set(FINE_GRID)
+    rising = {e: [0.1 + 0.07 * i, 0.5, 0.4 - 0.07 * i] for i, e in enumerate(FINE_GRID)}
+    o = {"move": "e2e4", "probs": {e: dict(zip(MOVES, p)) for e, p in rising.items()}}
+    post = posterior([o] * 8, prior, FINE_GRID)
+    assert set(post) == set(FINE_GRID) and max(post, key=post.get) == FINE_GRID[-1]
+    lo, hi = credible_interval(post, 0.8, FINE_GRID)
+    assert FINE_GRID[0] <= lo <= hi == FINE_GRID[-1]

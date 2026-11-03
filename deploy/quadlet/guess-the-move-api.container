@@ -14,7 +14,7 @@ ContainerName=gtm-api
 Network=gtm.network
 NetworkAlias=api
 Volume=gtm-models:/models
-Environment=GTM_API_TRUST_PROXY=1 GTM_API_MAIA=maia2 GTM_API_ENGINES=2
+Environment=GTM_API_TRUST_PROXY=1 GTM_API_MAIA=maia3 GTM_API_ENGINES=2
 ReadOnly=true
 Tmpfs=/tmp
 NoNewPrivileges=true

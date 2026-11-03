@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import random
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Iterator
@@ -44,6 +45,7 @@ class Candidate:
     player_elo: int | None
     opp_elo: int | None
     site: str | None
+    history: tuple[str, ...] = ()     # FENs of up to 7 earlier positions of the game, oldest first (for models that read history)
 
 
 def open_text(source: str | Path) -> IO[str]:
@@ -107,6 +109,7 @@ def positions_from_game(
 
     eligible: list[Candidate] = []
     board = game.board()
+    earlier: deque[str] = deque(maxlen=7)
     for node in game.mainline():
         move = node.move
         color = "w" if board.turn == chess.WHITE else "b"
@@ -137,8 +140,10 @@ def positions_from_game(
                     player_elo=player,
                     opp_elo=opp,
                     site=site,
+                    history=tuple(earlier),
                 )
             )
+        earlier.append(board.fen())
         board.push(move)
 
     if stats is not None:

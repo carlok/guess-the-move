@@ -210,3 +210,15 @@ def test_the_clock_filter_works_when_the_caller_passes_no_stats():
     assert 12 not in {c.ply for c in positions_from_game(low, cfg, random.Random(0))}
     plain = chess.pgn.read_game(io.StringIO(game()))
     assert len(positions_from_game(plain, cfg, random.Random(0))) == 16
+
+
+# --- previous positions, for models that read the recent history (Maia-3) ------------------------------------------------
+
+
+def test_candidates_carry_up_to_seven_previous_positions_oldest_first():
+    cands = sample(game(), per_game=100, min_ply=0)
+    by_ply = {c.ply: c for c in cands}
+    assert by_ply[0].history == ()
+    assert len(by_ply[3].history) == 3 and by_ply[3].history[-1] == by_ply[2].fen and by_ply[3].history[0] == by_ply[0].fen
+    assert len(by_ply[12].history) == 7, "the model reads at most 8 positions: the current one and seven before it"
+    assert by_ply[12].history[-1] == by_ply[11].fen and by_ply[12].history[0] == by_ply[5].fen

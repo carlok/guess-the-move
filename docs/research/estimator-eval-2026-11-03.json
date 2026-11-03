@@ -1,0 +1,39 @@
+{
+  "players": 150,
+  "ratings": {
+    "min": 1123,
+    "max": 1990
+  },
+  "interval": "80% credible, narrowest run of adjacent 100-point buckets",
+  "by_moves_observed": {
+    "5": {
+      "coverage_pct": 83.3,
+      "mean_interval_width_elo": 718,
+      "mae_elo": 201,
+      "constant_guess_mae_elo": 209
+    },
+    "10": {
+      "coverage_pct": 84.0,
+      "mean_interval_width_elo": 655,
+      "mae_elo": 184,
+      "constant_guess_mae_elo": 209
+    },
+    "20": {
+      "coverage_pct": 73.3,
+      "mean_interval_width_elo": 563,
+      "mae_elo": 188,
+      "constant_guess_mae_elo": 209
+    },
+    "30": {
+      "coverage_pct": 76.7,
+      "mean_interval_width_elo": 529,
+      "mae_elo": 179,
+      "constant_guess_mae_elo": 209
+    }
+  },
+  "bytes_per_position": {
+    "single_elo_block": 218,
+    "by_elo_table_11_buckets": 2296,
+    "ratio": 10.5
+  }
+}

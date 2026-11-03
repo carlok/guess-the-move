@@ -67,7 +67,8 @@ def build_positions(
         maia_block = None
         probs: dict[str, float] = {}
         if c.player_elo is not None and getattr(maia, "name", None):
-            raw = maia.probs(c.fen, c.player_elo, c.opp_elo or c.player_elo)
+            args = (c.fen, c.player_elo, c.opp_elo or c.player_elo)
+            raw = maia.probs(*args, history=c.history) if getattr(maia, "uses_history", False) else maia.probs(*args)
             if not set(raw) <= legal:
                 raise RuntimeError(
                     f"maia backend returned moves that are not legal UCI for {c.fen}: "
@@ -142,10 +143,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--engine", default=os.environ.get("GTM_ENGINE", DEFAULT_ENGINE), help="UCI engine command")
     ap.add_argument("--nodes", type=int, default=400_000, help="node budget per position (MultiPV over all legal moves)")
-    ap.add_argument("--maia", choices=["none", "maia2"], default="none")
+    ap.add_argument("--maia", choices=["none", "maia2", "maia3"], default="none")
+    ap.add_argument("--maia-model", default="maia3-5m", help="Maia-3 model alias: maia3-5m, maia3-23m or maia3-79m")
     ap.add_argument("--maia-kind", choices=["rapid", "blitz"], default="rapid")
     ap.add_argument("--maia-home", default=os.environ.get("MAIA2_HOME", "./maia2_models"),
-                    help="where maia2 keeps (and downloads) its weights; mount a volume here to avoid re-downloading")
+                    help="where the Maia weights are kept and downloaded to (maia2: its own folder, maia3: the Hugging Face cache); "
+                         "mount a volume here to avoid re-downloading")
     ap.add_argument("--candidates", type=int, default=1000, help="positions to analyse")
     ap.add_argument("--keep", type=int, default=300, help="positions to keep after filtering")
     ap.add_argument("--seed", type=int, default=0)
@@ -198,10 +201,15 @@ def main(argv: list[str] | None = None) -> int:
         print("no candidates: check the filters (rating range, time controls, ply window)", file=sys.stderr)
         return 1
 
-    from .backends import Maia2Backend, NullMaia, StockfishBackend
+    from .backends import Maia2Backend, Maia3Backend, NullMaia, StockfishBackend
 
     engine = StockfishBackend(shlex.split(args.engine), nodes=args.nodes)
-    maia = Maia2Backend(kind=args.maia_kind, save_root=args.maia_home) if args.maia == "maia2" else NullMaia()
+    if args.maia == "maia2":
+        maia = Maia2Backend(kind=args.maia_kind, save_root=args.maia_home)
+    elif args.maia == "maia3":
+        maia = Maia3Backend(model=args.maia_model, cache_dir=args.maia_home)
+    else:
+        maia = NullMaia()
     tcfg = TagConfig()
 
     def progress(i: int, n: int) -> None:
