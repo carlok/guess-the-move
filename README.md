@@ -101,6 +101,10 @@ Safety: FENs are validated with python-chess (length cap, legal and reachable po
 
 Useful flags: `--per-game`, `--min-ply/--max-ply`, `--max-abs-cp` (drop already-decided positions), `--keep-trivial`, `--seed`, `--allow-missing-elo`.
 
+## Licence
+
+GNU Affero General Public License, version 3 or (at your option) any later version: see `LICENSE`. The reason is Maia-3, whose code and weights are AGPL-3.0: running it in the `api` service, or shipping it to browsers, is what the AGPL's network clause is about. If you run a modified version of the `api` for other people, you must offer them its source. Third-party material and its licences are in `NOTICE`. The dataset's game positions come from the Lichess open database (CC0).
+
 ## Layout
 
 ```
@@ -115,4 +119,4 @@ tools/engine-node/   Stockfish (npm), git-ignored
 
 ## Status
 
-v1: pipeline + static app + demo data + podman packaging (images not yet built anywhere). Not yet done: real-game dataset, Maia path run for real, level estimator (see roadmap in `PROMPT.md`). Repo licence not chosen yet.
+v1: pipeline + static app + demo data + podman packaging (images not yet built anywhere). Not yet done: real-game dataset, Maia path run for real, level estimator (see roadmap in `PROMPT.md`). Licensed AGPL-3.0-or-later (see Licence).

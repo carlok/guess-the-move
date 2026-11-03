@@ -26,4 +26,17 @@ Icons: Lucide, https://github.com/lucide-icons/lucide
   THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING
   ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
 
-The repository's own licence has not been chosen yet (see PROMPT.md section 12).
+Stockfish (https://github.com/official-stockfish/Stockfish, GPL-3.0) is installed into the builder and api container images as the
+  official release binary, unmodified, and run as a separate process. Its source for the release used (sf_19) is at
+  https://github.com/official-stockfish/Stockfish/releases/tag/sf_19 ; its licence text is in that release's Copying.txt.
+
+Maia-3 (https://github.com/CSSLab/maia3, GNU AGPL v3): the `maia3` package and the Maia-3 weights are downloaded at install and run
+  time, not stored in this repository. Using them in the api service is why this project is under the AGPL (see below).
+
+Maia-2 (https://github.com/CSSLab/maia2, MIT): optional alternative backend; its weights have no stated licence and are downloaded, not bundled.
+
+Lichess open database (https://database.lichess.org, CC0 1.0): the games the dataset positions come from.
+
+This project is licensed under the GNU Affero General Public License, version 3 or (at your option) any later version. See LICENSE.
+The pieces above are compatible with it: cburnett is GPLv2-or-later (and offered under a BSD option), Stockfish is GPL-3.0, Lucide and
+Feather are ISC and MIT.
