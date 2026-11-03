@@ -185,3 +185,65 @@ def test_workers_flag_runs_several_engine_processes_and_stratify_can_be_switched
     (tmp_path / "plain").mkdir()
     rc, out = run(tmp_path / "plain", "--no-stratify")
     assert rc == 0 and json.loads(out.read_text())["meta"]["stratified"] is False
+
+
+def headed(white="alice", black="bob"):
+    return (f'[Event "Rated Rapid game"]\n[Site "https://lichess.org/abcd1234"]\n[UTCDate "2026.09.01"]\n[UTCTime "00:12:34"]\n'
+            f'[White "{white}"]\n[Black "{black}"]\n[Result "*"]\n[WhiteElo "1500"]\n[BlackElo "1600"]\n[TimeControl "600+0"]\n\n{OPERA} *\n\n')
+
+
+def test_the_dataset_records_who_what_when_and_with_which_tools(tmp_path):
+    rc, out = run(tmp_path, "--seed", "3", text=headed())
+    data = json.loads(out.read_text())
+    assert rc == 0
+    check_dataset(data)
+    p = data["positions"][0]
+    assert p["game"]["white"] == "alice" and p["game"]["black"] == "bob" and p["game"]["date"] == "2026.09.01"
+    assert p["game"]["time"] == "00:12:34" and p["game"]["time_control"] == "600+0" and p["game"]["white_elo"] == 1500
+    prov = data["meta"]["provenance"]
+    assert prov["engine"]["name"] == "StubFish 1.0" and prov["engine"]["nodes"] == 1000 and prov["engine"]["multipv"] == "every legal move"
+    assert prov["maia"] is None and prov["players_stored"] is True
+    assert prov["source"] == {"file": "games.pgn", "url": None, "database": "https://database.lichess.org", "licence": "CC0 1.0 (the Lichess open database)"}
+    assert prov["sampling"]["seed"] == 3 and prov["sampling"]["min_ply"] == 4 and prov["sampling"]["stratified"] is True
+    assert prov["tools"]["python_chess"] and prov["tools"]["python"] and "--seed" in prov["command"]
+
+
+def test_players_can_be_left_out_and_the_source_url_loses_its_query_string(tmp_path, monkeypatch):
+    import io
+    import pipeline.build_dataset as bd
+
+    monkeypatch.setattr(bd, "open_text", lambda src: io.StringIO(headed()))
+    out = tmp_path / "o.json"
+    rc = main(["--pgn", "https://example.org/dump.pgn.zst?token=secret", "--out", str(out), "--engine", STUB, "--nodes", "1000",
+               "--candidates", "5", "--keep", "5", "--min-ply", "4", "--max-abs-cp", "100000", "--keep-trivial", "--no-store-players"])
+    data = json.loads(out.read_text())
+    assert rc == 0 and data["meta"]["provenance"]["players_stored"] is False
+    assert data["meta"]["provenance"]["source"]["url"] == "https://example.org/dump.pgn.zst"
+    assert all(p["game"]["white"] is None and p["game"]["black"] is None for p in data["positions"])
+    assert "alice" not in out.read_text() and "secret" not in out.read_text() and "bob" not in out.read_text()
+
+
+def test_the_maia_model_is_described_in_the_provenance(tmp_path, monkeypatch):
+    class Described(FakeMaia):
+        def info(self):
+            return {"family": "fake", "model": self.name}
+
+    monkeypatch.setattr(pipeline.backends, "Maia3Backend", lambda model, cache_dir: Described())
+    rc, out = run(tmp_path, "--maia", "maia3", text=headed())
+    assert json.loads(out.read_text())["meta"]["provenance"]["maia"] == {"family": "fake", "model": "fake-maia"}
+
+
+def test_the_pipeline_commit_is_recorded_when_git_is_there_and_none_when_it_is_not(monkeypatch):
+    import subprocess
+
+    import pipeline.build_dataset as bd
+
+    assert bd._pipeline_commit() is None or len(bd._pipeline_commit()) == 40
+
+    def no_git(*a, **k):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", no_git)
+    assert bd._pipeline_commit() is None
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 128, "", "not a git repository"))
+    assert bd._pipeline_commit() is None

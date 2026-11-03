@@ -266,3 +266,33 @@ def test_stratified_sampling_is_deterministic_for_a_seed_and_never_exceeds_the_l
     a = sample_candidates(io.StringIO(text), cfg, 6, 5)
     assert a == sample_candidates(io.StringIO(text), cfg, 6, 5)
     assert len(a) <= 6 * 1 + 4  # quota per stratum is ceil(limit / n_strata)
+
+
+# --- provenance: what the PGN headers say about the game a position came from ---------------------------------------------
+
+
+def headed_game():
+    return ('[Event "Rated Rapid game"]\n[Site "https://lichess.org/abcd1234"]\n[Date "2026.09.01"]\n[UTCDate "2026.09.01"]\n'
+            '[UTCTime "00:12:34"]\n[White "alice"]\n[Black "bob"]\n[Result "1-0"]\n[WhiteElo "1500"]\n[BlackElo "1600"]\n'
+            '[WhiteRatingDiff "+7"]\n[BlackRatingDiff "-8"]\n[WhiteTitle "NM"]\n[TimeControl "600+0"]\n[ECO "C50"]\n'
+            '[Opening "Italian Game"]\n[Termination "Normal"]\n\n' + OPERA + " 1-0\n\n")
+
+
+def test_candidates_carry_the_game_headers_and_the_movers_clock():
+    text = headed_game().replace("e4 e5", "e4 { [%clk 0:09:50] } e5 { [%clk 0:09:49] }")
+    cands = sample(text, per_game=100, min_ply=0)
+    g = cands[0].game
+    assert g == {
+        "white": "alice", "black": "bob", "white_title": "NM", "black_title": None, "white_elo": 1500, "black_elo": 1600,
+        "white_elo_diff": 7, "black_elo_diff": -8, "date": "2026.09.01", "time": "00:12:34", "event": "Rated Rapid game",
+        "time_control": "600+0", "result": "1-0", "termination": "Normal", "eco": "C50", "opening": "Italian Game",
+        "clock_after_move_s": 590.0,
+    }
+    assert cands[1].game["clock_after_move_s"] == 589.0 and cands[5].game["clock_after_move_s"] is None
+    assert cands[0].game is not cands[1].game, "each candidate owns its copy"
+
+
+def test_missing_headers_become_none_and_the_questionmark_placeholder_is_not_a_value():
+    text = game().replace('[Result "*"]', '[Result "*"]\n[White "?"]\n[ECO "?"]')
+    g = sample(text, per_game=1, min_ply=0)[0].game
+    assert g["white"] is None and g["eco"] is None and g["black"] is None and g["time_control"] is None

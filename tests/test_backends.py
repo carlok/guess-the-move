@@ -163,7 +163,7 @@ def fake_maia3(monkeypatch):
     modules = {
         "maia3": types.ModuleType("maia3"),
         "maia3.dataset": types.SimpleNamespace(tokenize_board=tokenize, get_historical_tokens=window, get_legal_moves_mask=mask),
-        "maia3.model_registry": types.SimpleNamespace(resolve_checkpoint_path=lambda spec, **kw: seen.update(resolve=(spec, kw)) or "/ckpt.pt"),
+        "maia3.model_registry": types.SimpleNamespace(resolve_checkpoint_path=lambda spec, **kw: seen.update(resolve=(spec, kw)) or seen.get("checkpoint", "/ckpt.pt")),
         "maia3.uci": types.SimpleNamespace(parse_args=parse_args, load_model=lambda c: seen.update(loaded=c.checkpoint_path) or "MODEL"),
         "maia3.utils": types.SimpleNamespace(get_all_possible_moves=lambda: vocab, mirror_move=mirror),
     }
@@ -219,3 +219,29 @@ def test_maia3_backend_feeds_the_model_the_earlier_positions_oldest_first_capped
     assert window[-1] == chess.STARTING_FEN and window[0] == earlier[-7] and window[-2] == earlier[-1]
     m.probs(chess.STARTING_FEN, 1500, 1500)
     assert fake_maia3["window"] == [chess.STARTING_FEN], "no history: just the current position (the model pads it itself)"
+
+
+def test_backends_describe_themselves_for_the_dataset_provenance(backend, fake_maia2, fake_maia3, tmp_path, monkeypatch):
+    info = backend(nodes=1234).info()
+    assert info == {"name": "StubFish 1.0", "author": None, "nodes": 1234, "hash_mb": 64, "threads": 1,
+                    "multipv": "every legal move", "analysis": "fixed node budget, side-to-move point of view, mate = +-(10000 - distance)"}
+    assert NullMaia().info() is None
+
+    import importlib.metadata as md
+
+    monkeypatch.setattr(md, "version", lambda name: {"maia2": "0.11.0", "maia3": "0.1.0"}[name])
+    weights = tmp_path / "rapid_model.pt"
+    weights.write_bytes(b"weights")
+    m2 = Maia2Backend(kind="rapid", save_root=str(tmp_path)).info()
+    assert m2["family"] == "maia2" and m2["model"] == "maia2-rapid" and m2["package_version"] == "0.11.0"
+    assert m2["weights_file"] == "rapid_model.pt" and len(m2["weights_sha256"]) == 64 and "1100" in m2["rating_input"]
+    assert Maia2Backend(kind="blitz", save_root=str(tmp_path)).info()["weights_sha256"] is None, "no file, no hash"
+
+    ckpt = tmp_path / "maia3-23m.pt"
+    ckpt.write_bytes(b"checkpoint")
+    fake_maia3["checkpoint"] = str(ckpt)
+    m3 = Maia3Backend(model="maia3-23m").info()
+    assert m3["family"] == "maia3" and m3["model"] == "maia3-23m" and m3["package_version"] == "0.1.0"
+    assert m3["checkpoint"] == "maia3-23m.pt" and len(m3["checkpoint_sha256"]) == 64
+    assert m3["history_plies"] == 8 and m3["package_commit"] in (ROOT_REQ := (Path(__file__).parent.parent / "requirements-maia3.txt").read_text())
+    assert "continuous" in m3["rating_input"]

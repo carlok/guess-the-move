@@ -13,9 +13,11 @@ import argparse
 import hashlib
 import json
 import os
+import platform
+import queue
 import random
 import shlex
-import queue
+import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
@@ -80,6 +82,7 @@ def build_positions(
     *,
     max_abs_cp: int | None = 500,
     drop_trivial: bool = True,
+    store_players: bool = True,
     progress: Callable[[int, int], None] | None = None,
 ) -> list[dict]:
     positions: list[dict] = []
@@ -129,11 +132,30 @@ def build_positions(
                 "maia": maia_block,
                 "tags": tags,
                 "site": c.site,
+                "game": _game_block(c.game, store_players),
             }
         )
     if progress:
         progress(len(cands), len(cands))
     return positions
+
+
+_WHO = ("white", "black", "white_title", "black_title")
+
+
+def _game_block(game: dict | None, store_players: bool) -> dict | None:
+    """The PGN header facts about the game; with store_players False, who played (names and titles) is left out."""
+    if game is None:
+        return None
+    return {k: (None if (not store_players and k in _WHO) else v) for k, v in game.items()}
+
+
+def _pipeline_commit() -> str | None:
+    try:
+        out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5)
+        return out.stdout.strip() or None if out.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):  # no git, or not a checkout
+        return None
 
 
 def select(positions: list[dict], keep: int, seed: int = 0, band=lambda elo: elo // 200) -> list[dict]:
@@ -193,6 +215,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--per-game", type=int, default=2)
     ap.add_argument("--time-controls", help="comma list, e.g. Rapid,Classical")
     ap.add_argument("--max-games", type=int)
+    ap.add_argument("--store-players", action=argparse.BooleanOptionalAction, default=True,
+                    help="keep the Lichess usernames and titles of the two players in each position's `game` block "
+                         "(ratings, date, time control and the rest are kept either way)")
     ap.add_argument("--workers", type=int, default=1, help="engine processes analysing in parallel (one thread each)")
     ap.add_argument("--stratify", action=argparse.BooleanOptionalAction, default=True,
                     help="sample an equal share of every phase x 200-point rating band (default) instead of the population's")
@@ -221,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         bands = {band_of(e, scfg) for e in range(args.min_elo, args.max_elo + 1)} if args.min_elo and args.max_elo else set(range(4))
         scfg = replace(scfg, n_strata=3 * len(bands))
     label = source_label(args.pgn)
+    is_url = args.pgn.startswith(("http://", "https://"))
     stats: dict = {}
     try:
         with open_text(args.pgn) as fh:
@@ -246,12 +272,14 @@ def main(argv: list[str] | None = None) -> int:
 
     engines = [StockfishBackend(shlex.split(args.engine), nodes=args.nodes) for _ in range(max(1, args.workers))]
     engine = engines[0]
+    engine_info = engine.info()  # read now: the engine processes are closed before the dataset meta is written
     if args.maia == "maia2":
         maia = Maia2Backend(kind=args.maia_kind, save_root=args.maia_home)
     elif args.maia == "maia3":
         maia = Maia3Backend(model=args.maia_model, cache_dir=args.maia_home)
     else:
         maia = NullMaia()
+    maia_info = maia.info() if hasattr(maia, "info") else None
     tcfg = TagConfig()
 
     def progress(i: int, n: int) -> None:
@@ -261,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         positions = build_positions(
             cands, engines, maia, tcfg,
-            max_abs_cp=args.max_abs_cp, drop_trivial=not args.keep_trivial, progress=progress,
+            max_abs_cp=args.max_abs_cp, drop_trivial=not args.keep_trivial, store_players=args.store_players, progress=progress,
         )
     finally:
         for e in engines:
@@ -283,6 +311,27 @@ def main(argv: list[str] | None = None) -> int:
         "sampling": stats,
         "thresholds": asdict(tcfg),
         "win_pct_scale": "lichess",
+        "provenance": {
+            "engine": engine_info,
+            "maia": maia_info,
+            "source": {
+                "file": label,
+                "url": args.pgn.split("?", 1)[0] if is_url else None,  # never the query string: it may carry a token
+                "database": "https://database.lichess.org",
+                "licence": "CC0 1.0 (the Lichess open database)",
+            },
+            "sampling": {
+                "seed": args.seed, "min_elo": args.min_elo, "max_elo": args.max_elo, "time_controls": args.time_controls,
+                "min_ply": args.min_ply, "max_ply": args.max_ply, "per_game": args.per_game, "max_games": args.max_games,
+                "candidates": args.candidates, "keep": args.keep, "min_clock_seconds": scfg.min_clock_s,
+                "stratified": scfg.stratify, "n_strata": scfg.n_strata, "max_abs_cp": args.max_abs_cp, "dropped_trivial": not args.keep_trivial,
+                "games": stats,
+            },
+            "players_stored": args.store_players,
+            "tools": {"python": platform.python_version(), "python_chess": chess.__version__, "pipeline_commit": _pipeline_commit()},
+            "command": [a if not a.startswith(("http://", "https://")) else a.split("?", 1)[0] for a in sys.argv[1:]] if argv is None else
+                       [a if not a.startswith(("http://", "https://")) else a.split("?", 1)[0] for a in argv],
+        },
     }
     write_dataset(args.out, chosen, meta)
     print(f"wrote {len(chosen)} positions ({len(positions)} passed filters) to {args.out}", file=sys.stderr)

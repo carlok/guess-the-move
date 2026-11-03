@@ -12,6 +12,9 @@ estimator should use with it; default pipeline.estimator.GRID).
 
 from __future__ import annotations
 
+import hashlib
+import importlib.metadata as metadata
+import os
 from collections import deque
 
 import chess
@@ -24,6 +27,7 @@ from .winpct import MATE_CP
 class StockfishBackend:
     def __init__(self, command: list[str], nodes: int = 400_000, hash_mb: int = 64):
         self.nodes = nodes
+        self.hash_mb = hash_mb
         self._engine = chess.engine.SimpleEngine.popen_uci(command, timeout=120)
         self._engine.configure({"Threads": 1, "Hash": hash_mb})
         self.name = self._engine.id.get("name", "unknown UCI engine")
@@ -49,12 +53,31 @@ class StockfishBackend:
                 out[m.uci()] = self._cp(info, board.turn)
         return out
 
+    def info(self) -> dict:
+        """What to record in a dataset about how its evaluations were made."""
+        return {"name": self.name, "author": self._engine.id.get("author"), "nodes": self.nodes, "hash_mb": self.hash_mb,
+                "threads": 1, "multipv": "every legal move",
+                "analysis": "fixed node budget, side-to-move point of view, mate = +-(10000 - distance)"}
+
     def close(self) -> None:
         self._engine.quit()
 
 
+def _sha256(path: str | None) -> str | None:
+    if not path or not os.path.isfile(path):
+        return None
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 class NullMaia:
     name = None
+
+    def info(self):
+        return None
 
     def probs(self, fen: str, elo_self: int, elo_oppo: int) -> dict[str, float]:
         return {}
@@ -77,10 +100,17 @@ class Maia2Backend:
         from maia2 import inference, model  # lazy: heavy and optional
 
         self.name = f"maia2-{kind}"
+        self._kind, self._save_root = kind, save_root
         self.elo_range = elo_range
         self._inference = inference
         self._model = model.from_pretrained(type=kind, device=device, save_root=save_root)
         self._prepared = inference.prepare()
+
+    def info(self) -> dict:
+        weights = os.path.join(self._save_root, f"{self._kind}_model.pt")
+        return {"family": "maia2", "model": self.name, "kind": self._kind, "package_version": metadata.version("maia2"),
+                "weights_file": f"{self._kind}_model.pt", "weights_sha256": _sha256(weights),
+                "rating_input": "bucketed by the model: <1100, nine 100-point buckets 1100-1999, >=2000; self and opponent"}
 
     def _clamp(self, elo: int) -> int:
         if self.elo_range is None:
@@ -108,6 +138,7 @@ class Maia3Backend:
 
     uses_history = True
     grid = FINE_GRID
+    PINNED_COMMIT = "1e13597c42d4858b7cfd7cfdae01e297263364b2"  # github.com/CSSLab/maia3, the same one requirements-maia3.txt pins
 
     def __init__(self, model: str = "maia3-23m", device: str = "cpu", cache_dir: str | None = None):
         from maia3.dataset import get_historical_tokens, get_legal_moves_mask, tokenize_board
@@ -126,6 +157,14 @@ class Maia3Backend:
         moves = get_all_possible_moves()
         self._index = {m: i for i, m in enumerate(moves)}
         self._uci = {i: m for m, i in self._index.items()}
+
+    def info(self) -> dict:
+        path = getattr(self._cfg, "checkpoint_path", None)
+        return {"family": "maia3", "model": self.name, "package": "maia3", "package_version": metadata.version("maia3"),
+                "package_commit": self.PINNED_COMMIT, "checkpoint": os.path.basename(path) if path else None,
+                "checkpoint_sha256": _sha256(path), "huggingface_repo": getattr(getattr(self._cfg, "model_spec", None), "repo_id", None),
+                "history_plies": self._cfg.history,
+                "rating_input": "continuous, self and opponent (the real players' ratings), any integer 0-5000"}
 
     def probs(self, fen: str, elo_self: int, elo_oppo: int, history: tuple[str, ...] = ()) -> dict[str, float]:
         board = chess.Board(fen)

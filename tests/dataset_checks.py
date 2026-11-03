@@ -7,7 +7,9 @@ import re
 
 import chess
 
-ALLOWED_FIELDS = {"id", "fen", "ply", "move_no", "stm", "phase", "player_elo", "opp_elo", "real", "evals", "san", "maia", "tags", "site"}
+REQUIRED_FIELDS = {"id", "fen", "ply", "move_no", "stm", "phase", "player_elo", "opp_elo", "real", "evals", "san", "maia", "tags", "site"}
+ALLOWED_FIELDS = REQUIRED_FIELDS | {"game"}  # "game": per-position provenance from the PGN headers (absent in datasets built before 2026-11-04)
+GAME_KEYS = {"white", "black", "white_title", "black_title", "white_elo", "black_elo", "white_elo_diff", "black_elo_diff", "date", "time", "event", "time_control", "result", "termination", "eco", "opening", "clock_after_move_s"}
 META_KEYS = ("engine", "nodes", "built", "source", "demo", "thresholds", "counts")
 
 
@@ -21,7 +23,9 @@ def check_schema_and_meta(data: dict) -> None:
 def check_positions(data: dict) -> None:
     ids = set()
     for p in data["positions"]:
-        assert set(p) == ALLOWED_FIELDS, "no personal data fields, nothing missing"
+        assert REQUIRED_FIELDS <= set(p) <= ALLOWED_FIELDS, "nothing missing, nothing unexpected"
+        if p.get("game") is not None:
+            assert set(p["game"]) <= GAME_KEYS
         board = chess.Board(p["fen"])
         legal = {m.uci() for m in board.legal_moves}
         assert set(p["evals"]) == legal == set(p["san"]), p["id"]

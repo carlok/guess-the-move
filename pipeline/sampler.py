@@ -52,8 +52,29 @@ class Candidate:
     player_elo: int | None
     opp_elo: int | None
     site: str | None
+    game: dict | None = None          # provenance from the PGN headers, see game_info()
     phase: str = ""                   # opening | middlegame | endgame, as in the dataset
     history: tuple[str, ...] = ()     # FENs of up to 7 earlier positions of the game, oldest first (for models that read history)
+
+
+_TEXT_HEADERS = {"white": "White", "black": "Black", "white_title": "WhiteTitle", "black_title": "BlackTitle", "date": "UTCDate",
+                 "time": "UTCTime", "event": "Event", "time_control": "TimeControl", "result": "Result",
+                 "termination": "Termination", "eco": "ECO", "opening": "Opening"}
+_INT_HEADERS = {"white_elo": "WhiteElo", "black_elo": "BlackElo", "white_elo_diff": "WhiteRatingDiff", "black_elo_diff": "BlackRatingDiff"}
+
+
+def game_info(h: chess.pgn.Headers) -> dict:
+    """What the PGN headers say about the game (who, when, how long, how strong), None where absent or '?'.
+
+    Lichess headers: usernames in White/Black (there are no real names), an optional title, UTC date and time of the game,
+    the time control, ratings and their change, the result and how the game ended, the opening."""
+    info = {k: (h.get(v) if h.get(v) not in (None, "", "?", "-") else None) for k, v in _TEXT_HEADERS.items()}
+    for k, v in _INT_HEADERS.items():
+        try:
+            info[k] = int(h.get(v, ""))
+        except ValueError:
+            info[k] = None
+    return info
 
 
 def band_of(elo: int, cfg: SamplerConfig) -> int:
@@ -120,6 +141,7 @@ def positions_from_game(
     h = game.headers
     w_elo, b_elo = _elo(h, "WhiteElo"), _elo(h, "BlackElo")
     site = h.get("Site") if (h.get("Site") or "").startswith("http") else None
+    info = game_info(h)
 
     eligible: list[Candidate] = []
     board = game.board()
@@ -133,9 +155,9 @@ def positions_from_game(
             (cfg.min_elo is None or (player is not None and player >= cfg.min_elo))
             and (cfg.max_elo is None or (player is not None and player <= cfg.max_elo))
         )
+        clock = node.clock()  # the mover's remaining time after this move
         low_clock = False
         if cfg.min_clock_s is not None and in_ply and in_elo:
-            clock = node.clock()  # the mover's remaining time after this move
             if clock is None:
                 if stats is not None:
                     stats["no_clock_info"] += 1
@@ -154,6 +176,7 @@ def positions_from_game(
                     player_elo=player,
                     opp_elo=opp,
                     site=site,
+                    game={**info, "clock_after_move_s": clock},
                     phase=phase_of(board),
                     history=tuple(earlier),
                 )
