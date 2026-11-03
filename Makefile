@@ -7,11 +7,12 @@ IN          ?= $(CURDIR)/data
 OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
-.PHONY: help test coverage mutation e2e web-image builder-image run stop dataset
+.PHONY: help test coverage mutation e2e lighthouse web-image builder-image run stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
 	@echo "make mutation        mutation spot-check (mutmut on winpct/tags, Stryker on scoring.js); not a gate"
+	@echo "make lighthouse      Lighthouse mobile run against the container from `make run` (adjust the Chrome path on Linux)"
 	@echo "make e2e             browser tests in Chrome; GTM_BASE_URL=http://127.0.0.1:8080 targets a running container"
 	@echo "make web-image       build $(WEB_IMG)"
 	@echo "make run             serve on http://127.0.0.1:$(PORT) (mounts web/data)"
@@ -38,6 +39,13 @@ mutation:
 # Browser tests in real Chrome (web/e2e). GTM_BASE_URL=http://127.0.0.1:8080 targets a running container.
 e2e:
 	cd web && npx playwright test
+
+# Lighthouse (mobile) against the running container (`make run`); writes docs/lighthouse/mobile.report.{json,html}.
+lighthouse:
+	mkdir -p docs/lighthouse
+	npx --yes lighthouse http://127.0.0.1:$(PORT)/ --only-categories=performance,accessibility,best-practices \
+	  --chrome-path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --chrome-flags="--headless=new" \
+	  --output=json --output=html --output-path=docs/lighthouse/mobile --quiet
 
 web-image:
 	$(PODMAN) build -t $(WEB_IMG) -f containers/web/Containerfile .

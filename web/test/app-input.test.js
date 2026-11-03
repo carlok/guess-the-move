@@ -176,6 +176,7 @@ test('confirm mode: a chosen move is pending, can be changed, cancelled or confi
   assert.equal($(w, 'result').hidden, true);
   assert.equal(w.document.querySelectorAll('.pending').length, 2);
   assert.equal(w.document.querySelectorAll('.arrow').length, 1, 'the pending move is drawn as an arrow');
+  assert.equal(w.document.querySelector('.arrow-label').textContent, 'Y');
   assert.match(live(w), /a1 to a7 chosen/);
   drag(w, 'a1', 'a8'); // change of mind
   docKey(w, 'Escape');
@@ -303,15 +304,18 @@ test('verdict, legend and cost bars after the reveal', async () => {
   assert.match($(exact, 'verdict').textContent, /predicted the real move/);
 });
 
-test('the same-square arrows of two references do not overlap, and reveal draws four labelled arrows', async () => {
+test('references that chose the same move share one arrow and one pill; different moves get their own style', async () => {
   const w = await boot(dataOf(ROOK));
-  drag(w, 'g1', 'g2'); // you = real = Maia top: three arrows over one move
+  drag(w, 'g1', 'g2'); // you = real = Maia's top: one arrow; Stockfish plays a1a8: another
   const arrows = Array.from(w.document.querySelectorAll('.arrow'));
-  assert.equal(arrows.length, 4);
-  const xs = new Set(arrows.map((a) => a.querySelector('.main').getAttribute('x1')));
-  assert.ok(xs.size >= 3, 'offset so each stays visible');
-  assert.equal(w.document.querySelectorAll('.arrow-label').length, 4);
-  assert.deepEqual(new Set(arrows.map((a) => a.getAttribute('data-dash'))), new Set(['solid', 'dashed', 'dashdot', 'dotted']));
+  assert.equal(arrows.length, 2);
+  const byKey = Object.fromEntries(arrows.map((a) => [a.getAttribute('data-key'), a]));
+  assert.deepEqual(Object.keys(byKey).sort(), ['best', 'real']);
+  assert.equal(byKey.real.getAttribute('data-keys'), 'you real maia');
+  assert.equal(byKey.real.querySelector('.arrow-label').textContent, 'Y R M');
+  assert.equal(byKey.best.querySelector('.arrow-label').textContent, 'S');
+  assert.deepEqual(arrows.map((a) => a.getAttribute('data-dash')).sort(), ['dashed', 'solid']);
+  assert.ok(byKey.best.querySelectorAll('line').length >= 2, 'a halo and a shaft');
 });
 
 test('onboarding appears on first run, closes, is remembered, and the help button brings it back', async () => {

@@ -63,7 +63,7 @@ test('best-move flow: select, move, reveal table, stats, storage', async () => {
   assert.match($(w, 'result').textContent, /Maia 1500/);
   assert.match($(w, 'result').textContent, /Real player 1500/);
   assert.equal($(w, 'next').hidden, false);
-  assert.ok(w.document.querySelectorAll('line').length >= 3, 'arrows are drawn');
+  assert.ok(w.document.querySelectorAll('line').length >= 2, 'arrows are drawn');
   assert.match($(w, 'stats').textContent, /Guesses\s*1/);
   assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.history')).length, 1);
   click(w, 'a7'); // board is locked after the reveal

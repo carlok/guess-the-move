@@ -73,14 +73,14 @@
   /* Sprite id of a FEN piece letter: "N" -> "wN", "p" -> "bP". */
   function spriteId(ch) { return (ch === ch.toUpperCase() ? 'w' : 'b') + ch.toUpperCase(); }
 
-  /* Line for an arrow from one square to another. `n` separates arrows that share the same squares. Returns the
-   * shaft (start and end short of the squares' centres), the arrow head triangle and a label anchor. */
-  function arrowGeometry(fromSq, toSq, n, flipped) {
+  /* Line for an arrow from one square to another. Returns the shaft (start and end short of the squares' centres), the
+   * arrow head triangle and a label anchor on the shaft. */
+  function arrowGeometry(fromSq, toSq, flipped) {
     var c1 = center(fromSq, flipped), c2 = center(toSq, flipped);
     var dx = c2[0] - c1[0], dy = c2[1] - c1[1], len = Math.sqrt(dx * dx + dy * dy) || 1;
-    var ux = dx / len, uy = dy / len, off = n * 12, nx = -uy * off, ny = ux * off;
-    var x1 = c1[0] + nx + ux * 20, y1 = c1[1] + ny + uy * 20;
-    var tx = c2[0] + nx - ux * 14, ty = c2[1] + ny - uy * 14; // arrow tip
+    var ux = dx / len, uy = dy / len;
+    var x1 = c1[0] + ux * 20, y1 = c1[1] + uy * 20;
+    var tx = c2[0] - ux * 14, ty = c2[1] - uy * 14; // arrow tip
     var bx = tx - ux * 28, by = ty - uy * 28;                  // head base, where the shaft ends
     var head = [[tx, ty], [bx - uy * 16, by + ux * 16], [bx + uy * 16, by - ux * 16]];
     return { x1: x1, y1: y1, x2: bx, y2: by, head: head, lx: x1 + (bx - x1) * 0.4, ly: y1 + (by - y1) * 0.4 };

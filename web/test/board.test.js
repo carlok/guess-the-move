@@ -67,16 +67,16 @@ test('piece names and sprite ids', () => {
   assert.equal(B.spriteId('N'), 'wN'); assert.equal(B.spriteId('p'), 'bP');
 });
 
-test('arrow geometry: the shaft stops short of the target, the head points at it, parallel arrows are separated', () => {
-  const g = B.arrowGeometry('a1', 'a8', 0, false); // straight up the a-file
+test('arrow geometry: the shaft stops short of the target and the head points at it', () => {
+  const g = B.arrowGeometry('a1', 'a8', false); // straight up the a-file
   assert.ok(g.y1 < 750 && g.y1 > g.y2, 'drawn upwards');
   assert.equal(g.x1, 50); assert.equal(g.x2, 50);
   assert.ok(g.head[0][1] < g.y2 && g.head[0][1] > 50, 'the tip is beyond the shaft end but inside the target square');
   assert.equal(g.head.length, 3);
   assert.ok(g.lx === 50 && g.ly < g.y1 && g.ly > g.y2, 'label sits on the shaft');
-  const other = B.arrowGeometry('a1', 'a8', 1, false);
-  assert.notEqual(other.x1, g.x1, 'a second arrow over the same squares is offset');
-  const same = B.arrowGeometry('c3', 'c3', 0, false); // degenerate: must not divide by zero
+  const flipped = B.arrowGeometry('a1', 'a8', true);
+  assert.ok(flipped.y1 > 0 && flipped.y1 < flipped.y2, 'drawn downwards when Black is at the bottom');
+  const same = B.arrowGeometry('c3', 'c3', false); // degenerate: must not divide by zero
   assert.ok(Number.isFinite(same.x1) && Number.isFinite(same.head[0][0]));
 });
 

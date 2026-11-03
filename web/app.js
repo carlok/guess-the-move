@@ -9,7 +9,7 @@
   var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD;
   var SPRITE = 'pieces.svg#';
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot' };
-  var WIDTH = { best: 15, real: 12, maia: 10, you: 8 };
+  var WIDTH = { best: 15, real: 12, maia: 11, you: 10 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500;
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
@@ -105,17 +105,24 @@
     layer('gMarks', s);
   }
 
-  function arrowMarkup(a, n) {
-    var g = B.arrowGeometry(a.uci.slice(0, 2), a.uci.slice(2, 4), n, S.flipped), w = WIDTH[a.key];
+  /* One arrow per distinct move. When several references chose the same move (often: you, Stockfish and the real player),
+   * one pill at the arrow lists every letter, so nothing is stacked or hidden. The arrow takes the style of the most
+   * informative key; the letters, not the colour, say who chose it. */
+  var STYLE_PRIORITY = ['best', 'real', 'maia', 'you'];
+
+  function arrowMarkup(uci, keys) {
+    var key = STYLE_PRIORITY.filter(function (k) { return keys.indexOf(k) >= 0; })[0], w = WIDTH[key];
+    var g = B.arrowGeometry(uci.slice(0, 2), uci.slice(2, 4), S.flipped);
     var line = function (cls, extra) {
       return '<line class="' + cls + '" x1="' + g.x1.toFixed(1) + '" y1="' + g.y1.toFixed(1) + '" x2="' + g.x2.toFixed(1) +
         '" y2="' + g.y2.toFixed(1) + '" stroke-width="' + (w + extra) + '" stroke-linecap="round"/>';
     };
     var pts = g.head.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
-    return '<g class="arrow arrow-' + a.key + '" data-key="' + a.key + '" data-dash="' + DASH[a.key] + '">' +
+    var letters = keys.map(function (k) { return T.letters[k]; }).join(' '), width = 22 + keys.length * 15 + (keys.length - 1) * 7;
+    return '<g class="arrow arrow-' + key + '" data-key="' + key + '" data-keys="' + keys.join(' ') + '" data-dash="' + DASH[key] + '">' +
       line('halo', 7) + line('main', 0) + '<polygon class="head" points="' + pts + '"/>' +
-      '<g class="arrow-label"><circle cx="' + g.lx.toFixed(1) + '" cy="' + g.ly.toFixed(1) + '" r="17"/><text x="' + g.lx.toFixed(1) +
-      '" y="' + (g.ly + 1).toFixed(1) + '">' + T.letters[a.key] + '</text></g></g>';
+      '<g class="arrow-label"><rect x="' + (g.lx - width / 2).toFixed(1) + '" y="' + (g.ly - 17).toFixed(1) + '" width="' + width + '" height="34" rx="17"/>' +
+      '<text x="' + g.lx.toFixed(1) + '" y="' + (g.ly + 1).toFixed(1) + '">' + letters + '</text></g></g>';
   }
 
   function renderArrows() {
@@ -126,12 +133,14 @@
     } else if (S.pending) {
       list.push({ uci: S.pending, key: 'you' });
     }
-    list.sort(function (a, b) { return WIDTH[b.key] - WIDTH[a.key]; }); // thick first, thin on top
-    var used = {};
-    layer('gArrows', list.map(function (a) {
-      var n = used[a.uci] || 0; used[a.uci] = n + 1;
-      return arrowMarkup(a, n);
-    }).join(''));
+    var groups = [], byMove = {};
+    list.forEach(function (a) {
+      if (!byMove[a.uci]) { byMove[a.uci] = { uci: a.uci, keys: [] }; groups.push(byMove[a.uci]); }
+      byMove[a.uci].keys.push(a.key);
+    });
+    var style = function (g) { return STYLE_PRIORITY.filter(function (k) { return g.keys.indexOf(k) >= 0; })[0]; };
+    groups.sort(function (a, b) { return WIDTH[style(b)] - WIDTH[style(a)]; }); // thick first, thin on top
+    layer('gArrows', groups.map(function (g) { return arrowMarkup(g.uci, g.keys); }).join(''));
   }
 
   function renderBoard() {
@@ -467,7 +476,7 @@
       d.positions.forEach(function (p) { (p.tags || []).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
       $('tag').innerHTML = '<option value="any">' + T.anyOption + '</option>' + Object.keys(T.tags).filter(function (t) { return counts[t]; })
         .map(function (t) { return '<option value="' + t + '">' + esc(T.tags[t]) + ' (' + counts[t] + ')</option>'; }).join('');
-      if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; }
+      if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; $('demoChip').hidden = false; }
       $('skeleton').hidden = true;
       renderStats(); nextPosition();
     }).catch(function (e) {

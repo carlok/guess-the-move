@@ -18,6 +18,12 @@ python3 -m http.server -d web 8000     # then open http://localhost:8000
 
 `web/data/positions.json` ships as **demo data** (three public-domain historical games, no ratings, so no Maia data). Build a real set below.
 
+## Playing
+
+Move a piece by **tapping it and then its destination**, by **dragging it**, or with the **keyboard** (Tab to the board, arrows move a cursor, Home jumps to the corner nearest you, Enter or Space selects and then moves, Escape cancels, `n` for the next position). Screen readers get each step announced.
+
+A move reveals the answer and cannot be taken back, so on touch screens the app asks you to **confirm** first: a chosen move is only drawn as a pending arrow until you press "Confirm move" (change your mind by choosing another, or press Escape). That is on by default when the device reports a coarse pointer, off for a mouse, and it is a toggle in the panel (kept in `localStorage`). An undo window was considered and rejected because the reveal itself is the commit.
+
 ## Tests
 
 ```bash
@@ -29,7 +35,7 @@ make mutation                                      # optional spot-check of test
 GTM_ENGINE=/opt/homebrew/bin/stockfish .venv/bin/python -m pytest -q   # + real-engine integration test
 ```
 
-What is covered: maths, tags, sampler, `build_dataset.main()` end to end (a UCI stub script stands in for the engine and a fake `maia2` module for the model, so no Stockfish or torch is needed), shared Python/JS test vectors (`tests/gen_vectors.py` regenerates them; a test fails if they drift), `hypothesis` property tests, and the DOM flows in jsdom. Thresholds live in `tools/check_coverage.py` and `web/package.json` and only ratchet up. Browser tests (`make e2e`) come with the UI work.
+What is covered: maths, tags, sampler, `build_dataset.main()` end to end (a UCI stub script stands in for the engine and a fake `maia2` module for the model, so no Stockfish or torch is needed), shared Python/JS test vectors (`tests/gen_vectors.py` regenerates them; a test fails if they drift), `hypothesis` property tests, and the DOM flows in jsdom. Thresholds live in `tools/check_coverage.py` and `web/package.json` and only ratchet up. Browser tests (`make e2e`, Playwright in the installed Chrome, no browser download) cover what jsdom cannot: real pointer geometry, touch drag, scrolling, layout at 1280x800, 768x1024 and 390x844 (touch, DPR 2), axe-core, and a smoke run against a container (`GTM_BASE_URL=http://127.0.0.1:8080`). `make lighthouse` audits the running container. Third-party pieces and icons are listed in `NOTICE`.
 
 ## Containers (rootless podman)
 

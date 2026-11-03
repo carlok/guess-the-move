@@ -8,6 +8,7 @@
   <title>Guess the Move</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
+  <link rel="preload" href="data/positions.json" as="fetch" crossorigin="anonymous">
   <script src="theme.js"></script>
 </head>
 <body>
@@ -19,6 +20,7 @@
       <p class="sub">See each position through another player's eyes.</p>
     </div>
     <div class="topbar-actions">
+      <a id="demoChip" class="demo-chip" href="#banner" aria-label="Demo data: details at the bottom of the page" hidden>Demo</a>
       <button id="helpBtn" type="button" class="icon-btn" aria-label="How it works">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
       </button>
@@ -28,8 +30,6 @@
       </button>
     </div>
   </header>
-
-  <div id="banner" class="banner" hidden></div>
 
   <section id="onboarding" class="onboarding" aria-labelledby="onboardingTitle" hidden>
     <h2 id="onboardingTitle">How it works</h2>
@@ -110,6 +110,7 @@
   </main>
 
   <footer>
+    <div id="banner" class="banner" hidden></div>
     <p>Scores use the Lichess win-probability curve. Stockfish evaluates every legal move offline; Maia
        (when present) shows what a typical player of the real player's rating would do.
        Free software; no data leaves your browser.</p>
@@ -117,9 +118,9 @@
 
   <div id="live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="strings.js"></script>
-  <script src="scoring.js"></script>
-  <script src="board.js"></script>
-  <script src="app.js"></script>
+  <script defer src="strings.js"></script>
+  <script defer src="scoring.js"></script>
+  <script defer src="board.js"></script>
+  <script defer src="app.js"></script>
 </body>
 </html>

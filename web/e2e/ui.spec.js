@@ -105,8 +105,10 @@ test('touch targets are at least 44x44 CSS px on a phone', async ({ page }) => {
 test('the reveal draws labelled arrows with a legend, so colour is not the only cue', async ({ page }) => {
   await open(page);
   await play(page);
-  expect(await page.locator('#boardSvg .arrow').count()).toBeGreaterThanOrEqual(3);
-  expect(await page.locator('#boardSvg .arrow-label').count()).toBeGreaterThanOrEqual(3);
+  // ROOK: you and Stockfish chose a1a8, the real player and Maia chose g1g2: two arrows, each with one pill naming its keys
+  expect(await page.locator('#boardSvg .arrow').count()).toBe(2);
+  const labels = await page.locator('#boardSvg .arrow-label').allTextContents();
+  expect(labels.map((t) => t.replace(/\s+/g, ' ').trim()).sort()).toEqual(['R M', 'Y S']);
   const dashes = await page.locator('#boardSvg .arrow').evaluateAll((els) => new Set(els.map((e) => e.getAttribute('data-dash'))).size);
   expect(dashes).toBeGreaterThanOrEqual(2);
   await expect(page.locator('#legend')).toBeVisible();

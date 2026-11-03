@@ -39,7 +39,7 @@ test('best move can be played by clicking on every shipped position', { skip }, 
     assert.match(text, /Move quality:\s*100\/100/, `${pos.id}: best move scores 100 (${pos.fen} ${best})`);
     assert.match(text, /ranks 1 of \d+/, `${pos.id}: rank 1`);
     assert.ok(text.includes(pos.san[best]), `${pos.id}: SAN shown`);
-    assert.ok(w.document.querySelectorAll('line').length >= 3, `${pos.id}: arrows drawn`);
+    assert.ok(w.document.querySelectorAll('line').length >= 2, `${pos.id}: arrows drawn`);
     checked++;
     w.close();
   }

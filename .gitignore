@@ -22,3 +22,4 @@ pytest-of-*/
 stryker-output-*.json
 .stryker-tmp/
 reports/
+docs/lighthouse/mobile.report.*
