@@ -19,6 +19,16 @@ test('cost, distance and similarity match the shared vectors', () => {
   });
 });
 
+test('seeded random vectors match (parity with pipeline/winpct.py)', () => {
+  V.random_win_pct.forEach(([cp, want]) => near(G.winPct(cp), want));
+  V.random_accuracy.forEach(([drop, want]) => near(G.accuracyFromDrop(drop), want));
+  V.random_cases.forEach((c) => {
+    near(G.cost(c.evals, c.a), c.cost_a);
+    near(G.distance(c.evals, c.a, c.b), c.distance);
+    near(G.similarity(c.evals, c.a, c.b), c.similarity);
+  });
+});
+
 test('published Lichess anchors', () => {
   near(G.accuracyFromDrop(10), 64, 0.5);
   near(G.accuracyFromDrop(20), 40, 0.5);

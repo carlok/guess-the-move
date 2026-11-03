@@ -1,5 +1,4 @@
 import json
-import math
 import os
 import re
 import shlex
@@ -7,43 +6,10 @@ import shlex
 import chess
 import pytest
 
+from fakes import FakeEngine, FakeMaia
 from pipeline.build_dataset import DEFAULT_ENGINE, build_positions, select, write_dataset
 from pipeline.sampler import Candidate
 from pipeline.tags import ALL_TAGS
-
-VALUES = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
-
-
-class FakeEngine:
-    """1-ply material evaluation: cheap, deterministic, no external process."""
-
-    name = "fake-material"
-
-    def analyse_all(self, board):
-        out = {}
-        for m in board.legal_moves:
-            b = board.copy()
-            b.push(m)
-            score = sum(
-                VALUES.get(p.piece_type, 0) * (1 if p.color == board.turn else -1)
-                for p in b.piece_map().values()
-            )
-            out[m.uci()] = score * 100 + (10_000 if b.is_checkmate() else 0)
-        return out
-
-
-class FakeMaia:
-    name = "fake-maia"
-
-    def __init__(self):
-        self.engine = FakeEngine()
-
-    def probs(self, fen, elo_self, elo_oppo):
-        board = chess.Board(fen)
-        ev = self.engine.analyse_all(board)
-        z = {m: math.exp(v / 100) for m, v in ev.items()}
-        s = sum(z.values())
-        return {m: v / s for m, v in z.items()}
 
 
 def cand(fen=chess.STARTING_FEN, real="e2e4", ply=0, elo=1500):
@@ -55,6 +21,7 @@ def cand(fen=chess.STARTING_FEN, real="e2e4", ply=0, elo=1500):
 # Black has just left a pawn hanging; White to move, plenty of choices.
 FEN_A = "rnbqkbnr/ppp2ppp/8/3pp3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3"
 FEN_B = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3"
+FEN_QUEEN_EN_PRISE = "rnb1kbnr/pppp1ppp/8/4p3/4P2q/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
 
 
 def test_position_invariants_with_fake_backends():
@@ -101,10 +68,41 @@ def test_illegal_maia_moves_fail_loudly():
         build_positions([cand(FEN_B, "g8f6", 5)], FakeEngine(), BadMaia(), max_abs_cp=None)
 
 
-def test_decided_positions_and_trivial_are_filtered():
+def test_decided_positions_are_filtered():
     decided = "6k1/8/8/8/8/8/Q7/QQ2K3 w - - 0 50"  # three queens up
     out = build_positions([cand(decided, "a2a8", 98)], FakeEngine(), FakeMaia(), max_abs_cp=500)
     assert out == []
+
+
+def test_trivial_positions_are_dropped_unless_kept():
+    # White wins the queen with Nxh4: the real move is the unique best move and Maia's favourite, so nothing to learn.
+    c = cand(FEN_QUEEN_EN_PRISE, "f3h4", 4)
+    assert build_positions([c], FakeEngine(), FakeMaia(), max_abs_cp=None, drop_trivial=True) == []
+    (p,) = build_positions([c], FakeEngine(), FakeMaia(), max_abs_cp=None, drop_trivial=False)
+    assert "trivial" in p["tags"]
+
+
+def test_progress_is_reported_per_candidate_and_at_the_end():
+    seen = []
+    build_positions([cand(FEN_A, "e4d5", 4), cand(FEN_B, "g8f6", 5)], FakeEngine(), FakeMaia(),
+                    max_abs_cp=None, drop_trivial=False, progress=lambda i, n: seen.append((i, n)))
+    assert seen == [(0, 2), (1, 2), (2, 2)]
+
+
+def test_engine_that_skips_a_legal_move_fails_loudly():
+    class Lazy(FakeEngine):
+        def analyse_all(self, board):
+            out = super().analyse_all(board)
+            out.popitem()
+            return out
+
+    with pytest.raises(RuntimeError, match="do not cover the legal moves"):
+        build_positions([cand(FEN_B, "g8f6", 5)], Lazy(), FakeMaia(), max_abs_cp=None)
+
+
+def test_real_move_that_is_not_legal_fails_loudly():
+    with pytest.raises(RuntimeError, match="not legal in"):
+        build_positions([cand(FEN_B, "e2e4", 5)], FakeEngine(), FakeMaia(), max_abs_cp=None)
 
 
 def test_select_balances_phases_and_is_deterministic():
@@ -113,6 +111,15 @@ def test_select_balances_phases_and_is_deterministic():
     assert sorted(p["phase"] for p in a).count("endgame") == 2
     assert a == select(pos, 6, seed=1)
     assert len(select(pos, 100)) == 12
+
+
+def test_select_never_keeps_the_same_position_and_move_twice():
+    # Two games can reach the same position and play the same move; the id is a hash of exactly that.
+    pos = [{"id": "a", "phase": "opening", "player_elo": 1500}, {"id": "a", "phase": "opening", "player_elo": 1700},
+           {"id": "b", "phase": "endgame", "player_elo": 1500}]
+    out = select(pos, 10, seed=3)
+    assert sorted(p["id"] for p in out) == ["a", "b"]
+    assert next(p for p in out if p["id"] == "a")["player_elo"] == 1500, "the first occurrence wins"
 
 
 def test_write_dataset_roundtrip(tmp_path):

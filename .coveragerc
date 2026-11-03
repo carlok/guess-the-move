@@ -1,0 +1,8 @@
+[run]
+branch = True
+source = pipeline
+# Nothing is omitted. Code that cannot run without torch must say so with `# pragma: no cover  # <reason>`.
+
+[report]
+show_missing = True
+skip_empty = False

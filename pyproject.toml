@@ -1,0 +1,14 @@
+# Tool configuration only (the project is not packaged). Coverage lives in .coveragerc.
+[tool.mutmut]
+# Mutation testing is a spot-check of test quality, not a gate (PROMPT.md 10.1): `make mutation`.
+# The whole package is copied (tests import all of it); only the maths and the tag rules are mutated, and
+# only the tests that cover them are run (the others need files outside the copy).
+source_paths = ["pipeline/"]
+do_not_mutate = ["pipeline/backends.py", "pipeline/build_dataset.py", "pipeline/sampler.py", "pipeline/__init__.py"]
+tests_dir = ["tests/"]
+pytest_add_cli_args = [
+  "-q", "-p", "no:cacheprovider",
+  "--ignore=tests/test_containers.py", "--ignore=tests/test_backends.py", "--ignore=tests/test_main.py",
+  "--ignore=tests/test_build.py", "--ignore=tests/test_sampler.py", "--ignore=tests/test_dataset_file.py",
+  "--ignore=tests/test_vectors.py",
+]

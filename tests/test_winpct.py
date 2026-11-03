@@ -18,6 +18,17 @@ def test_accuracy_matches_shared_vectors(drop, expected):
     assert accuracy_from_drop(drop) == pytest.approx(expected, abs=1e-9)
 
 
+def test_random_vectors_match():
+    for cp, expected in V["random_win_pct"]:
+        assert win_pct(cp) == pytest.approx(expected, abs=1e-9)
+    for drop, expected in V["random_accuracy"]:
+        assert accuracy_from_drop(drop) == pytest.approx(expected, abs=1e-9)
+    for c in V["random_cases"]:
+        assert cost(c["evals"], c["a"]) == pytest.approx(c["cost_a"], abs=1e-9)
+        assert distance(c["evals"], c["a"], c["b"]) == pytest.approx(c["distance"], abs=1e-9)
+        assert similarity(c["evals"], c["a"], c["b"]) == pytest.approx(c["similarity"], abs=1e-9)
+
+
 def test_cost_and_pairs_match_shared_vectors():
     evals = V["evals"]
     for move, expected in V["cost"].items():

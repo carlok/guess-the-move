@@ -84,7 +84,7 @@ def tag_position(
             tags.append("maia_error")
         if real_is_best and maia_probs.get(best, 0.0) < cfg.hard_find_prob:
             tags.append("hard_find")
-        if real_is_best and evals[maia_top] == evals[best] and maia_top == real:
+        if real_is_best and maia_top == real:  # real is best and Maia's favourite: nothing to learn
             tags.append("trivial")
 
     return tags

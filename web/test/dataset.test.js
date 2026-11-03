@@ -5,14 +5,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { JSDOM } = require('jsdom');
-
-const ROOT = path.join(__dirname, '..');
-const DATA_PATH = path.join(ROOT, 'data', 'positions.json');
-const HTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').replace(/<script[^>]*><\/script>/g, '');
-const SCORING = fs.readFileSync(path.join(ROOT, 'scoring.js'), 'utf8');
-const APP = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+const { ROOT, newDom, loadApp } = require('./harness');
 const G = require('../scoring.js');
+
+const DATA_PATH = path.join(ROOT, 'data', 'positions.json');
 
 const skip = fs.existsSync(DATA_PATH) ? false : 'no dataset built yet';
 const tick = () => new Promise((r) => setTimeout(r, 5));
@@ -22,10 +18,10 @@ test('best move can be played by clicking on every shipped position', { skip }, 
   const data = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
   let promotions = 0, checked = 0;
   for (const pos of data.positions) {
-    const dom = new JSDOM(HTML, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true });
+    const dom = newDom();
     const w = dom.window;
     w.fetch = async () => ({ ok: true, json: async () => ({ schema: 1, meta: data.meta, positions: [pos] }) });
-    w.eval(SCORING); w.eval(APP);
+    loadApp(dom);
     await tick();
 
     const best = G.bestMove(pos.evals);

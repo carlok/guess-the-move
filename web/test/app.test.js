@@ -3,14 +3,7 @@
  * exercise UI logic; they are not chess data and are never shipped. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { JSDOM } = require('jsdom');
-
-const ROOT = path.join(__dirname, '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').replace(/<script[^>]*><\/script>/g, '');
-const SCORING = fs.readFileSync(path.join(ROOT, 'scoring.js'), 'utf8');
-const APP = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+const { newDom, loadApp } = require('./harness');
 
 const ROOK = {
   id: 'rook', fen: '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', ply: 0, move_no: 1, stm: 'w', phase: 'endgame',
@@ -38,13 +31,12 @@ const EVIL = {
 const dataOf = (...positions) => ({ schema: 1, meta: { demo: false }, positions });
 
 async function boot(data, { brokenStorage = false, fetchImpl } = {}) {
-  const dom = new JSDOM(HTML, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true });
+  const dom = newDom();
   const w = dom.window;
   if (brokenStorage) Object.defineProperty(w, 'localStorage', { get() { throw new Error('storage denied'); } });
   w.fetch = fetchImpl || (async () => ({ ok: true, json: async () => data }));
   w.Math.random = () => 0; // deterministic pick: first matching position
-  w.eval(SCORING);
-  w.eval(APP);
+  loadApp(dom);
   await tick();
   return w;
 }

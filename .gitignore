@@ -16,3 +16,6 @@ playwright-report/
 .mutmut-cache/
 mutants/
 .DS_Store
+coverage.json
+node-compile-cache/
+pytest-of-*/

@@ -7,9 +7,11 @@ IN          ?= $(CURDIR)/data
 OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
-.PHONY: help test web-image builder-image run stop dataset
+.PHONY: help test coverage e2e web-image builder-image run stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
+	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
+	@echo "make e2e             browser tests (placeholder until the UI work lands)"
 	@echo "make web-image       build $(WEB_IMG)"
 	@echo "make run             serve on http://127.0.0.1:$(PORT) (mounts web/data)"
 	@echo "make stop"
@@ -20,6 +22,14 @@ help:
 test:
 	$(PYTHON) -m pytest -q
 	cd web && npm test
+
+coverage:
+	$(PYTHON) -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=json:coverage.json
+	$(PYTHON) tools/check_coverage.py coverage.json
+	cd web && npm run coverage
+
+e2e:
+	@echo "e2e: no browser tests yet (CONTINUE.md T9)"; exit 1
 
 web-image:
 	$(PODMAN) build -t $(WEB_IMG) -f containers/web/Containerfile .

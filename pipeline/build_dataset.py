@@ -104,10 +104,18 @@ def build_positions(
 
 
 def select(positions: list[dict], keep: int, seed: int = 0) -> list[dict]:
-    """Keep up to `keep` positions, balanced across phases (round-robin), deterministic for a seed."""
+    """Keep up to `keep` positions, balanced across phases (round-robin), deterministic for a seed.
+
+    A position+move pair appears once: two games can reach the same position and play the same move
+    (common in openings), and `id` is a hash of exactly that. The first occurrence wins.
+    """
     rng = random.Random(seed)
     by_phase: dict[str, list[dict]] = {}
+    seen: set[str] = set()
     for p in positions:
+        if p["id"] in seen:
+            continue
+        seen.add(p["id"])
         by_phase.setdefault(p["phase"], []).append(p)
     for group in by_phase.values():
         rng.shuffle(group)
