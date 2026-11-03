@@ -1,0 +1,12 @@
+{
+  "name": "guess-the-move-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static front-end for Guess-the-Move. No runtime dependencies; jsdom is used only by the tests.",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
+}

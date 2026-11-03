@@ -1,0 +1,30 @@
+# Builder image: PGN -> web/data/positions.json. Build context = repository root:
+#   podman build -t localhost/gtm-builder:dev -f containers/builder/Containerfile .
+#   podman build --build-arg WITH_MAIA=1 -t localhost/gtm-builder:maia -f containers/builder/Containerfile .
+# Runs as the container's root, which in ROOTLESS podman is just your own host user, so files
+# written to bind mounts are owned by you. Do not add a USER line without also using --userns=keep-id.
+FROM docker.io/library/python:3.12-slim
+
+ARG WITH_MAIA=0
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Native Stockfish from Debian (GPL-3.0), installed at /usr/games/stockfish. Its version follows the
+# base image's Debian release; the dataset meta records the engine name, so builds stay traceable.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends stockfish \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt requirements-maia.txt ./
+RUN pip install -r requirements.txt \
+ && if [ "$WITH_MAIA" = "1" ]; then \
+      pip install --index-url https://download.pytorch.org/whl/cpu torch \
+      && pip install -r requirements-maia.txt; \
+    fi
+
+COPY pipeline/ pipeline/
+ENV GTM_ENGINE=/usr/games/stockfish
+
+# Mount PGNs at /in (read-only) and an output directory at /out. A URL also works for --pgn.
+ENTRYPOINT ["python", "-m", "pipeline.build_dataset"]
+CMD ["--help"]

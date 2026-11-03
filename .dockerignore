@@ -1,0 +1,12 @@
+.venv/
+.git/
+.pytest_cache/
+**/__pycache__/
+**/node_modules/
+tools/
+tests/
+data/
+out/
+*.pgn
+*.pgn.zst
+*.tar.gz

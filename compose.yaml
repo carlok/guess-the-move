@@ -1,0 +1,46 @@
+# Dev stack for rootless podman:  podman compose up --build      (or: podman-compose up --build)
+#   web      static app on http://127.0.0.1:8080, with ./web/data mounted over the baked demo data
+#   builder  one-shot dataset build, only under the "build" profile:
+#            podman compose --profile build run --rm builder --pgn /in/games.pgn.zst --out /out/positions.json --maia none
+# `make` wraps the same commands with plain podman (no compose provider needed).
+# :Z relabels bind mounts for SELinux; harmless elsewhere.
+name: guess-the-move
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: containers/web/Containerfile
+    image: localhost/gtm-web:dev
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./web/data:/usr/share/nginx/html/data:ro,Z
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  builder:
+    profiles: ["build"]
+    build:
+      context: .
+      dockerfile: containers/builder/Containerfile
+      args:
+        WITH_MAIA: "0"
+    image: localhost/gtm-builder:dev
+    volumes:
+      - ./data:/in:ro,Z
+      - ./web/data:/out:Z
+
+  # ---- v2 (not implemented yet; see PROMPT.md "Service architecture") ----------------------------
+  # api:
+  #   build: { context: ., dockerfile: containers/api/Containerfile }
+  #   image: localhost/gtm-api:dev
+  #   environment:
+  #     VALKEY_URL: redis://valkey:6379     # Valkey speaks the Redis protocol
+  #   depends_on: [valkey]
+  #
+  # valkey:                                  # optional; only for shared/anonymous session state
+  #   image: docker.io/valkey/valkey:8-alpine   # verify the tag when enabling
+  #   command: ["valkey-server", "--save", "", "--appendonly", "no"]

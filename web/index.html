@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guess the Move</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Guess the Move</h1>
+    <p class="sub">See each position through another player's eyes.</p>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main>
+    <section class="left" aria-label="Board">
+      <div id="posInfo" class="posinfo"></div>
+      <div id="boardWrap" class="boardwrap"></div>
+      <div id="promo" class="promo" hidden></div>
+    </section>
+
+    <section class="right" aria-label="Controls and results">
+      <fieldset class="modes">
+        <legend>Mode</legend>
+        <label><input type="radio" name="mode" value="best" checked> Find the best move</label>
+        <label><input type="radio" name="mode" value="predict"> Predict the real move</label>
+      </fieldset>
+
+      <div class="filters">
+        <label>Phase
+          <select id="phase">
+            <option value="any">Any</option>
+            <option value="opening">Opening</option>
+            <option value="middlegame">Middlegame</option>
+            <option value="endgame">Endgame</option>
+          </select>
+        </label>
+        <label>Kind
+          <select id="tag"><option value="any">Any</option></select>
+        </label>
+        <label class="check"><input type="checkbox" id="unseen" checked> Unseen only</label>
+        <span id="matchCount" class="muted"></span>
+      </div>
+
+      <div id="prompt" class="prompt" aria-live="polite"></div>
+      <div id="result" class="result" hidden aria-live="polite"></div>
+
+      <div class="actions">
+        <button id="skip" type="button">Skip</button>
+        <button id="next" type="button" class="primary" hidden>Next position (n)</button>
+      </div>
+
+      <details class="stats">
+        <summary>Session stats</summary>
+        <div id="stats"></div>
+        <button id="resetStats" type="button" class="link">Reset stats</button>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <p>Scores use the Lichess win-probability curve. Stockfish evaluates every legal move offline; Maia
+       (when present) shows what a typical player of the real player's rating would do.
+       Free software; no data leaves your browser.</p>
+  </footer>
+
+  <script src="scoring.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

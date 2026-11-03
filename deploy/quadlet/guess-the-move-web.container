@@ -1,0 +1,27 @@
+# Rootless Quadlet unit (podman >= 4.4). Install:
+#   mkdir -p ~/.config/containers/systemd ~/guess-the-move-data
+#   cp deploy/quadlet/guess-the-move-web.container ~/.config/containers/systemd/
+#   cp web/data/positions.json ~/guess-the-move-data/        # or the output of the builder
+#   podman build -t localhost/gtm-web:latest -f containers/web/Containerfile .
+#   systemctl --user daemon-reload && systemctl --user start guess-the-move-web
+#   loginctl enable-linger $USER          # keep it running after logout / start at boot
+[Unit]
+Description=Guess the Move (static web)
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=localhost/gtm-web:latest
+ContainerName=gtm-web
+PublishPort=127.0.0.1:8080:8080
+Volume=%h/guess-the-move-data:/usr/share/nginx/html/data:ro,Z
+ReadOnly=true
+Tmpfs=/tmp
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

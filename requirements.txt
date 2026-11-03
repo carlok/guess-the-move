@@ -1,0 +1,3 @@
+# Runtime deps of the dataset pipeline (versions are the ones the v1 tests ran against).
+chess==1.11.2
+zstandard==0.25.0
