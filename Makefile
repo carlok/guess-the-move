@@ -12,7 +12,7 @@ help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
 	@echo "make mutation        mutation spot-check (mutmut on winpct/tags, Stryker on scoring.js); not a gate"
-	@echo "make e2e             browser tests (placeholder until the UI work lands)"
+	@echo "make e2e             browser tests in Chrome; GTM_BASE_URL=http://127.0.0.1:8080 targets a running container"
 	@echo "make web-image       build $(WEB_IMG)"
 	@echo "make run             serve on http://127.0.0.1:$(PORT) (mounts web/data)"
 	@echo "make stop"
@@ -35,8 +35,9 @@ mutation:
 	$(PYTHON) -m mutmut run && $(PYTHON) -m mutmut results
 	cd web && npx --yes -p @stryker-mutator/core -p @stryker-mutator/tap-runner stryker run stryker.config.json
 
+# Browser tests in real Chrome (web/e2e). GTM_BASE_URL=http://127.0.0.1:8080 targets a running container.
 e2e:
-	@echo "e2e: no browser tests yet (CONTINUE.md T9)"; exit 1
+	cd web && npx playwright test
 
 web-image:
 	$(PODMAN) build -t $(WEB_IMG) -f containers/web/Containerfile .
@@ -47,6 +48,7 @@ builder-image:
 run: web-image
 	$(PODMAN) run --rm -d --name gtm-web -p 127.0.0.1:$(PORT):8080 \
 	  --read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges \
+	  --health-cmd "wget -q -O /dev/null http://127.0.0.1:8080/healthz" --health-interval 30s --health-timeout 3s \
 	  -v $(OUT):/usr/share/nginx/html/data:ro,Z $(WEB_IMG)
 	@echo "http://127.0.0.1:$(PORT)"
 

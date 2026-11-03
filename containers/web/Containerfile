@@ -9,4 +9,6 @@ COPY web/index.html web/app.js web/scoring.js web/style.css /usr/share/nginx/htm
 COPY web/data/ /usr/share/nginx/html/data/
 
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
+# No HEALTHCHECK here: podman builds OCI images by default and OCI has no such field (it is ignored with a
+# warning). The health check is passed at run time instead: Makefile --health-cmd, compose `healthcheck:`,
+# Quadlet HealthCmd=. All three probe /healthz with busybox wget.

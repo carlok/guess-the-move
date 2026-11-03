@@ -33,17 +33,27 @@ What is covered: maths, tags, sampler, `build_dataset.main()` end to end (a UCI 
 
 ## Containers (rootless podman)
 
-The app is meant to run as podman services. **UNTESTED as images**: the files were validated statically and the nginx config was run on the host, but no image could be pulled where they were written (see `CONTINUE.md`, T1).
+The app runs as podman services. Built, started and probed on 2026-11-03 on macOS (podman 5.8.2, `libkrun` machine, rootless, arm64 Linux VM; Docker Compose v5.6.1 as the compose provider; Quadlet inside the machine VM). **Not tried:** a Linux host (SELinux `:Z` behaviour, native rootless uid mapping), `podman-compose`.
 
 ```bash
-make web-image && make run              # http://127.0.0.1:8080  (serves ./web/data, read-only rootfs)
+make web-image && make run              # http://127.0.0.1:8080  (serves ./web/data, read-only rootfs, health check)
 make stop
 make dataset PGN=/in/games.pgn.zst ARGS='--min-elo 1200 --max-elo 2000 --time-controls Rapid,Classical --max-games 200000 --maia none'
                                         # PGN is a path under ./data (mounted at /in) or an http(s) URL; writes web/data/positions.json
-podman compose up --build               # or podman-compose; the builder is under --profile build
+                                        # OUT=/some/dir writes there instead (do this when you do not want to overwrite web/data)
+podman compose up --build               # web only; the builder is under --profile build:
+podman compose --profile build run --rm builder --help
+GTM_BASE_URL=http://127.0.0.1:8080 make e2e   # the browser tests against the running container
 ```
 
 Pieces: `containers/web` (nginx-unprivileged, strict CSP, `/healthz`), `containers/builder` (Python + Debian Stockfish; `WITH_MAIA=1` adds CPU torch + maia2), `compose.yaml`, `Makefile`, `deploy/quadlet/` (systemd user unit). Planned services (`api`, optional Valkey) are in `PROMPT.md` section 4.1.
+
+What the first real runs showed (details in `PROMPT.md` 14.1):
+- The web container runs as uid 101 with `--read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges`: nginx-unprivileged needs nothing writable beyond `/tmp`.
+- The health check is passed at run time (`--health-cmd`, compose `healthcheck:`, Quadlet `HealthCmd=`), not with `HEALTHCHECK` in the Containerfile: podman builds OCI images and OCI has no such field.
+- Files the builder writes to a bind mount belong to your user on the Mac (mode 600 as seen from macOS), and the nginx user in the web container reads them fine. No `--userns=keep-id` was needed.
+- The builder image uses Debian's `stockfish` (`/usr/games/stockfish`, 17.1 at the time of writing); the dataset `meta.engine` records whichever engine ran.
+- Quadlet on macOS lives inside the machine VM: `podman machine ssh`, then copy the unit to `~/.config/containers/systemd/`, `systemctl --user daemon-reload && systemctl --user start guess-the-move-web`. The image must be in the VM's store (build with the normal `podman` client first).
 
 ## Build a dataset
 

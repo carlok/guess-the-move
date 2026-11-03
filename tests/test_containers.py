@@ -23,6 +23,7 @@ def copy_sources(containerfile: str):
 @pytest.mark.parametrize("name", ["web", "builder"])
 def test_containerfile_is_sane(name):
     text = read(f"containers/{name}/Containerfile")
+    assert not re.search(r"^HEALTHCHECK", text, flags=re.M), "podman builds OCI images, which ignore HEALTHCHECK; set it at run time"
     froms = re.findall(r"^FROM\s+(\S+)", text, flags=re.M)
     assert froms and all(f.startswith("docker.io/") for f in froms), "use fully-qualified image names"
     for src in copy_sources(text):
@@ -70,6 +71,7 @@ def test_compose_file():
     for svc in (web, builder):
         assert (ROOT / svc["build"]["dockerfile"]).exists()
     assert web["read_only"] is True
+    assert "/healthz" in " ".join(web["healthcheck"]["test"]), "health is defined at run time (OCI images ignore HEALTHCHECK)"
     assert set(doc["services"]) == {"web", "builder"}, "api/valkey stay commented out until implemented"
 
 
@@ -77,7 +79,14 @@ def test_quadlet_unit():
     text = read("deploy/quadlet/guess-the-move-web.container")
     for key in ("Image=", "PublishPort=127.0.0.1:8080:8080", "ReadOnly=true", "Restart=always", "WantedBy=default.target"):
         assert key in text
+    assert re.search(r"^HealthCmd=.*/healthz", text, flags=re.M)
     assert text.index("[Unit]") < text.index("[Container]") < text.index("[Service]") < text.index("[Install]")
+
+
+def test_makefile_run_hardening_and_health():
+    run = read("Makefile").split("\nrun:")[1].split("\nstop:")[0]
+    for flag in ("--read-only", "--tmpfs /tmp", "--cap-drop=all", "--security-opt no-new-privileges", "--health-cmd"):
+        assert flag in run, flag
 
 
 def test_makefile_targets_exist():
