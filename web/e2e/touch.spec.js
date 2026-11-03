@@ -26,6 +26,13 @@ test('confirm-before-reveal is on by default for a coarse pointer, and tap-tap n
 
 test('a touch drag moves a ghost, drops as a pending move, and confirm reveals it', async ({ page }) => {
   await open(page);
+  // Diagnostics for a failure seen only on the GitHub runner's Linux Chrome: record what the page really receives.
+  await page.evaluate(() => {
+    window.__ev = [];
+    for (const t of ['pointerdown', 'pointerup', 'pointercancel', 'touchstart', 'touchend', 'touchcancel', 'click', 'gotpointercapture', 'lostpointercapture']) {
+      document.addEventListener(t, (e) => window.__ev.push([Math.round(performance.now()), t, (e.target.id || e.target.tagName || '') + '', Math.round(e.clientX || 0), Math.round(e.clientY || 0), e.pointerId ?? '', e.pointerType || '']), true);
+    }
+  });
   const drag = await touchDrag(page, 'a1', 'a8', { release: false });
   await expect(board(page)).toHaveAttribute('data-dragging', 'true');
   await expect(page.locator('#gGhost > *')).toHaveCount(1);
@@ -34,7 +41,13 @@ test('a touch drag moves a ghost, drops as a pending move, and confirm reveals i
   await expect(page.locator('#confirm')).toBeVisible();
   await expect(page.locator('#result')).toBeHidden();
   await touchTap(page, page.locator('#confirm')); // same CDP session as the drag, see helpers.js
-  await expect(page.locator('#result')).toContainText('Move quality: 100/100');
+  try {
+    await expect(page.locator('#result')).toContainText('Move quality: 100/100');
+  } catch (e) {
+    const ev = await page.evaluate(() => window.__ev);
+    console.log('PAGE EVENTS (ms, type, target, x, y, pointerId, pointerType):\n' + ev.map((x) => x.join(' ')).join('\n'));
+    throw e;
+  }
 });
 
 test('dropping a touch drag outside the board cancels it', async ({ page }) => {
