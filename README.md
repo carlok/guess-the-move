@@ -101,6 +101,17 @@ Safety: FENs are validated with python-chess (length cap, legal and reachable po
 
 Useful flags: `--per-game`, `--min-ply/--max-ply`, `--max-abs-cp` (drop already-decided positions), `--keep-trivial`, `--seed`, `--allow-missing-elo`.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` (GitHub Actions) runs three jobs on every push to `main` and every pull request: Python tests with coverage, the web tests (jsdom, coverage, the click-every-position test, the browser tests in Chrome), and the container check. Each step is a `make` target, so the same thing runs on your machine first:
+
+```bash
+make ci                  # coverage, all tests, browser tests, container check: about 2 minutes here
+make containers-check    # only the images: builds web, builder and api, starts web + api on a private network, probes them
+```
+
+`make ci` passes locally (2026-11-04). The workflow file itself has **not run on GitHub yet**; the first run will show whether the runner's rootless podman behaves like this Mac's. To run the workflow file itself locally you need [`act`](https://github.com/nektos/act) (not installed here), which executes the jobs in containers; the `containers` job needs podman or Docker inside that, so `make containers-check` is the faithful local check for that job. The workflow reads the code and nothing else (no secrets, read-only token), and its actions are pinned to major versions.
+
 ## Licence
 
 GNU Affero General Public License, version 3 or (at your option) any later version: see `LICENSE`. The reason is Maia-3, whose code and weights are AGPL-3.0: running it in the `api` service, or shipping it to browsers, is what the AGPL's network clause is about. If you run a modified version of the `api` for other people, you must offer them its source. Third-party material and its licences are in `NOTICE`. The dataset's game positions come from the Lichess open database (CC0).

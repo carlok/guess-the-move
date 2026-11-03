@@ -8,14 +8,18 @@ MODELS      ?= gtm-models
 MAIA        ?= maia3
 MAIA_MODEL  ?= maia3-23m
 PORT        ?= 8080
+WEB_NAME    ?= gtm-web
+API_NAME    ?= gtm-api
 IN          ?= $(CURDIR)/data
 OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
-.PHONY: help test coverage mutation e2e lighthouse web-image builder-image api-image api-weights run run-api stop dataset
+.PHONY: help test coverage coverage-python coverage-js containers-check ci mutation e2e lighthouse web-image builder-image api-image api-weights run run-api stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
+	@echo "make ci               what GitHub Actions runs: coverage, all tests, browser tests, container checks"
+	@echo "make containers-check build the images and probe them (podman)"
 	@echo "make mutation        mutation spot-check (mutmut on winpct/tags, Stryker on scoring.js); not a gate"
 	@echo "make lighthouse      Lighthouse mobile run against the container from `make run` (adjust the Chrome path on Linux)"
 	@echo "make e2e             browser tests in Chrome; GTM_BASE_URL=http://127.0.0.1:8080 targets a running container"
@@ -32,10 +36,24 @@ test:
 	$(PYTHON) -m pytest -q
 	cd web && npm test
 
-coverage:
+coverage: coverage-python coverage-js
+
+coverage-python:
 	$(PYTHON) -m pytest -q --cov --cov-report=term-missing:skip-covered --cov-report=json:coverage.json
 	$(PYTHON) tools/check_coverage.py coverage.json
+
+coverage-js:
 	cd web && npm run coverage
+
+# Build the three images and probe them as a user would (needs podman); uses its own tags, names and port.
+containers-check:
+	tools/containers_check.sh
+
+# Everything the CI workflow runs, in the same order. If `make ci` passes here, the workflow's logic passes there.
+ci: coverage-python coverage-js
+	cd web && npm test
+	cd web && npx playwright test
+	$(MAKE) containers-check
 
 # Stryker edits web/scoring.js in place and restores it: run on a clean tree (git status).
 mutation:
@@ -62,7 +80,7 @@ builder-image:
 
 run: web-image
 	-$(PODMAN) network create $(NET)
-	$(PODMAN) run --rm -d --name gtm-web --network $(NET) -p 127.0.0.1:$(PORT):8080 \
+	$(PODMAN) run --rm -d --name $(WEB_NAME) --network $(NET) -p 127.0.0.1:$(PORT):8080 \
 	  --read-only --tmpfs /tmp --tmpfs /etc/nginx/conf.d:rw,mode=1777 --cap-drop=all --security-opt no-new-privileges \
 	  --health-cmd "wget -q -O /dev/null http://127.0.0.1:8080/healthz" --health-interval 30s --health-timeout 3s \
 	  -v $(OUT):/usr/share/nginx/html/data:ro,Z $(WEB_IMG)
@@ -81,15 +99,15 @@ api-weights:
 # Needs the image from `make api-image` (not a prerequisite: it would rebuild without the arguments you gave there).
 run-api:
 	-$(PODMAN) network create $(NET)
-	$(PODMAN) run --rm -d --name gtm-api --network $(NET) --network-alias api \
+	$(PODMAN) run --rm -d --name $(API_NAME) --network $(NET) --network-alias api \
 	  --read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges --cpus 2 --memory 2g \
 	  -e GTM_API_TRUST_PROXY=1 -v $(MODELS):/models \
 	  --health-cmd "python -c \"import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz')\"" --health-interval 30s --health-timeout 5s \
 	  $(API_IMG)
 
 stop:
-	-$(PODMAN) stop gtm-web
-	-$(PODMAN) stop gtm-api
+	-$(PODMAN) stop $(WEB_NAME)
+	-$(PODMAN) stop $(API_NAME)
 
 dataset: builder-image
 	@test -n "$(PGN)" || { echo "usage: make dataset PGN=/in/file.pgn.zst|URL [ARGS='...']"; exit 2; }
