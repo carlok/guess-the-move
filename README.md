@@ -61,6 +61,25 @@ What the first real runs showed (details in `PROMPT.md` 14.1):
 - The builder image uses Debian's `stockfish` (`/usr/games/stockfish`, 17.1 at the time of writing); the dataset `meta.engine` records whichever engine ran.
 - Quadlet on macOS lives inside the machine VM: `podman machine ssh`, then copy the unit to `~/.config/containers/systemd/`, `systemctl --user daemon-reload && systemctl --user start guess-the-move-web`. The image must be in the VM's store (build with the normal `podman` client first).
 
+## The api service (optional)
+
+A small stateless HTTP JSON service (Starlette + uvicorn, Python 3.12) for what the static dataset cannot answer: **any FEN** with Stockfish and, if you give a rating, Maia; and a **level estimate** from your own guesses. It runs in its own container, is never published to the host, and the web container exposes it to the browser as `/api/`. The page feature-detects `GET /api/healthz`: with no api, nothing changes and nothing is shown.
+
+```bash
+make api-image WITH_MAIA=1      # Stockfish (Debian package) + CPU torch + maia2; without WITH_MAIA it serves engine evaluations only
+make api-weights                # once: downloads Maia-2's weights (about 280 MB, from Google Drive) into the gtm-models volume
+make run && make run-api        # web on http://127.0.0.1:8080, api on the private "gtm" network
+podman compose --profile api up --build       # the same with compose; add --profile cache for Valkey
+```
+
+| Endpoint | Body | Answer |
+|---|---|---|
+| `GET /healthz` | | `{status, engine, maia}` |
+| `POST /v1/analyse` | `{fen, elo?, opp_elo?, nodes?}` | the dataset's position object for that FEN: `evals` and `san` for every legal move, `maia` at `elo`, `phase` |
+| `POST /v1/posterior` | `{history: [{fen, move, opp_elo?}], prior?}` | posterior over the 11 Maia rating buckets, mean, 80% interval, labelled "Lichess-equivalent" |
+
+Safety: FENs are validated with python-chess (length cap, legal and reachable position, at least one legal move); body size, node budget, history length, concurrency (503 `busy`) and time per request (504) are capped; a token bucket per client (X-Forwarded-For is trusted only with `GTM_API_TRUST_PROXY=1`, which nginx sets from `$remote_addr`); cross-origin POSTs are refused and there are no CORS headers; request bodies are never logged (method, path, status and duration only). Configuration is by environment variables, listed at the top of `api/main.py`. Valkey is an optional shared cache (`VALKEY_URL`); without it, or when it is down, an in-process LRU is used and the answers are the same.
+
 ## Build a dataset
 
 1. **Engine.** Any UCI engine works. The default is Stockfish 19 (GPL-3.0) from npm, run under Node:

@@ -6,6 +6,8 @@ Added on 2026-11-03: the owner said yes to the `api` service and asked for unit 
 
 What the previous session could not do, and this one should: build and run the two container images, run on real Lichess data, run Maia, and settle the facts marked UNVERIFIED in `PROMPT.md` §7. Questions only you can answer are in §6 of the prompt; answer them in your first message to speed things up.
 
+**Status after the 2026-11-03 session:** T0, T8, T1, T9, T2, T3, T4, T5 and T6 were done, T7 was run as a spike; evidence, numbers and what remains UNTESTED are in `PROMPT.md` 14.1 and `CHANGELOG.md`. Open decisions for the owner: repo licence (recommendation in 14.1), Maia-2 vs Maia-3, whether the real `positions.json` may be published, where CI should run. Do not repeat done tasks; start from 14.1.
+
 ---
 
 # Role and context

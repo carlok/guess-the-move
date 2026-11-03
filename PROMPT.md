@@ -224,6 +224,7 @@ Historical: the sandbox that built v1 could not reach Hugging Face or the Liches
 
 ## 11. Roadmap
 
+- **Status 2026-11-03:** v1.1 to v1.4 and the first cut of v2 are built; details and evidence in 14.1.
 - **v1.1 Real data.** Run on a Lichess monthly archive on a machine with network and Python ≤ 3.12 for `maia2`; verify the unverified items above; ship a first real `positions.json`.
 - **v1.2 Services verified.** Build and run the two images on a machine with a registry; fix what breaks (CONTINUE.md T1).
 - **v1.3 Quality gate.** 10.1 (CONTINUE.md T8). Do this before the UI rewrite: it is the safety net.
