@@ -1,0 +1,59 @@
+{
+  "n": 400,
+  "illegal_key_positions": 0,
+  "maia_ms_per_call_median": 5.5,
+  "model": "maia2-rapid",
+  "bands": {
+    "1200-1399": {
+      "n": 108,
+      "chance": 6.2,
+      "maia_top1": 42.6,
+      "maia_swapped_elo_top1": 42.6,
+      "stockfish_low_top1": 25.0,
+      "mean_p_real": 0.35
+    },
+    "1400-1599": {
+      "n": 121,
+      "chance": 5.0,
+      "maia_top1": 50.4,
+      "maia_swapped_elo_top1": 51.2,
+      "stockfish_low_top1": 28.9,
+      "mean_p_real": 0.402
+    },
+    "1600-1799": {
+      "n": 102,
+      "chance": 5.3,
+      "maia_top1": 46.1,
+      "maia_swapped_elo_top1": 47.1,
+      "stockfish_low_top1": 27.5,
+      "mean_p_real": 0.383
+    },
+    "1800-2000": {
+      "n": 69,
+      "chance": 4.5,
+      "maia_top1": 56.5,
+      "maia_swapped_elo_top1": 58.0,
+      "stockfish_low_top1": 39.1,
+      "mean_p_real": 0.423
+    },
+    "all": {
+      "n": 400,
+      "chance": 5.3,
+      "maia_top1": 48.2,
+      "maia_swapped_elo_top1": 49.0,
+      "stockfish_low_top1": 29.2,
+      "mean_p_real": 0.387
+    }
+  },
+  "colour": {
+    "w": {
+      "n": 198,
+      "maia_top1": 50.0
+    },
+    "b": {
+      "n": 202,
+      "maia_top1": 46.5
+    }
+  },
+  "prob_mass_min": 0.999
+}

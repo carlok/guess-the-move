@@ -23,3 +23,5 @@ stryker-output-*.json
 .stryker-tmp/
 reports/
 docs/lighthouse/mobile.report.*
+.venv-maia/
+maia2_models/

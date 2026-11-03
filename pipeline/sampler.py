@@ -141,6 +141,8 @@ def positions_from_game(
             )
         board.push(move)
 
+    if stats is not None:
+        stats["eligible"] += len(eligible)
     if len(eligible) > cfg.per_game:
         eligible = rng.sample(eligible, cfg.per_game)
     return sorted(eligible, key=lambda c: c.ply)
@@ -152,14 +154,14 @@ def sample_candidates(
     """Reservoir-sample up to `limit` candidates over the whole stream (deterministic for a seed).
 
     If `stats` is given it is filled with games_read / games_used, so callers can notice an
-    empty or silently truncated input, and with low_clock_dropped / no_clock_info (positions the clock
+    empty or silently truncated input, and with eligible (positions that passed every filter, before the per-game sample), low_clock_dropped / no_clock_info (positions the clock
     filter removed, and positions it could not judge because the PGN has no clock comments).
     """
     rng = random.Random(seed)
     reservoir: list[Candidate] = []
     seen = 0
     if stats is not None:
-        stats.update(games_read=0, games_used=0, low_clock_dropped=0, no_clock_info=0)
+        stats.update(games_read=0, games_used=0, low_clock_dropped=0, no_clock_info=0, eligible=0)
     for n_games, game in enumerate(iter_games(handle)):
         if cfg.max_games is not None and n_games >= cfg.max_games:
             break

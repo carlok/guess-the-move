@@ -144,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--nodes", type=int, default=400_000, help="node budget per position (MultiPV over all legal moves)")
     ap.add_argument("--maia", choices=["none", "maia2"], default="none")
     ap.add_argument("--maia-kind", choices=["rapid", "blitz"], default="rapid")
+    ap.add_argument("--maia-home", default=os.environ.get("MAIA2_HOME", "./maia2_models"),
+                    help="where maia2 keeps (and downloads) its weights; mount a volume here to avoid re-downloading")
     ap.add_argument("--candidates", type=int, default=1000, help="positions to analyse")
     ap.add_argument("--keep", type=int, default=300, help="positions to keep after filtering")
     ap.add_argument("--seed", type=int, default=0)
@@ -184,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(
         f"read {stats['games_read']} games ({stats['games_used']} passed the game filters) from {label}; "
-        f"sampled {len(cands)} candidates ({stats['low_clock_dropped']} dropped for low clock, "
+        f"sampled {len(cands)} candidates from {stats['eligible']} eligible positions ({stats['low_clock_dropped']} dropped for low clock, "
         f"{stats['no_clock_info']} without clock data)",
         file=sys.stderr,
     )
@@ -199,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     from .backends import Maia2Backend, NullMaia, StockfishBackend
 
     engine = StockfishBackend(shlex.split(args.engine), nodes=args.nodes)
-    maia = Maia2Backend(kind=args.maia_kind) if args.maia == "maia2" else NullMaia()
+    maia = Maia2Backend(kind=args.maia_kind, save_root=args.maia_home) if args.maia == "maia2" else NullMaia()
     tcfg = TagConfig()
 
     def progress(i: int, n: int) -> None:

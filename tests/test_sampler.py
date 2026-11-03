@@ -99,10 +99,10 @@ def test_stats_report_games_read_and_used():
     stats = {}
     text = game() + game(white=None, black=None) + game()
     sample_candidates(io.StringIO(text), SamplerConfig(per_game=1), 100, 0, stats)
-    assert stats == {"games_read": 3, "games_used": 2, "low_clock_dropped": 0, "no_clock_info": 0}
+    assert stats == {"games_read": 3, "games_used": 2, "low_clock_dropped": 0, "no_clock_info": 0, "eligible": 0}
     stats = {}
     sample_candidates(io.StringIO(""), SamplerConfig(), 100, 0, stats)
-    assert stats == {"games_read": 0, "games_used": 0, "low_clock_dropped": 0, "no_clock_info": 0}
+    assert stats == {"games_read": 0, "games_used": 0, "low_clock_dropped": 0, "no_clock_info": 0, "eligible": 0}
 
 
 def test_stream_zst_from_url_and_stop_early(tmp_path, monkeypatch):
@@ -177,6 +177,7 @@ def test_a_position_is_dropped_when_the_mover_ends_it_under_the_clock_limit():
     assert 12 not in plies, "White had 20 s left after Qb3"
     assert 13 in plies, "Black still had 45 s after Qe7: the clock is the mover's own"
     assert len(cands) == 15 and stats["low_clock_dropped"] == 1 and stats["no_clock_info"] == 0
+    assert stats["eligible"] == 15, "positions that passed every filter, before the per-game sample"
 
 
 def test_the_clock_limit_is_exclusive_and_takes_fractions_of_a_second():
@@ -187,7 +188,7 @@ def test_the_clock_limit_is_exclusive_and_takes_fractions_of_a_second():
 
 def test_without_a_limit_nothing_is_dropped_and_nothing_is_counted():
     cands, stats = sample_stats(clocked_game({12: "0:00:01"}), min_clock_s=None)
-    assert len(cands) == 16 and stats["low_clock_dropped"] == 0 and stats["no_clock_info"] == 0
+    assert len(cands) == 16 and stats["low_clock_dropped"] == 0 and stats["no_clock_info"] == 0 and stats["eligible"] == 16
 
 
 def test_positions_without_clock_comments_are_kept_and_counted_when_the_limit_is_on():

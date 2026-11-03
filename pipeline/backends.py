@@ -54,24 +54,30 @@ class NullMaia:
 
 
 class Maia2Backend:
-    """Maia-2 through `pip install maia2` (Python 3.10-3.12). UNTESTED here.
+    """Maia-2 through `pip install maia2` (Python 3.10-3.12).
 
-    API as documented in the maia2 README:
-        model.from_pretrained(type="rapid"|"blitz", device=...)
+    API as documented in the maia2 README and confirmed against maia2 0.11.0's source (T3):
+        model.from_pretrained(type="rapid"|"blitz", device=..., save_root=...)   # weights come from Google Drive (gdown)
         inference.prepare()
         inference.inference_each(model, prepared, fen, elo_self, elo_oppo) -> (move_probs, win_prob)
+    `move_probs` maps UCI moves of the position as given (already mirrored back for Black) to probabilities. Ratings
+    are bucketed by maia2 itself (<1100, 1100-1199 ... 1900-1999, >=2000), so any Elo is accepted as is; `elo_range`
+    exists only to clamp deliberately.
     """
 
-    def __init__(self, kind: str = "rapid", device: str = "cpu", elo_range: tuple[int, int] = (1100, 2000)):
+    def __init__(self, kind: str = "rapid", device: str = "cpu", elo_range: tuple[int, int] | None = None,
+                 save_root: str = "./maia2_models"):
         from maia2 import inference, model  # lazy: heavy and optional
 
         self.name = f"maia2-{kind}"
         self.elo_range = elo_range
         self._inference = inference
-        self._model = model.from_pretrained(type=kind, device=device)
+        self._model = model.from_pretrained(type=kind, device=device, save_root=save_root)
         self._prepared = inference.prepare()
 
     def _clamp(self, elo: int) -> int:
+        if self.elo_range is None:
+            return elo
         lo, hi = self.elo_range
         return max(lo, min(hi, elo))
 

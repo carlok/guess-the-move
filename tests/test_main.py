@@ -59,14 +59,14 @@ def test_a_maia_backend_adds_probabilities_in_the_players_frame(tmp_path, monkey
     made = []
 
     class FakeMaia2(FakeMaia):
-        def __init__(self, kind="rapid"):
+        def __init__(self, kind="rapid", save_root=None):
             super().__init__()
             self.name = f"fake-maia2-{kind}"
-            made.append(kind)
+            made.append((kind, save_root))
 
     monkeypatch.setattr(pipeline.backends, "Maia2Backend", FakeMaia2)
-    rc, out = run(tmp_path, "--maia", "maia2", "--maia-kind", "blitz")
-    assert rc == 0 and made == ["blitz"]
+    rc, out = run(tmp_path, "--maia", "maia2", "--maia-kind", "blitz", "--maia-home", str(tmp_path / "w"))
+    assert rc == 0 and made == [("blitz", str(tmp_path / "w"))]
     data = json.loads(out.read_text())
     check_dataset(data)
     assert data["meta"]["maia"] == "fake-maia2-blitz"
@@ -136,7 +136,8 @@ def test_low_clock_positions_are_excluded_by_default_and_the_counts_are_recorded
     assert max(p["ply"] for p in data["positions"]) < 8
     assert data["meta"]["min_clock_seconds"] == 30
     assert data["meta"]["sampling"]["low_clock_dropped"] == 8
-    assert "8 dropped for low clock" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "8 dropped for low clock" in err and "eligible positions" in err
 
 
 def test_the_clock_filter_can_be_switched_off_or_tuned(tmp_path):

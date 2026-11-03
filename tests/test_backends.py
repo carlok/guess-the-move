@@ -89,8 +89,8 @@ def test_null_maia_has_no_name_and_no_probabilities():
 def fake_maia2(monkeypatch):
     seen = {}
 
-    def from_pretrained(type, device):
-        seen["load"] = (type, device)
+    def from_pretrained(type, device, save_root="./maia2_models"):
+        seen["load"] = (type, device, save_root)
         return "MODEL"
 
     def inference_each(model, prepared, fen, elo_self, elo_oppo):
@@ -104,16 +104,22 @@ def fake_maia2(monkeypatch):
     return seen
 
 
-def test_maia2_backend_clamps_elo_and_passes_self_before_opponent(fake_maia2):
+def test_maia2_backend_passes_the_real_elo_self_before_opponent_and_floats_the_probabilities(fake_maia2):
+    # maia2 itself maps any rating to one of its buckets (<1100, 1100-1199 ... 1900-1999, >=2000): no clamp is needed
     m = Maia2Backend(kind="blitz", device="cpu")
-    assert m.name == "maia2-blitz" and fake_maia2["load"] == ("blitz", "cpu")
+    assert m.name == "maia2-blitz" and fake_maia2["load"] == ("blitz", "cpu", "./maia2_models")
     probs = m.probs(FEN, 900, 2500)
-    assert fake_maia2["each"] == ("MODEL", "PREPARED", FEN, 1100, 2000)
+    assert fake_maia2["each"] == ("MODEL", "PREPARED", FEN, 900, 2500)
     assert probs == {"f3h4": 0.5, "a2a3": 0.25}
     assert all(type(p) is float for p in probs.values())
 
 
-def test_maia2_backend_elo_range_is_configurable(fake_maia2):
+def test_maia2_backend_keeps_its_weights_where_it_is_told(fake_maia2, tmp_path):
+    Maia2Backend(save_root=str(tmp_path / "models"))
+    assert fake_maia2["load"][2] == str(tmp_path / "models")
+
+
+def test_maia2_backend_can_still_clamp_when_asked(fake_maia2):
     m = Maia2Backend(elo_range=(1000, 1500))
     m.probs(FEN, 1700, 1200)
     assert fake_maia2["each"][3:] == (1500, 1200)
