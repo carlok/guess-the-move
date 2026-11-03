@@ -94,6 +94,18 @@
         <summary>Session stats</summary>
         <div id="stats"></div>
         <button id="resetStats" type="button" class="link">Reset stats</button>
+        <button id="estimateBtn" type="button" class="link" hidden>Estimate my level</button>
+        <p id="estimate" class="small" aria-live="polite"></p>
+      </details>
+
+      <details id="apiPanel" class="stats" hidden>
+        <summary>Analyse any position</summary>
+        <label class="field" for="fenInput">FEN</label>
+        <textarea id="fenInput" rows="2" spellcheck="false" autocomplete="off"></textarea>
+        <label class="field" for="eloInput">Rating for the Maia column (optional)</label>
+        <input id="eloInput" type="number" min="100" max="3500" inputmode="numeric">
+        <button id="analyseBtn" type="button">Analyse</button>
+        <p id="apiMsg" class="muted small" aria-live="polite"></p>
       </details>
 
       <div class="settings">

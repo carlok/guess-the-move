@@ -10,6 +10,7 @@ const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': '
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/api/healthz') { res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"status":"unavailable"}'); return; } // like the container without an api
   const rel = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
   const file = path.resolve(ROOT, '.' + rel);
   if (!file.startsWith(ROOT + path.sep) || file.includes(`${path.sep}node_modules${path.sep}`)) { res.writeHead(403).end(); return; }

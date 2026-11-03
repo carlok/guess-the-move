@@ -93,6 +93,9 @@ def test_nginx_proxies_the_api_without_needing_it_at_start():
     assert "proxy_set_header X-Forwarded-For $remote_addr;" in block, "never append to a client-supplied value"
     assert "proxy_set_header Host $http_host;" in block and "client_max_body_size" in block
     assert "add_header" not in block
+    health = re.search(r"location = /api/healthz \{(.*?)\n    \}", conf, flags=re.S).group(1)
+    assert "error_page 502 503 504 = @api_unavailable;" in health, "no api: answer 200, not an error the browser would log"
+    assert "return 200 '{\"status\":\"unavailable\"}';" in conf
     assert "templates/default.conf.template" in read("containers/web/Containerfile")
 
 

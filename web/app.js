@@ -17,7 +17,7 @@
   var S = {
     data: null, pos: null, parsed: null, legalFrom: {}, flipped: false,
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
-    confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
+    api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
     seen: new Set(), history: []
   };
   var gest = B.gesture();
@@ -185,7 +185,7 @@
   }
 
   function legendHtml(p) {
-    var keys = ['you', 'best', 'real'].concat(p.maia ? ['maia'] : []);
+    var keys = ['you', 'best'].concat(p.real ? ['real'] : [], p.maia ? ['maia'] : []);
     return keys.map(function (k) {
       var label = k === 'maia' ? T.result.maiaAt(p.maia.elo) : (k === 'real' && p.player_elo ? T.result.realAt(p.player_elo) : T.roles[k]);
       return '<span class="legend-item arrow-' + k + '" data-key="' + k + '"><svg class="legend-line" viewBox="0 0 44 14" aria-hidden="true">' +
@@ -300,16 +300,19 @@
 
   function commit(uci) {
     S.revealed = true; S.selected = null; S.promo = null; S.pending = null;
-    S.result = G.analyse(S.pos, uci, S.mode);
-    S.seen.add(S.pos.id);
-    store.set(SEEN_KEY, Array.from(S.seen));
-    S.history.push({
-      id: S.pos.id, mode: S.mode, phase: S.pos.phase, tags: S.pos.tags || [], cost: S.result.you.cost,
-      score: S.result.score, mb: S.result.matched.best, mr: S.result.matched.real, mm: S.result.matched.maia, t: Date.now()
-    });
-    if (S.history.length > HISTORY_MAX) S.history = S.history.slice(-HISTORY_MAX);
-    store.set(HISTORY_KEY, S.history);
-    refresh(); renderResult(); renderStats(); applyFilters();
+    S.result = G.analyse(S.pos, uci, S.pos.custom ? 'best' : S.mode); // an arbitrary position has no real move to predict
+    if (!S.pos.custom) {  // the session stats are about the dataset, not about positions pasted in
+      S.seen.add(S.pos.id);
+      store.set(SEEN_KEY, Array.from(S.seen));
+      S.history.push({
+        id: S.pos.id, mode: S.mode, phase: S.pos.phase, tags: S.pos.tags || [], cost: S.result.you.cost,
+        score: S.result.score, mb: S.result.matched.best, mr: S.result.matched.real, mm: S.result.matched.maia, t: Date.now(),
+        fen: S.pos.fen, uci: uci, opp: S.pos.opp_elo || null // what the level estimate needs
+      });
+      if (S.history.length > HISTORY_MAX) S.history = S.history.slice(-HISTORY_MAX);
+      store.set(HISTORY_KEY, S.history);
+    }
+    refresh(); renderResult(); renderStats(); applyFilters(); updateEstimate();
     announce(T.live.played(uci.slice(0, 2), uci.slice(2, 4), verdictText(S.result, S.pos)));
   }
 
@@ -453,6 +456,62 @@
     }
   }
 
+  /* ---------- optional api (feature-detected: without it nothing here appears and nothing changes) ---------- */
+
+  function postJson(path, body) {
+    return window.fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j && j.error ? j.error.message : 'HTTP ' + r.status);
+          return j;
+        });
+      });
+  }
+
+  function detectApi() {
+    return window.fetch('api/healthz').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || j.status !== 'ok') return;
+      S.api = { maia: !!j.maia };
+      $('apiPanel').hidden = false;
+      updateEstimate();
+    }).catch(function () { /* no api: nothing changes */ });
+  }
+
+  function toPosition(j) {
+    return {
+      id: 'custom', custom: true, fen: j.fen, ply: 0, move_no: Number(j.fen.split(' ')[5]) || 1, stm: j.stm, phase: j.phase,
+      player_elo: null, opp_elo: null, real: null, evals: j.evals, san: j.san, maia: j.maia, tags: [], site: null
+    };
+  }
+
+  function analyseCustom() {
+    var fen = $('fenInput').value.trim(), elo = $('eloInput').value.trim(), msg = $('apiMsg');
+    if (!fen) { msg.textContent = T.api.needFen; return; }
+    var body = { fen: fen };
+    if (elo && S.api && S.api.maia) body.elo = Number(elo);
+    msg.textContent = T.api.working; $('analyseBtn').disabled = true;
+    postJson('api/v1/analyse', body).then(function (j) { loadPosition(toPosition(j)); msg.textContent = ''; })
+      .catch(function (e) { msg.textContent = T.api.failed(e.message); })
+      .then(function () { $('analyseBtn').disabled = false; });
+  }
+
+  function estimable() { return S.history.filter(function (h) { return h.fen && h.uci && h.mode === 'best'; }); }
+
+  function updateEstimate() {
+    var n = estimable().length, btn = $('estimateBtn');
+    btn.hidden = !(S.api && S.api.maia);
+    btn.disabled = n < 5;
+    if (!btn.hidden && n < 5) $('estimate').textContent = T.api.estimateNeeds(5 - n);
+  }
+
+  function estimateLevel() {
+    var items = estimable().slice(-30).map(function (h) { return { fen: h.fen, move: h.uci, opp_elo: h.opp || 1500 }; });
+    $('estimate').textContent = T.api.estimating;
+    postJson('api/v1/posterior', { history: items }).then(function (j) {
+      $('estimate').textContent = T.api.estimated(j.mean, j.interval80[0], j.interval80[1], j.moves);
+    }).catch(function (e) { $('estimate').textContent = T.api.failed(e.message); });
+  }
+
   /* ---------- start-up ---------- */
 
   function showLoadError(url, e) {
@@ -502,6 +561,7 @@
     updateThemeButton();
     $('skeleton').hidden = false;
     load();
+    detectApi();
 
     svg.addEventListener('pointerdown', onPointerDown);
     svg.addEventListener('pointermove', onPointerMove);
@@ -534,13 +594,15 @@
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
     $('skip').addEventListener('click', function () { if (S.pos) S.seen.add(S.pos.id); store.set(SEEN_KEY, Array.from(S.seen)); nextPosition(); });
     $('resetStats').addEventListener('click', function () {
-      S.history = []; S.seen = new Set(); store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); renderStats(); if (S.data) applyFilters();
+      S.history = []; S.seen = new Set(); store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); renderStats(); updateEstimate(); if (S.data) applyFilters();
     });
     $('confirmToggle').addEventListener('change', function () {
       S.confirm = $('confirmToggle').checked; store.set(CONFIRM_KEY, S.confirm);
       if (!S.confirm && S.pending) { S.pending = null; refresh(); }
     });
     $('themeToggle').addEventListener('click', function () { window.GTM_THEME.toggle(); updateThemeButton(); });
+    $('analyseBtn').addEventListener('click', analyseCustom);
+    $('estimateBtn').addEventListener('click', estimateLevel);
     $('helpBtn').addEventListener('click', function () { $('onboarding').hidden = !$('onboarding').hidden; });
     $('onboardingClose').addEventListener('click', function () { $('onboarding').hidden = true; store.set(ONBOARD_KEY, true); });
     document.addEventListener('keydown', onDocKey);

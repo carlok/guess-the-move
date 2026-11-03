@@ -104,3 +104,11 @@ test('Maia\'s top move is the most probable one wherever it sits in the list', (
   assert.equal(G.maiaTop({ maia: null }), null);
   assert.equal(G.maiaTop({ maia: { elo: 1500 } }), null);
 });
+
+test('a position without a real move (an arbitrary FEN) has no real reference and is scored as best-move', () => {
+  const p = { real: null, evals: { a: 0, b: -100 }, san: { a: 'a', b: 'b' }, maia: null };
+  const r = G.analyse(p, 'b', 'predict');
+  assert.deepEqual(r.refs.map((x) => x.key), ['best']);
+  assert.equal(r.matched.real, false);
+  near(r.score, r.you.quality);
+});

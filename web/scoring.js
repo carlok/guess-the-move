@@ -67,7 +67,8 @@
       };
     }
 
-    var refs = [ref('best', best), ref('real', pos.real)];
+    var refs = [ref('best', best)];
+    if (pos.real) refs.push(ref('real', pos.real));  // an arbitrary position (from the api) has no real move
     if (mTop) refs.push(ref('maia', mTop));
 
     var c = cost(evals, guess);
@@ -76,7 +77,7 @@
       rank: rank(evals, guess), n: Object.keys(evals).length, plaus: plausibility(pos, guess)
     };
     var exactReal = guess === pos.real;
-    var score = mode === 'predict' ? (exactReal ? 100 : refs[1].similarity) : you.quality;
+    var score = mode === 'predict' && pos.real ? (exactReal ? 100 : refs[1].similarity) : you.quality;
 
     return {
       mode: mode, you: you, refs: refs, score: score,

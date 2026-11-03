@@ -160,6 +160,9 @@ th { color: var(--muted); font-weight: 600; } .num { text-align: right; font-var
 .tags { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-2); }
 .tag { background: var(--surface-2); border-radius: 999px; padding: 2px var(--s-3); font-size: var(--fs-sm); }
 a { color: var(--accent); }
+.field { display: block; margin: var(--s-2) 0 var(--s-1); font-size: var(--fs-sm); color: var(--muted); }
+textarea, input[type="number"] { width: 100%; font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-2); min-height: var(--tap); }
+#apiPanel button { margin: var(--s-3) 0 var(--s-1); }
 footer { max-width: 1180px; margin: var(--s-5) auto var(--s-6); padding: 0 var(--s-4); color: var(--muted); font-size: var(--fs-sm); }
 
 @media (max-width: 480px) {

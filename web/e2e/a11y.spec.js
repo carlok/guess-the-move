@@ -32,7 +32,7 @@ for (const theme of ['light', 'dark']) {
     await page.locator('#confirm').click();
     await expect(page.locator('#result')).toBeVisible();
     await scan(page, `${theme} reveal`);
-    await page.locator('details.stats summary').click();
+    await page.locator('summary', { hasText: 'Session stats' }).click();
     await scan(page, `${theme} reveal+stats`);
   });
 }

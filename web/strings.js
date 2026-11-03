@@ -85,6 +85,16 @@
       played: function (from, to, verdict) { return from + ' to ' + to + ' played. ' + verdict; },
       dragCancelled: 'Move cancelled'
     },
+    api: {
+      title: 'Analyse any position', fen: 'FEN', elo: 'Rating for the Maia column (optional)', analyse: 'Analyse',
+      needFen: 'Paste a FEN first.', working: 'Analysing…',
+      failed: function (m) { return 'The analysis failed: ' + m; },
+      estimate: 'Estimate my level', estimating: 'Estimating…',
+      estimateNeeds: function (n) { return 'Play ' + n + ' more positions in best-move mode to estimate your level.'; },
+      estimated: function (mean, lo, hi, n) {
+        return 'About ' + mean + ' (80% range ' + lo + ' to ' + hi + '), from your last ' + n + ' guesses. Lichess-equivalent rating, not FIDE.';
+      }
+    },
     settings: { confirm: 'Confirm moves before revealing', confirmHelp: 'Useful on touch screens, where a slip of the finger would reveal the answer.' },
     onboarding: { title: 'How it works', close: 'Got it' }
   };
