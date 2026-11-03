@@ -85,14 +85,21 @@ async function cdpSession(page) {
   return sessions.get(page);
 }
 
-/* Touch drag through Chrome's input pipeline (page.touchscreen can only tap). */
+/* Touch drag through Chrome's input pipeline (page.touchscreen can only tap).
+ * It moves like a finger: a few milliseconds between moves, and a short hold before lifting. Scripted moves sent back to back,
+ * with the lift at full speed, look like a FLING to Chrome; on the GitHub runner's Linux Chrome the next tap (about 100 ms later)
+ * was then swallowed: pointerup and touchend reached the page but Chrome never produced the click (see the event log this test
+ * prints when it fails). A real finger stops before it lifts. */
+const MOVE_GAP_MS = 12, HOLD_BEFORE_LIFT_MS = 150;
+
 async function touchPath(page, points, { release = true } = {}) {
   const cdp = await cdpSession(page);
   const send = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y]) => ({ x, y })) });
   await send('touchStart', [points[0]]);
-  for (const p of points.slice(1)) await send('touchMove', [p]);
-  if (release) await send('touchEnd', []);
-  return { cdp, end: () => send('touchEnd', []) };
+  for (const p of points.slice(1)) { await send('touchMove', [p]); await page.waitForTimeout(MOVE_GAP_MS); }
+  const lift = async () => { await page.waitForTimeout(HOLD_BEFORE_LIFT_MS); await send('touchEnd', []); };
+  if (release) await lift();
+  return { cdp, end: lift };
 }
 
 /* A tap on an element through the same CDP session as touchDrag. */
