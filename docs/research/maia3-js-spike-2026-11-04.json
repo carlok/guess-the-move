@@ -1,0 +1,64 @@
+{
+ "tool": "maia3-js 0.2.0 (MIT label; 5M ONNX bundled) with onnxruntime-web, headless Google Chrome on an 11-core Apple-silicon Mac, model served from localhost, 2026-11-04",
+ "results": [
+  {
+   "name": "wasm, 1 thread, not cross-origin isolated",
+   "webgpu": "adapter ok",
+   "cfg": {
+    "name": "wasm, 1 thread, not cross-origin isolated",
+    "ep": [
+     "wasm"
+    ],
+    "threads": 1,
+    "iso": 0
+   },
+   "isolated": false,
+   "cores": 11,
+   "cold_start_ms": 557,
+   "predict_policy_only": {
+    "median_ms": 21.2,
+    "p95_ms": 24.6
+   },
+   "predict_top5": {
+    "median_ms": 99.1,
+    "p95_ms": 102.6
+   },
+   "batch_13_ratings_one_position": {
+    "median_ms": 205.8,
+    "p95_ms": 227.6
+   }
+  },
+  {
+   "name": "wasm, 4 threads, cross-origin isolated",
+   "webgpu": "adapter ok",
+   "error": "timeout after 150 s"
+  },
+  {
+   "name": "webgpu",
+   "webgpu": "adapter ok",
+   "cfg": {
+    "name": "webgpu",
+    "ep": [
+     "webgpu"
+    ],
+    "threads": 1,
+    "iso": 0
+   },
+   "isolated": false,
+   "cores": 11,
+   "cold_start_ms": 524,
+   "predict_policy_only": {
+    "median_ms": 10.2,
+    "p95_ms": 12.9
+   },
+   "predict_top5": {
+    "median_ms": 22.1,
+    "p95_ms": 71.6
+   },
+   "batch_13_ratings_one_position": {
+    "median_ms": 30.4,
+    "p95_ms": 46.2
+   }
+  }
+ ]
+}
