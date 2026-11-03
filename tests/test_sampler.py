@@ -99,10 +99,10 @@ def test_stats_report_games_read_and_used():
     stats = {}
     text = game() + game(white=None, black=None) + game()
     sample_candidates(io.StringIO(text), SamplerConfig(per_game=1), 100, 0, stats)
-    assert stats == {"games_read": 3, "games_used": 2}
+    assert stats == {"games_read": 3, "games_used": 2, "low_clock_dropped": 0, "no_clock_info": 0}
     stats = {}
     sample_candidates(io.StringIO(""), SamplerConfig(), 100, 0, stats)
-    assert stats == {"games_read": 0, "games_used": 0}
+    assert stats == {"games_read": 0, "games_used": 0, "low_clock_dropped": 0, "no_clock_info": 0}
 
 
 def test_stream_zst_from_url_and_stop_early(tmp_path, monkeypatch):
@@ -147,3 +147,65 @@ def test_cli_reports_unreadable_sources_without_a_traceback(tmp_path, capsys, mo
     empty.write_text("")
     assert main(["--pgn", str(empty), "--out", str(tmp_path / "o.json")]) == 1
     assert "no games read" in capsys.readouterr().err
+
+
+# --- low-clock exclusion (T2) --------------------------------------------------------------------------------------
+
+MOVES = "e4 e5 Nf3 d6 d4 Bg4 dxe5 Bxf3 Qxf3 dxe5 Bc4 Nf6 Qb3 Qe7 Nc3 c6".split()  # the same 16 plies as OPERA
+
+
+def clocked_game(clocks, event="Rated Rapid game", white=1500, black=1600):
+    """`clocks` maps a ply (0 = White's first move) to its [%clk] text; plies not listed get a comfortable 0:05:00."""
+    text = ""
+    for ply, san in enumerate(MOVES):
+        if ply % 2 == 0:
+            text += f"{ply // 2 + 1}. "
+        text += f"{san} {{ [%clk {clocks.get(ply, '0:05:00')}] }} "
+    return (f'[Event "{event}"]\n[Site "https://lichess.org/abcd1234"]\n[Result "*"]\n'
+            f'[WhiteElo "{white}"]\n[BlackElo "{black}"]\n\n{text}*\n\n')
+
+
+def sample_stats(text, **kw):
+    stats = {}
+    cands = sample_candidates(io.StringIO(text), SamplerConfig(per_game=100, min_ply=0, **kw), 100, 0, stats)
+    return cands, stats
+
+
+def test_a_position_is_dropped_when_the_mover_ends_it_under_the_clock_limit():
+    cands, stats = sample_stats(clocked_game({12: "0:00:20", 13: "0:00:45"}), min_clock_s=30)
+    plies = {c.ply for c in cands}
+    assert 12 not in plies, "White had 20 s left after Qb3"
+    assert 13 in plies, "Black still had 45 s after Qe7: the clock is the mover's own"
+    assert len(cands) == 15 and stats["low_clock_dropped"] == 1 and stats["no_clock_info"] == 0
+
+
+def test_the_clock_limit_is_exclusive_and_takes_fractions_of_a_second():
+    cands, _ = sample_stats(clocked_game({12: "0:00:30", 13: "0:00:29.5"}), min_clock_s=30)
+    plies = {c.ply for c in cands}
+    assert 12 in plies and 13 not in plies
+
+
+def test_without_a_limit_nothing_is_dropped_and_nothing_is_counted():
+    cands, stats = sample_stats(clocked_game({12: "0:00:01"}), min_clock_s=None)
+    assert len(cands) == 16 and stats["low_clock_dropped"] == 0 and stats["no_clock_info"] == 0
+
+
+def test_positions_without_clock_comments_are_kept_and_counted_when_the_limit_is_on():
+    cands, stats = sample_stats(game(), min_clock_s=30)  # plain PGN, no [%clk]
+    assert len(cands) == 16 and stats["low_clock_dropped"] == 0 and stats["no_clock_info"] == 16
+
+
+def test_clock_stats_accumulate_over_games_and_reset_per_call():
+    text = clocked_game({12: "0:00:10"}) + clocked_game({2: "0:00:05", 4: "0:00:05"})
+    _, stats = sample_stats(text, min_clock_s=30)
+    assert stats["low_clock_dropped"] == 3
+
+
+def test_the_clock_filter_works_when_the_caller_passes_no_stats():
+    from pipeline.sampler import positions_from_game
+
+    cfg = SamplerConfig(per_game=100, min_ply=0, min_clock_s=30)
+    low = chess.pgn.read_game(io.StringIO(clocked_game({12: "0:00:20"})))
+    assert 12 not in {c.ply for c in positions_from_game(low, cfg, random.Random(0))}
+    plain = chess.pgn.read_game(io.StringIO(game()))
+    assert len(positions_from_game(plain, cfg, random.Random(0))) == 16

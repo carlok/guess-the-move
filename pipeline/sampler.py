@@ -28,6 +28,10 @@ class SamplerConfig:
     time_controls: frozenset[str] | None = None  # e.g. {"Rapid", "Classical"}; matched against the Event header
     require_elo: bool = True
     max_games: int | None = None
+    # Drop a position when the player to move had less than this many seconds left AFTER playing the real move
+    # (Lichess [%clk] comments). Time-trouble moves say little about how a player of that rating thinks. A position
+    # without clock data is kept and counted in stats["no_clock_info"]. None switches the filter off.
+    min_clock_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -95,7 +99,7 @@ def game_ok(game: chess.pgn.Game, cfg: SamplerConfig) -> bool:
 
 
 def positions_from_game(
-    game: chess.pgn.Game, cfg: SamplerConfig, rng: random.Random
+    game: chess.pgn.Game, cfg: SamplerConfig, rng: random.Random, stats: dict | None = None
 ) -> list[Candidate]:
     h = game.headers
     w_elo, b_elo = _elo(h, "WhiteElo"), _elo(h, "BlackElo")
@@ -103,7 +107,8 @@ def positions_from_game(
 
     eligible: list[Candidate] = []
     board = game.board()
-    for move in game.mainline_moves():
+    for node in game.mainline():
+        move = node.move
         color = "w" if board.turn == chess.WHITE else "b"
         player, opp = (w_elo, b_elo) if board.turn == chess.WHITE else (b_elo, w_elo)
         in_ply = cfg.min_ply <= board.ply() <= cfg.max_ply
@@ -111,7 +116,17 @@ def positions_from_game(
             (cfg.min_elo is None or (player is not None and player >= cfg.min_elo))
             and (cfg.max_elo is None or (player is not None and player <= cfg.max_elo))
         )
-        if in_ply and in_elo and board.legal_moves.count() >= 2:
+        low_clock = False
+        if cfg.min_clock_s is not None and in_ply and in_elo:
+            clock = node.clock()  # the mover's remaining time after this move
+            if clock is None:
+                if stats is not None:
+                    stats["no_clock_info"] += 1
+            elif clock < cfg.min_clock_s:
+                low_clock = True
+                if stats is not None:
+                    stats["low_clock_dropped"] += 1
+        if in_ply and in_elo and not low_clock and board.legal_moves.count() >= 2:
             eligible.append(
                 Candidate(
                     fen=board.fen(),
@@ -137,13 +152,14 @@ def sample_candidates(
     """Reservoir-sample up to `limit` candidates over the whole stream (deterministic for a seed).
 
     If `stats` is given it is filled with games_read / games_used, so callers can notice an
-    empty or silently truncated input.
+    empty or silently truncated input, and with low_clock_dropped / no_clock_info (positions the clock
+    filter removed, and positions it could not judge because the PGN has no clock comments).
     """
     rng = random.Random(seed)
     reservoir: list[Candidate] = []
     seen = 0
     if stats is not None:
-        stats.update(games_read=0, games_used=0)
+        stats.update(games_read=0, games_used=0, low_clock_dropped=0, no_clock_info=0)
     for n_games, game in enumerate(iter_games(handle)):
         if cfg.max_games is not None and n_games >= cfg.max_games:
             break
@@ -153,7 +169,7 @@ def sample_candidates(
             continue
         if stats is not None:
             stats["games_used"] += 1
-        for cand in positions_from_game(game, cfg, rng):
+        for cand in positions_from_game(game, cfg, rng, stats):
             seen += 1
             if len(reservoir) < limit:
                 reservoir.append(cand)

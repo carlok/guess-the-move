@@ -120,3 +120,32 @@ def test_module_entry_point_runs_main(monkeypatch, capsys):
         runpy.run_module("pipeline.build_dataset", run_name="__main__")
     assert exc.value.code == 0
     assert "--pgn" in capsys.readouterr().out
+
+
+def clocked(first_clocks):
+    moves = "e4 e5 Nf3 d6 d4 Bg4 dxe5 Bxf3 Qxf3 dxe5 Bc4 Nf6 Qb3 Qe7 Nc3 c6".split()
+    body = "".join((f"{i // 2 + 1}. " if i % 2 == 0 else "") + f"{m} {{ [%clk {first_clocks.get(i, '0:05:00')}] }} " for i, m in enumerate(moves))
+    return f'[Event "Rated Rapid game"]\n[Site "https://lichess.org/abcd1234"]\n[Result "*"]\n[WhiteElo "1500"]\n[BlackElo "1600"]\n\n{body}*\n\n'
+
+
+def test_low_clock_positions_are_excluded_by_default_and_the_counts_are_recorded(tmp_path, capsys):
+    text = clocked({i: "0:00:10" for i in range(8, 16)})  # the last eight plies are played with 10 s left
+    rc, out = run(tmp_path, "--per-game", "100", "--candidates", "100", "--keep", "100", text=text)
+    data = json.loads(out.read_text())
+    assert rc == 0
+    assert max(p["ply"] for p in data["positions"]) < 8
+    assert data["meta"]["min_clock_seconds"] == 30
+    assert data["meta"]["sampling"]["low_clock_dropped"] == 8
+    assert "8 dropped for low clock" in capsys.readouterr().err
+
+
+def test_the_clock_filter_can_be_switched_off_or_tuned(tmp_path):
+    text = clocked({i: "0:00:10" for i in range(8, 16)})
+    (tmp_path / "off").mkdir()
+    rc, out = run(tmp_path / "off", "--per-game", "100", "--candidates", "100", "--keep", "100", "--min-clock-seconds", "0", text=text)
+    data = json.loads(out.read_text())
+    assert max(p["ply"] for p in data["positions"]) >= 8
+    assert data["meta"]["min_clock_seconds"] is None and data["meta"]["sampling"]["low_clock_dropped"] == 0
+    (tmp_path / "five").mkdir()
+    rc, out = run(tmp_path / "five", "--per-game", "100", "--candidates", "100", "--keep", "100", "--min-clock-seconds", "5", text=text)
+    assert max(p["ply"] for p in json.loads(out.read_text())["positions"]) >= 8, "10 s is above a 5 s limit"

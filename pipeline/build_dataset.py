@@ -154,6 +154,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--per-game", type=int, default=2)
     ap.add_argument("--time-controls", help="comma list, e.g. Rapid,Classical")
     ap.add_argument("--max-games", type=int)
+    ap.add_argument("--min-clock-seconds", type=float, default=30.0,
+                    help="drop positions where the mover had less than this many seconds left after the real move "
+                         "(Lichess [%%clk] comments); 0 switches the filter off. Positions without clock data are kept")
     ap.add_argument("--allow-missing-elo", action="store_true")
     ap.add_argument("--max-abs-cp", type=int, default=500, help="drop positions already decided beyond this")
     ap.add_argument("--keep-trivial", action="store_true")
@@ -169,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
         time_controls=frozenset(args.time_controls.split(",")) if args.time_controls else None,
         require_elo=not args.allow_missing_elo,
         max_games=args.max_games,
+        min_clock_s=args.min_clock_seconds or None,
     )
     label = source_label(args.pgn)
     stats: dict = {}
@@ -180,7 +184,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(
         f"read {stats['games_read']} games ({stats['games_used']} passed the game filters) from {label}; "
-        f"sampled {len(cands)} candidates",
+        f"sampled {len(cands)} candidates ({stats['low_clock_dropped']} dropped for low clock, "
+        f"{stats['no_clock_info']} without clock data)",
         file=sys.stderr,
     )
     if stats["games_read"] == 0:
@@ -218,6 +223,8 @@ def main(argv: list[str] | None = None) -> int:
         "source": label,
         "demo": args.demo,
         "seed": args.seed,
+        "min_clock_seconds": scfg.min_clock_s,
+        "sampling": stats,
         "thresholds": asdict(tcfg),
         "win_pct_scale": "lichess",
     }
