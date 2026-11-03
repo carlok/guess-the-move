@@ -99,7 +99,7 @@ def test_stats_report_games_read_and_used():
     stats = {}
     text = game() + game(white=None, black=None) + game()
     sample_candidates(io.StringIO(text), SamplerConfig(per_game=1), 100, 0, stats)
-    assert stats == {"games_read": 3, "games_used": 2, "low_clock_dropped": 0, "no_clock_info": 0, "eligible": 0}
+    assert stats == {"games_read": 3, "games_used": 2, "low_clock_dropped": 0, "no_clock_info": 0, "eligible": 16}  # 2 games x plies 8..15
     stats = {}
     sample_candidates(io.StringIO(""), SamplerConfig(), 100, 0, stats)
     assert stats == {"games_read": 0, "games_used": 0, "low_clock_dropped": 0, "no_clock_info": 0, "eligible": 0}
