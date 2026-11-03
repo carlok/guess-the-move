@@ -147,3 +147,11 @@ def test_requirements_cover_pipeline_imports():
     reqs = read("requirements.txt").lower()
     assert "chess" in reqs and "zstandard" in reqs
     assert not (ROOT / "requirements-dev.txt").read_text().strip().startswith("chess")
+
+
+def test_run_targets_replace_a_leftover_container_of_the_same_name():
+    mk = read("Makefile")
+    run = mk.split("\nrun:")[1].split("\napi-image:")[0]
+    api = mk.split("\nrun-api:")[1].split("\nstop:")[0]
+    assert "rm -f $(WEB_NAME)" in run and run.index("rm -f") < run.index("run --rm"), "after a restart the old container is still there"
+    assert "rm -f $(API_NAME)" in api and api.index("rm -f") < api.index("run --rm")

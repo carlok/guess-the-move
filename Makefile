@@ -79,7 +79,8 @@ builder-image:
 	$(PODMAN) build --build-arg WITH_MAIA=$(or $(WITH_MAIA),0) -t $(BUILDER_IMG) -f containers/builder/Containerfile .
 
 run: web-image
-	-$(PODMAN) network create $(NET)
+	-$(PODMAN) rm -f $(WEB_NAME)   # a leftover from before a restart or a crashed run would block the name
+	@$(PODMAN) network exists $(NET) || $(PODMAN) network create $(NET)
 	$(PODMAN) run --rm -d --name $(WEB_NAME) --network $(NET) -p 127.0.0.1:$(PORT):8080 \
 	  --read-only --tmpfs /tmp --tmpfs /etc/nginx/conf.d:rw,mode=1777 --cap-drop=all --security-opt no-new-privileges \
 	  --health-cmd "wget -q -O /dev/null http://127.0.0.1:8080/healthz" --health-interval 30s --health-timeout 3s \
@@ -98,7 +99,8 @@ api-weights:
 # The api is never published to the host: only the web container reaches it, over the $(NET) network, at /api/.
 # Needs the image from `make api-image` (not a prerequisite: it would rebuild without the arguments you gave there).
 run-api:
-	-$(PODMAN) network create $(NET)
+	-$(PODMAN) rm -f $(API_NAME)
+	@$(PODMAN) network exists $(NET) || $(PODMAN) network create $(NET)
 	$(PODMAN) run --rm -d --name $(API_NAME) --network $(NET) --network-alias api \
 	  --read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges --cpus 2 --memory 2g \
 	  -e GTM_API_TRUST_PROXY=1 -v $(MODELS):/models \
