@@ -193,6 +193,7 @@ html.menu-open { overflow: hidden; }
 
 /* Timer, sound button */
 .posinfo { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
+.review-chip { align-self: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0 var(--s-3); font-size: var(--fs-sm); font-weight: 600; }
 .timer { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
 #soundToggle[data-state="on"] .icon-sound-off, #soundToggle[data-state="off"] .icon-sound-on { display: none; }
 #gameMain[hidden], footer[hidden], .statsview[hidden] { display: none; }

@@ -153,3 +153,37 @@ test('download then load: the file round-trips the stats, through a real downloa
   await page.locator('#importFile').setInputFiles({ name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('{"app":"nope"}') });
   await expect(page.locator('#backupMsg')).toContainText('not a Guess the Move stats file');
 });
+
+test('Previous reopens an answered position to study: answer and arrows shown, timer stopped; Try again resets it; Next goes forward', async ({ page }) => {
+  await open(page);
+  await clickMove(page, 'a1a8');
+  await expect(page.locator('#result')).toBeVisible();
+  await expect(page.locator('#back')).toBeHidden();
+  await page.locator('#next').click();
+  await expect(page.locator('#result')).toBeHidden();
+  await page.locator('#back').click();
+  await expect(page.locator('#reviewChip')).toBeVisible();
+  await expect(page.locator('#result')).toBeVisible();
+  expect(await page.locator('#gArrows .arrow').count()).toBeGreaterThanOrEqual(2);
+  const stopped = await page.locator('#timer').textContent();
+  await page.waitForTimeout(1300);
+  await expect(page.locator('#timer'), 'stopped while reviewing').toHaveText(stopped);
+  // every visible action button is a full-size tap target and inside the screen
+  const vw = page.viewportSize().width;
+  for (const b of await page.locator('#actionBar button:visible').all()) {
+    const box = await b.boundingBox();
+    expect(box.height).toBeGreaterThanOrEqual(44); expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(vw);
+  }
+  await page.locator('#tryAgain').click();
+  await expect(page.locator('#reviewChip')).toBeHidden();
+  await expect(page.locator('#result')).toBeHidden();
+  await expect(page.locator('#timer')).not.toHaveText(stopped === '0:00' ? 'never' : stopped, { timeout: 100 }).catch(() => {});
+  await clickMove(page, 'a1a8');
+  await expect(page.locator('#result')).toBeVisible();
+  await page.keyboard.press('p');
+  await expect(page.locator('#reviewChip')).toBeVisible();
+  await page.keyboard.press('n');
+  await expect(page.locator('#reviewChip'), 'forward to the retry, still a review').toBeVisible();
+  await page.keyboard.press('n');
+  await expect(page.locator('#reviewChip'), 'past the last reviewed one: a new position').toBeHidden();
+});

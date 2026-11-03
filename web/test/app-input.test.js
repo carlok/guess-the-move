@@ -783,3 +783,124 @@ test('the charts are drawn at the width of the page and redrawn when the window 
   w.dispatchEvent(new w.Event('resize'));
   assert.match($(w, 'statsBody').innerHTML, /viewBox="0 0 520 /, 'not redrawn while the view is closed');
 });
+
+/* ---------- going back to study a position again ---------- */
+
+const play = (w, a, b) => { sq(w, a).dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, b).dispatchEvent(new w.MouseEvent('click', { bubbles: true })); };
+const histLen = (w) => JSON.parse(w.localStorage.getItem('gtm.v1.history') || '[]').length;
+const timerText = (w) => $(w, 'timer').textContent;
+
+test('Previous is hidden until a position has been answered, then reopens it as a review: answer shown, timer stopped, nothing recorded again', async () => {
+  const clock = { t: 0 };
+  const w = await boot(dataOf(ROOK, CAPTURE, EP), { clock });
+  assert.equal($(w, 'back').hidden, true, 'nothing to go back to yet');
+  clock.t += 42_000; play(w, 'a1', 'a8'); // ROOK, 42 s
+  click(w, 'next');
+  assert.equal($(w, 'back').hidden, false);
+  assert.equal($(w, 'result').hidden, true, 'the next position is live and unanswered');
+  clock.t += 5_000;
+  click(w, 'back');
+  assert.equal($(w, 'reviewChip').hidden, false);
+  assert.equal($(w, 'result').hidden, false, 'the full answer is shown');
+  assert.match($(w, 'result').textContent, /Move quality:\s*100\/100/);
+  assert.ok(w.document.querySelectorAll('#gArrows .arrow').length >= 2, 'arrows are drawn');
+  assert.equal(timerText(w), '0:42', 'the time it took then');
+  clock.t += 60_000; w.__intervals[0]();
+  assert.equal(timerText(w), '0:42', 'and it stays stopped');
+  assert.equal(histLen(w), 1, 'nothing is recorded twice');
+  assert.equal($(w, 'back').hidden, true, 'this is the earliest');
+  assert.equal($(w, 'tryAgain').hidden, false);
+  assert.equal($(w, 'skip').hidden, true); assert.equal($(w, 'confirm').hidden, true);
+  assert.match(live(w), /Reviewing an earlier position.*timer is stopped/);
+  sq(w, 'g1').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal(histLen(w), 1, 'the board does not take moves while reviewing');
+});
+
+test('Next from a review walks forward through the reviewed ones, then suggests a new position with the timer reset', async () => {
+  const clock = { t: 0 };
+  const w = await boot(dataOf(ROOK, CAPTURE, EP), { clock });
+  clock.t += 10_000; play(w, 'a1', 'a8'); click(w, 'next');   // ROOK answered
+  clock.t += 20_000; play(w, 'a1', 'a8'); click(w, 'next');   // CAPTURE answered, EP live
+  click(w, 'back'); click(w, 'back');                          // CAPTURE, then ROOK
+  assert.equal(timerText(w), '0:10');
+  click(w, 'next');
+  assert.equal($(w, 'reviewChip').hidden, false, 'still reviewing: the next reviewed position');
+  assert.equal(timerText(w), '0:20');
+  assert.equal($(w, 'back').hidden, false);
+  click(w, 'next');
+  assert.equal($(w, 'reviewChip').hidden, true, 'past the last reviewed one: a live position');
+  assert.equal($(w, 'result').hidden, true);
+  assert.equal(timerText(w), '0:00');
+  assert.equal(histLen(w), 2);
+});
+
+test('Try again plays the reviewed position afresh: timer reset, board live, and the new guess is recorded', async () => {
+  const clock = { t: 0 };
+  const w = await boot(dataOf(ROOK, CAPTURE), { clock });
+  clock.t += 30_000; play(w, 'g1', 'f1'); click(w, 'next'); // a poor first attempt at ROOK
+  click(w, 'back');
+  assert.match($(w, 'result').textContent, /Move quality:\s*10\/100/, 'the poor first attempt');
+  click(w, 'tryAgain');
+  assert.equal($(w, 'reviewChip').hidden, true);
+  assert.equal($(w, 'result').hidden, true);
+  assert.equal(timerText(w), '0:00');
+  clock.t += 7_000; w.__intervals[0]();
+  assert.equal(timerText(w), '0:07', 'the timer runs again');
+  play(w, 'a1', 'a8');
+  assert.match($(w, 'result').textContent, /Move quality:\s*100\/100/);
+  const h = JSON.parse(w.localStorage.getItem('gtm.v1.history'));
+  assert.equal(h.length, 2); assert.equal(h[1].id, 'rook'); assert.equal(h[1].dur, 7);
+  click(w, 'back');
+  assert.equal(timerText(w), '0:30', 'Previous from the retry reaches the first attempt');
+  click(w, 'next');
+  assert.equal($(w, 'reviewChip').hidden, false, 'forward reaches the retry, as a review');
+  assert.equal(timerText(w), '0:07');
+});
+
+test('Previous also works from the keyboard (p), and a predict-mode guess is reviewed as one', async () => {
+  const w = await boot(dataOf(ROOK, CAPTURE));
+  w.document.querySelector('input[value=predict]').click();
+  play(w, 'g1', 'g2'); click(w, 'next');
+  docKey(w, 'p');
+  assert.equal($(w, 'reviewChip').hidden, false);
+  assert.match($(w, 'result').textContent, /Exact match with the real move/);
+  docKey(w, 'p'); // already the earliest: nothing happens
+  assert.equal($(w, 'reviewChip').hidden, false);
+  docKey(w, 'n');
+  assert.equal($(w, 'reviewChip').hidden, true, 'n goes forward');
+});
+
+test('changing a filter while reviewing leaves the review for a live position; pasted positions are not part of the trail', async () => {
+  const w = await boot(dataOf(ROOK, CAPTURE));
+  play(w, 'a1', 'a8'); click(w, 'next'); click(w, 'back');
+  assert.equal($(w, 'reviewChip').hidden, false);
+  $(w, 'phase').value = 'endgame'; $(w, 'phase').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.equal($(w, 'reviewChip').hidden, true);
+  const none = await boot(dataOf(ROOK));
+  play(none, 'a1', 'a8');
+  assert.equal($(none, 'back').hidden, true, 'the only answered position is the one on screen: nothing earlier');
+  click(none, 'back');
+  assert.equal($(none, 'reviewChip').hidden, true, 'and a stray Previous does nothing');
+});
+
+test('the visit trail keeps the latest 100 answers', async () => {
+  const many100 = Array.from({ length: 102 }, (_, i) => ({ ...ROOK, id: 'r' + i }));
+  const w = await boot(dataOf(...many100));
+  for (let i = 0; i < 102; i++) { play(w, 'a1', 'a8'); click(w, 'next'); }
+  let back = 0;
+  while (!$(w, 'back').hidden && back < 200) { click(w, 'back'); back++; }
+  assert.equal(back, 100, 'all 102 were answered; only the latest 100 can be reviewed, even with no live position left');
+});
+
+test('right after answering, Previous goes to the answer before it, not to the one on screen', async () => {
+  const clock = { t: 0 };
+  const w = await boot(dataOf(ROOK, CAPTURE), { clock });
+  clock.t += 11_000; play(w, 'a1', 'a8'); click(w, 'next');
+  clock.t += 22_000; play(w, 'a1', 'a8');            // CAPTURE answered and still on screen
+  assert.equal($(w, 'back').hidden, false);
+  click(w, 'back');
+  assert.equal(timerText(w), '0:11', 'the first answer, not the one just given');
+  assert.equal($(w, 'back').hidden, true);
+  click(w, 'next');
+  assert.equal(timerText(w), '0:22', 'forward again reaches the second');
+});

@@ -67,6 +67,7 @@
       </dl>
       <h4>Good to know</h4>
       <ul>
+        <li><strong>Previous</strong> (or <kbd>p</kbd>) reopens an earlier position of this visit to study it again: the timer stops at the time you took, the full answer is shown, and nothing is recorded a second time. <strong>Try again</strong> plays it afresh with the timer reset; <strong>Next</strong> walks forward through the ones you reviewed and then suggests a new position.</li>
         <li>A timer runs on each position and starts again with the next one; it pauses when you leave the tab or open a view, and its time goes into your stats. You can hide it in the settings.</li>
         <li>Moves and results have sounds, made in your browser. The speaker button in the top bar mutes them.</li>
         <li>Nothing is calculated while you play. Every legal move of every position was scored in advance, so the page works with no server.</li>
@@ -107,7 +108,7 @@
 
   <main id="gameMain">
     <section class="stage" aria-label="Board">
-      <div class="posinfo"><span id="posInfo"></span><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
+      <div class="posinfo"><span id="posInfo"></span><span id="reviewChip" class="review-chip" hidden>Review</span><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
       <div id="boardWrap" class="boardwrap">
         <div id="skeleton" class="skeleton" aria-hidden="true"></div>
         <svg id="boardSvg" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Chess board" tabindex="0">
@@ -181,8 +182,10 @@
     </section>
 
     <div id="actionBar" class="actionbar">
+      <button id="back" type="button" aria-keyshortcuts="p" hidden>Previous (p)</button>
       <button id="skip" type="button">Skip</button>
       <button id="confirm" type="button" class="primary" hidden>Confirm move</button>
+      <button id="tryAgain" type="button" hidden>Try again</button>
       <button id="next" type="button" class="primary" hidden>Next position (n)</button>
     </div>
   </main>

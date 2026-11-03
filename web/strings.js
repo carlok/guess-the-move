@@ -41,6 +41,12 @@
       retry: 'Try again'
     },
     confirm: 'Confirm move',
+    back: 'Previous (p)',
+    retry: 'Try again',
+    review: {
+      chip: 'Review',
+      announce: function (san, verdict) { return 'Reviewing an earlier position. You played ' + san + '. ' + verdict + ' The timer is stopped.'; }
+    },
     next: 'Next position (n)',
     skip: 'Skip',
     toggleThemeToDark: 'Switch to the dark theme',

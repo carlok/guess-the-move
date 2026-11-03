@@ -56,6 +56,20 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
+for (const theme of ['light', 'dark']) {
+  test(`axe: ${theme} theme, a position reopened for review`, async ({ page }) => {
+    await preset(page, { theme, confirm: false });
+    await serveDataset(page, [ROOK, { ...ROOK, id: 'second' }]);
+    await page.goto('/');
+    await expect(page.locator('[data-sq]')).toHaveCount(64);
+    await clickMove(page, 'a1a8');
+    await page.locator('#next').click();
+    await page.locator('#back').click();
+    await expect(page.locator('#reviewChip')).toBeVisible();
+    await scan(page, `${theme} review`);
+  });
+}
+
 test('axe: error state', async ({ page }) => {
   await preset(page);
   await page.route('**/data/positions.json', (route) => route.fulfill({ status: 503, body: 'down' }));

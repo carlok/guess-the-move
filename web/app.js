@@ -11,6 +11,7 @@
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
+  var TRAIL_MAX = 100;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
@@ -18,7 +19,8 @@
     data: null, pos: null, parsed: null, legalFrom: {}, flipped: false,
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
-    seen: new Set(), history: [], showTimer: true, statsPushed: false
+    seen: new Set(), history: [], showTimer: true, statsPushed: false,
+    trail: [], cur: null // positions answered in this visit, and the one being reviewed (null: a live position)
   };
   var snd = null; // sound effects, made in init()
   var gest = B.gesture();
@@ -193,7 +195,19 @@
 
   function refresh() { renderBoard(); renderPromo(); updateActions(); }
 
+  /* Where the position on screen sits in the trail: its own index when reviewing or just answered (answered positions
+   * are appended at the reveal), and one past the end when it is live and unanswered or there is none, so "previous"
+   * is always a different position from the one shown. */
+  function trailIndex() {
+    if (S.cur !== null) return S.cur;
+    return S.pos && S.revealed && !S.pos.custom ? S.trail.length - 1 : S.trail.length;
+  }
+
   function updateActions() {
+    var reviewing = S.cur !== null;
+    $('back').hidden = trailIndex() === 0; // also offered when every position is answered and no live one is left
+    $('tryAgain').hidden = !reviewing;
+    $('reviewChip').hidden = !reviewing;
     $('skip').hidden = !S.pos || S.revealed;
     $('confirm').hidden = !S.pending || S.revealed;
     $('next').hidden = !S.revealed;
@@ -313,7 +327,10 @@
     return list;
   }
 
-  function loadPosition(p) {
+  /* `review` (a trail entry) reopens a position already answered in this visit: the answer is shown, the timer stays
+   * stopped at the time taken and nothing is written to the history. Without it the position is a fresh attempt. */
+  function loadPosition(p, review) {
+    S.cur = review ? S.trail.indexOf(review) : null;
     S.pos = p; S.parsed = B.parseFen(p.fen); S.flipped = S.parsed.stm === 'b';
     S.legalFrom = {};
     Object.keys(p.evals).forEach(function (u) { (S.legalFrom[u.slice(0, 2)] = S.legalFrom[u.slice(0, 2)] || []).push(u); });
@@ -323,15 +340,42 @@
     renderSquares(); renderPieces();
     setPrompt(); refresh();
     $('boardSvg').setAttribute('aria-label', T.boardLabel + ' ' + (p.stm === 'w' ? 'White' : 'Black') + ' to move.');
-    timerStart(); timerPause(); timerResume(); // a fresh count; stays paused while a view covers the board
+    if (review) {
+      S.revealed = true; S.result = G.analyse(p, review.uci, review.mode);
+      timer.acc = review.dur * 1000; timer.since = null; renderTimer(); // the time taken then, stopped
+      refresh(); renderResult();
+      announce(T.review.announce(S.result.you.san, verdictText(S.result, p)));
+    } else {
+      timerStart(); timerPause(); timerResume(); // a fresh count; stays paused while a view covers the board
+    }
   }
 
-  function goNext() { sfx('next'); nextPosition(); }
+  /* Previous: one step back through the positions answered in this visit. From a live position that is the latest one
+   * (the unanswered live position is dropped: it never counted); from a review it is the one before. */
+  function goBack() {
+    var i = trailIndex() - 1;
+    if (i < 0) return;
+    sfx('next');
+    loadPosition(S.trail[i].pos, S.trail[i]);
+  }
+
+  /* Next: while reviewing, the next reviewed position; after the last one (or live) a new position. */
+  function goNext() {
+    sfx('next');
+    if (S.cur !== null && S.cur + 1 < S.trail.length) { loadPosition(S.trail[S.cur + 1].pos, S.trail[S.cur + 1]); return; }
+    nextPosition();
+  }
+
+  function tryAgain() {
+    if (S.cur === null) return;
+    sfx('next');
+    loadPosition(S.trail[S.cur].pos);
+  }
 
   function nextPosition() {
     var list = applyFilters();
     if (!list.length) {
-      S.pos = null; svgReset(); setPrompt(); refresh(); $('result').hidden = true; timerReset();
+      S.cur = null; S.pos = null; svgReset(); setPrompt(); refresh(); $('result').hidden = true; timerReset();
       $('prompt').textContent = $('unseen').checked ? T.prompt.noneUnseen : T.prompt.none;
       return;
     }
@@ -355,6 +399,8 @@
       });
       if (S.history.length > HISTORY_MAX) S.history = S.history.slice(-HISTORY_MAX);
       store.set(HISTORY_KEY, S.history);
+      S.trail.push({ pos: S.pos, uci: uci, mode: S.mode, dur: Math.round(elapsedMs() / 1000) });
+      if (S.trail.length > TRAIL_MAX) S.trail.shift();
     }
     sfx(isCapture(uci) ? 'capture' : 'move'); sfx(outcomeSound(S.result), 0.16);
     refresh(); renderResult(); renderStats(); applyFilters(); updateEstimate();
@@ -501,6 +547,7 @@
     if (statsIsOpen()) { if (e.key === 'Escape') closeStatsView(); return; }
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     if ((e.key === 'n' || e.key === 'N') && S.revealed) goNext();
+    if ((e.key === 'p' || e.key === 'P') && !$('back').hidden) goBack();
     if (e.key === 'Escape') {
       if (gest.active()) cancelGesture();
       else if (!S.revealed && (S.selected || S.promo || S.pending)) { clearSelection(); sfx('deselect'); announce(T.live.cancelled); }
@@ -753,6 +800,8 @@
     });
     ['phase', 'tag', 'unseen'].forEach(function (id) { $(id).addEventListener('change', function () { if (S.data) nextPosition(); }); });
     $('next').addEventListener('click', goNext);
+    $('back').addEventListener('click', goBack);
+    $('tryAgain').addEventListener('click', tryAgain);
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
     $('skip').addEventListener('click', function () { if (S.pos) S.seen.add(S.pos.id); store.set(SEEN_KEY, Array.from(S.seen)); goNext(); });
     $('resetStats').addEventListener('click', function () {
