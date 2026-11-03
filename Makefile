@@ -61,7 +61,7 @@ builder-image:
 run: web-image
 	-$(PODMAN) network create $(NET)
 	$(PODMAN) run --rm -d --name gtm-web --network $(NET) -p 127.0.0.1:$(PORT):8080 \
-	  --read-only --tmpfs /tmp --tmpfs /etc/nginx/conf.d:rw,uid=101,gid=101,mode=755 --cap-drop=all --security-opt no-new-privileges \
+	  --read-only --tmpfs /tmp --tmpfs /etc/nginx/conf.d:rw,mode=1777 --cap-drop=all --security-opt no-new-privileges \
 	  --health-cmd "wget -q -O /dev/null http://127.0.0.1:8080/healthz" --health-interval 30s --health-timeout 3s \
 	  -v $(OUT):/usr/share/nginx/html/data:ro,Z $(WEB_IMG)
 	@echo "http://127.0.0.1:$(PORT)"
@@ -71,10 +71,11 @@ api-image:
 
 # One-off: download Maia-2's weights (about 280 MB, from Google Drive) into the named volume the api reads.
 api-weights:
-	$(PODMAN) run --rm --user 10001 -v $(MODELS):/models $(API_IMG) python -c "from maia2 import model; model.from_pretrained('rapid', 'cpu', '/models')"
+	$(PODMAN) run --rm --user 10001 -e HOME=/tmp -v $(MODELS):/models $(API_IMG) python -c "from maia2 import model; model.from_pretrained('rapid', 'cpu', '/models')"
 
 # The api is never published to the host: only the web container reaches it, over the $(NET) network, at /api/.
-run-api: api-image
+# Needs the image from `make api-image` (not a prerequisite: it would rebuild without the arguments you gave there).
+run-api:
 	-$(PODMAN) network create $(NET)
 	$(PODMAN) run --rm -d --name gtm-api --network $(NET) --network-alias api \
 	  --read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges --cpus 2 --memory 2g \
@@ -83,7 +84,8 @@ run-api: api-image
 	  $(API_IMG)
 
 stop:
-	-$(PODMAN) stop gtm-web gtm-api
+	-$(PODMAN) stop gtm-web
+	-$(PODMAN) stop gtm-api
 
 dataset: builder-image
 	@test -n "$(PGN)" || { echo "usage: make dataset PGN=/in/file.pgn.zst|URL [ARGS='...']"; exit 2; }

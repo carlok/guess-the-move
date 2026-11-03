@@ -97,11 +97,13 @@ def test_nginx_proxies_the_api_without_needing_it_at_start():
     assert "error_page 502 503 504 = @api_unavailable;" in health, "no api: answer 200, not an error the browser would log"
     assert "return 200 '{\"status\":\"unavailable\"}';" in conf
     assert "templates/default.conf.template" in read("containers/web/Containerfile")
+    assert "NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1" in read("containers/web/Containerfile"), "the entrypoint only fills NGINX_LOCAL_RESOLVERS when asked"
 
 
 def test_api_container_is_unprivileged_and_does_not_bake_in_weights():
     text = read("containers/api/Containerfile")
     assert re.search(r"^USER 10001", text, flags=re.M) and "\"--factory\"" in text and "api.main:build_app" in text
+    assert "HOME=/tmp" in text, "gdown writes a cookie file under $HOME; the user has no home and the root fs is read-only"
     assert "--no-access-log" in text, "the app logs method, path and status itself; nothing else"
     assert "from_pretrained" not in text, "the 280 MB weights belong in the /models volume"
 
@@ -121,6 +123,11 @@ def test_quadlet_unit():
         assert key in text
     assert re.search(r"^HealthCmd=.*/healthz", text, flags=re.M)
     assert text.index("[Unit]") < text.index("[Container]") < text.index("[Service]") < text.index("[Install]")
+
+
+def test_run_api_does_not_rebuild_the_image_behind_your_back():
+    mk = read("Makefile")
+    assert re.search(r"^run-api:\s*$", mk, flags=re.M), "a prerequisite would rebuild without the build arguments"
 
 
 def test_makefile_run_hardening_and_health():

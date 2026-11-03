@@ -17,7 +17,7 @@ PublishPort=127.0.0.1:8080:8080
 Volume=%h/guess-the-move-data:/usr/share/nginx/html/data:ro,Z
 ReadOnly=true
 Tmpfs=/tmp
-Tmpfs=/etc/nginx/conf.d:rw,uid=101,gid=101,mode=755
+Tmpfs=/etc/nginx/conf.d:rw,mode=1777
 Network=gtm.network
 NoNewPrivileges=true
 DropCapability=ALL

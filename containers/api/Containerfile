@@ -9,7 +9,7 @@ FROM docker.io/library/python:3.12-slim
 ARG WITH_MAIA=0
 ARG MAIA_MODE=none
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    GTM_API_ENGINE=/usr/games/stockfish MAIA2_HOME=/models GTM_API_MAIA=${MAIA_MODE}
+    GTM_API_ENGINE=/usr/games/stockfish MAIA2_HOME=/models HOME=/tmp GTM_API_MAIA=${MAIA_MODE}
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends stockfish \

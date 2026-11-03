@@ -10,6 +10,9 @@ COPY web/index.html web/style.css web/pieces.svg web/theme.js web/strings.js web
 # Demo dataset baked in so the image works on its own; compose/Quadlet bind-mount a real one over it.
 COPY web/data/ /usr/share/nginx/html/data/
 
+# Makes the entrypoint export NGINX_LOCAL_RESOLVERS (the DNS server from /etc/resolv.conf), which the /api/ location uses.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+
 EXPOSE 8080
 # No HEALTHCHECK here: podman builds OCI images by default and OCI has no such field (it is ignored with a
 # warning). The health check is passed at run time instead: Makefile --health-cmd, compose `healthcheck:`,

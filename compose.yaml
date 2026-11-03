@@ -19,7 +19,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /etc/nginx/conf.d:rw,uid=101,gid=101,mode=755   # the entrypoint renders the nginx template here
+      - /etc/nginx/conf.d:rw,mode=1777   # the entrypoint renders the nginx template here
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     healthcheck:
