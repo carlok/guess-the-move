@@ -76,14 +76,33 @@ async function mouseDrag(page, from, to, { release = true, steps = 8 } = {}) {
   if (release) await page.mouse.up();
 }
 
+/* One raw-CDP session per page for every touch this file sends. Mixing it with page.touchscreen.tap in one test (a CDP drag, then a
+ * Playwright tap) failed every time on the GitHub runner's Linux Chrome while passing on macOS: the tap reached the page's
+ * coordinates but no click came out. So a test that drags with CDP also taps with CDP (touchTap below). */
+const sessions = new WeakMap();
+async function cdpSession(page) {
+  if (!sessions.has(page)) sessions.set(page, await page.context().newCDPSession(page));
+  return sessions.get(page);
+}
+
 /* Touch drag through Chrome's input pipeline (page.touchscreen can only tap). */
 async function touchPath(page, points, { release = true } = {}) {
-  const cdp = await page.context().newCDPSession(page);
+  const cdp = await cdpSession(page);
   const send = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y]) => ({ x, y })) });
   await send('touchStart', [points[0]]);
   for (const p of points.slice(1)) await send('touchMove', [p]);
   if (release) await send('touchEnd', []);
   return { cdp, end: () => send('touchEnd', []) };
+}
+
+/* A tap on an element through the same CDP session as touchDrag. */
+async function touchTap(page, locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  const cdp = await cdpSession(page);
+  const point = [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: point });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
 async function touchDrag(page, from, to, { release = true, steps = 8 } = {}) {
@@ -94,5 +113,5 @@ async function touchDrag(page, from, to, { release = true, steps = 8 } = {}) {
 }
 
 module.exports = {
-  serveSubset, serveDataset, preset, watchProblems, bestMove, square, clickMove, center, mouseDrag, touchPath, touchDrag,
+  serveSubset, serveDataset, preset, watchProblems, bestMove, square, clickMove, center, mouseDrag, touchPath, touchDrag, touchTap,
 };

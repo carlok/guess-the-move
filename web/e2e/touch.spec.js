@@ -2,7 +2,7 @@
 /* Touch input on a phone-sized viewport with touch events and DPR 2 (phone project). Spec: PROMPT.md 2.1. */
 const { test, expect } = require('@playwright/test');
 const { ROOK } = require('./fixtures');
-const { serveDataset, preset, square, center, touchDrag, touchPath } = require('./helpers');
+const { serveDataset, preset, square, center, touchDrag, touchPath, touchTap } = require('./helpers');
 
 test.beforeEach(async ({ page }) => { await preset(page); }); // confirm is NOT preset: coarse pointers default to on
 
@@ -33,7 +33,7 @@ test('a touch drag moves a ghost, drops as a pending move, and confirm reveals i
   await expect(board(page)).not.toHaveAttribute('data-dragging', 'true');
   await expect(page.locator('#confirm')).toBeVisible();
   await expect(page.locator('#result')).toBeHidden();
-  await page.locator('#confirm').tap();
+  await touchTap(page, page.locator('#confirm')); // same CDP session as the drag, see helpers.js
   await expect(page.locator('#result')).toContainText('Move quality: 100/100');
 });
 
