@@ -454,6 +454,8 @@
   }
 
   function onDocKey(e) {
+    if (e.key === 'Escape' && menuIsOpen()) { closeMenu(); return; }
+    if (menuIsOpen()) return; // the menu is modal: board shortcuts stay off while it is open
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     if ((e.key === 'n' || e.key === 'N') && S.revealed) nextPosition();
     if (e.key === 'Escape') {
@@ -543,11 +545,56 @@
         .map(function (t) { return '<option value="' + t + '">' + esc(T.tags[t]) + ' (' + counts[t] + ')</option>'; }).join('');
       if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; $('demoChip').hidden = false; }
       $('skeleton').hidden = true;
+      if (menuIsOpen()) renderAbout();
       renderStats(); nextPosition();
     }).catch(function (e) {
       $('skeleton').hidden = true;
       showLoadError(url, e);
     });
+  }
+
+  /* ---------- menu: how it works, the data, credits ---------- */
+
+  function menuIsOpen() { return !$('menu').hidden; }
+
+  function renderAbout() {
+    var el = $('aboutData'), d = S.data;
+    if (!d) { el.innerHTML = '<li>' + T.about.loading + '</li>'; return; }
+    var m = d.meta || {}, prov = m.provenance || {}, eng = prov.engine || {}, maia = prov.maia, items = [];
+    var dates = d.positions.map(function (p) { return p.game && p.game.date; }).filter(Boolean).sort();
+    items.push(T.about.positions(d.positions.length, dates.length ? T.about.dates(dates[0], dates[dates.length - 1]) : ''));
+    items.push(T.about.engine(eng.name || m.engine || 'The engine', eng.nodes || m.nodes));
+    items.push(maia ? T.about.maia(maia.model, maia.history_plies) : (m.maia ? T.about.maia(m.maia) : T.about.noMaia));
+    if (m.source) items.push(T.about.source(m.source));
+    if (m.built) items.push(T.about.built(m.built));
+    if (prov.players_stored === true) items.push(T.about.namesStored);
+    else if (prov.players_stored === false) items.push(T.about.names);
+    el.innerHTML = items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('');
+  }
+
+  function openMenu() {
+    S.menuReturn = document.activeElement;
+    renderAbout();
+    $('menu').hidden = false; $('menuBackdrop').hidden = false;
+    $('menuBtn').setAttribute('aria-expanded', 'true');
+    document.documentElement.classList.add('menu-open');
+    $('menuClose').focus();
+  }
+
+  function closeMenu() {
+    $('menu').hidden = true; $('menuBackdrop').hidden = true;
+    $('menuBtn').setAttribute('aria-expanded', 'false');
+    document.documentElement.classList.remove('menu-open');
+    ($('menuBtn')).focus();
+  }
+
+  /* Keep Tab inside the open menu (it is modal). */
+  function trapTab(e) {
+    if (e.key !== 'Tab') return;
+    var f = Array.prototype.filter.call($('menu').querySelectorAll('a[href], button:not([disabled])'), function (el) { return !el.hidden; });
+    var first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
   function updateThemeButton() {
@@ -609,7 +656,11 @@
     $('themeToggle').addEventListener('click', function () { window.GTM_THEME.toggle(); updateThemeButton(); });
     $('analyseBtn').addEventListener('click', analyseCustom);
     $('estimateBtn').addEventListener('click', estimateLevel);
-    $('helpBtn').addEventListener('click', function () { $('onboarding').hidden = !$('onboarding').hidden; });
+    $('menuBtn').addEventListener('click', function () { if (menuIsOpen()) closeMenu(); else openMenu(); });
+    $('menuClose').addEventListener('click', closeMenu);
+    $('menuBackdrop').addEventListener('click', closeMenu);
+    $('menu').addEventListener('keydown', trapTab);
+    $('tourBtn').addEventListener('click', function () { closeMenu(); $('onboarding').hidden = false; });
     $('onboardingClose').addEventListener('click', function () { $('onboarding').hidden = true; store.set(ONBOARD_KEY, true); });
     document.addEventListener('keydown', onDocKey);
   }

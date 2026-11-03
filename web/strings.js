@@ -96,6 +96,24 @@
       }
     },
     settings: { confirm: 'Confirm moves before revealing', confirmHelp: 'Useful on touch screens, where a slip of the finger would reveal the answer.' },
+    menu: { open: 'Menu: how it works, about the data, credits' , close: 'Close the menu' },
+    about: {
+      loading: 'Loading…',
+      positions: function (n, dates) { return n + ' positions from real Lichess games' + (dates ? ', ' + dates : '') + '.'; },
+      dates: function (a, b) { return a === b ? 'played on ' + a : 'played between ' + a + ' and ' + b; },
+      engine: function (name, nodes) {
+        return name + ' scored every legal move of every position' + (nodes ? ' with a fixed budget of ' + Number(nodes).toLocaleString('en-US') + ' nodes' : '') + ', so the scores are reproducible.';
+      },
+      maia: function (model, plies) {
+        return model + ' gave the probability that a player of the real player\'s rating would choose each move' +
+          (plies ? ', seeing the last ' + plies + ' positions of the game' : '') + '.';
+      },
+      noMaia: 'This dataset has no human-model (Maia) data.',
+      source: function (file) { return 'Source file: ' + file + ' (CC0).'; },
+      built: function (iso) { return 'Built on ' + String(iso).slice(0, 10) + '.'; },
+      names: 'Player names are not stored. Each result links to the original game on Lichess.',
+      namesStored: 'This dataset also stores the players\' Lichess usernames.'
+    },
     onboarding: { title: 'How it works', close: 'Got it' }
   };
 }));

@@ -169,3 +169,22 @@ footer { max-width: 1180px; margin: var(--s-5) auto var(--s-6); padding: 0 var(-
   .topbar { padding: var(--s-2) var(--s-4); } .brand h1 { font-size: var(--fs-lg); } .sub { display: none; }
   main { gap: var(--s-3); } .boardwrap { border-radius: 0; box-shadow: none; }
 }
+
+/* Menu (how it works, the data, credits): a modal sheet from the right; full screen on a phone. */
+.menu-backdrop { position: fixed; inset: 0; z-index: 29; background: rgba(0, 0, 0, .45); }
+.menu {
+  position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); color: var(--fg); box-shadow: -8px 0 28px rgba(0, 0, 0, .3); padding: 0 var(--s-4) var(--s-6);
+}
+.menu-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); background: var(--surface); padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
+.menu-head h2 { margin: 0; font-size: var(--fs-lg); }
+.menu-nav { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); padding: var(--s-2) 0; }
+.menu-nav a { display: inline-flex; align-items: center; min-height: var(--tap); }
+.menu h3 { margin: var(--s-5) 0 var(--s-2); font-size: var(--fs-lg); }
+.menu h4 { margin: var(--s-4) 0 var(--s-1); font-size: var(--fs-md); }
+.menu p, .menu li, .menu dd { color: var(--fg); }
+.menu dt { font-weight: 650; margin-top: var(--s-2); } .menu dd { margin: 0 0 var(--s-1); }
+.menu ul { padding-left: var(--s-5); } .menu li { margin: var(--s-1) 0; }
+.menu code { background: var(--surface-2); border-radius: 4px; padding: 0 4px; }
+html.menu-open { overflow: hidden; }
+@media (max-width: 480px) { .menu { width: 100vw; } }

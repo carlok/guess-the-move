@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Menu (hamburger, replaces the "?" button): "How it works" (the four moves, what cost, quality, closeness and plausible mean), "The data" (written at run time from the dataset's own `meta.provenance`: position count, game dates, engine and node budget, Maia model, source file, whether names are stored; nothing is claimed that the file does not say) and "Credits and licences" (Lichess CC0, Stockfish GPL-3.0, Maia-3 AGPL-3.0, cburnett, Lucide/Feather, this app AGPL). Modal dialog: focus moves in and returns, Tab is trapped, Escape/backdrop/close button dismiss, full screen on a phone. A Python test fails if the credits stop covering what `NOTICE` lists. The `#sourceLink` URL is the private repo until it is made public.
 - Licence: AGPL-3.0-or-later (`LICENSE`, `NOTICE`, README), chosen by the owner because Maia-3 is AGPL-3.0.
 - Stockfish 19 in the `builder` and `api` images: the official release, installed by `containers/common/install_stockfish.py` with a SHA-256 check, instead of Debian's 17.1. Dataset 2,000 positions (Maia-3 23M, stratified, game links, provenance, no names). Estimator re-evaluated with Maia-3: calibrated.
 - Provenance: each position carries a `game` block from the PGN headers (ratings, UTC date and time, time control, result, opening, clock; usernames and titles only with `--store-players`, off by default because the game link `site` is the goal) and `meta.provenance` records the engine, the Maia model and checkpoint hash, the source, every filter, tool versions and the command.

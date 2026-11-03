@@ -318,14 +318,16 @@ test('references that chose the same move share one arrow and one pill; differen
   assert.ok(byKey.best.querySelectorAll('line').length >= 2, 'a halo and a shaft');
 });
 
-test('onboarding appears on first run, closes, is remembered, and the help button brings it back', async () => {
+test('onboarding appears on first run, closes, is remembered, and the menu brings the tour back', async () => {
   const w = await boot(dataOf(ROOK), { onboarded: false });
   assert.equal($(w, 'onboarding').hidden, false);
   $(w, 'onboardingClose').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   assert.equal($(w, 'onboarding').hidden, true);
   assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.onboarded')), true);
-  $(w, 'helpBtn').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  $(w, 'menuBtn').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  $(w, 'tourBtn').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   assert.equal($(w, 'onboarding').hidden, false);
+  assert.equal($(w, 'menu').hidden, true, 'the menu steps aside for the tour');
   const seen = await boot(dataOf(ROOK));
   assert.equal($(seen, 'onboarding').hidden, true);
 });
@@ -375,4 +377,103 @@ test('changing the mode after the reveal does not rewrite the finished prompt', 
   radio.dispatchEvent(new w.Event('change', { bubbles: true }));
   assert.equal($(w, 'prompt').hidden, true);
   assert.match($(w, 'verdict').textContent, /found Stockfish/);
+});
+
+const PROVENANCE = {
+  engine: { name: 'Stockfish 19', nodes: 400000 }, maia: { model: 'maia3-23m', history_plies: 8 }, players_stored: false
+};
+const withGame = (date) => ({ ...ROOK, id: 'g' + date, game: { date } });
+const click = (w, id) => $(w, id).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+
+test('the menu opens as a modal dialog, moves focus in, and Escape closes it and returns focus', async () => {
+  const w = await boot(dataOf(ROOK));
+  assert.equal($(w, 'menu').hidden, true);
+  assert.equal($(w, 'menuBtn').getAttribute('aria-expanded'), 'false');
+  $(w, 'menuBtn').focus();
+  click(w, 'menuBtn');
+  assert.equal($(w, 'menu').hidden, false);
+  assert.equal($(w, 'menuBtn').getAttribute('aria-expanded'), 'true');
+  assert.equal(w.document.activeElement, $(w, 'menuClose'));
+  assert.ok(w.document.documentElement.classList.contains('menu-open'));
+  docKey(w, 'Escape');
+  assert.equal($(w, 'menu').hidden, true);
+  assert.equal($(w, 'menuBackdrop').hidden, true);
+  assert.equal($(w, 'menuBtn').getAttribute('aria-expanded'), 'false');
+  assert.equal(w.document.activeElement, $(w, 'menuBtn'));
+  assert.ok(!w.document.documentElement.classList.contains('menu-open'));
+});
+
+test('the menu closes with its button, its backdrop, and the hamburger toggles it', async () => {
+  const w = await boot(dataOf(ROOK));
+  click(w, 'menuBtn'); click(w, 'menuClose');
+  assert.equal($(w, 'menu').hidden, true);
+  click(w, 'menuBtn'); click(w, 'menuBackdrop');
+  assert.equal($(w, 'menu').hidden, true);
+  click(w, 'menuBtn'); click(w, 'menuBtn');
+  assert.equal($(w, 'menu').hidden, true);
+});
+
+test('while the menu is open the board shortcuts are off and Tab stays inside it', async () => {
+  const w = await boot(dataOf(ROOK));
+  click(w, 'menuBtn');
+  docKey(w, 'n');
+  assert.equal($(w, 'menu').hidden, false, 'an unrelated key leaves the menu open');
+  const items = [...$(w, 'menu').querySelectorAll('a[href], button:not([disabled])')];
+  items[items.length - 1].focus();
+  const tab = new w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  items[items.length - 1].dispatchEvent(tab);
+  assert.equal(tab.defaultPrevented, true);
+  assert.equal(w.document.activeElement, items[0], 'Tab from the last control wraps to the first');
+  const back = new w.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+  items[0].dispatchEvent(back);
+  assert.equal(w.document.activeElement, items[items.length - 1], 'Shift+Tab from the first wraps to the last');
+  const mid = new w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  items[1].focus(); items[1].dispatchEvent(mid);
+  assert.equal(mid.defaultPrevented, false, 'Tab in the middle is left to the browser');
+  const other = new w.KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
+  items[1].dispatchEvent(other);
+  assert.equal(other.defaultPrevented, false);
+});
+
+test('"The data" is written from the dataset\'s own provenance', async () => {
+  const data = { schema: 1, meta: { demo: false, source: 'lichess_db_standard_rated_2026-09.pgn.zst', built: '2026-11-03T15:57:07+00:00', provenance: PROVENANCE },
+    positions: [withGame('2026.09.01'), withGame('2026.09.01')] };
+  const w = await boot(data);
+  click(w, 'menuBtn');
+  const text = $(w, 'aboutData').textContent;
+  assert.match(text, /2 positions from real Lichess games, played on 2026\.09\.01/);
+  assert.match(text, /Stockfish 19 scored every legal move.*400,000 nodes/);
+  assert.match(text, /maia3-23m.*last 8 positions/);
+  assert.match(text, /lichess_db_standard_rated_2026-09\.pgn\.zst \(CC0\)/);
+  assert.match(text, /Built on 2026-11-03/);
+  assert.match(text, /Player names are not stored\. Each result links to the original game/);
+});
+
+test('"The data" gives a date range, says when usernames are stored, and never claims what the file does not say', async () => {
+  const stored = { schema: 1, meta: { demo: false, provenance: { ...PROVENANCE, players_stored: true } }, positions: [withGame('2026.09.01'), withGame('2026.09.30')] };
+  const w = await boot(stored);
+  click(w, 'menuBtn');
+  assert.match($(w, 'aboutData').textContent, /played between 2026\.09\.01 and 2026\.09\.30/);
+  assert.match($(w, 'aboutData').textContent, /also stores the players' Lichess usernames/);
+  assert.doesNotMatch($(w, 'aboutData').textContent, /names are not stored/);
+});
+
+test('"The data" copes with demo data that has no provenance, no rating model and no games', async () => {
+  const w = await boot({ schema: 1, meta: { demo: true, engine: 'Stockfish 19', nodes: 1000 }, positions: [ROOK] });
+  click(w, 'menuBtn');
+  const text = $(w, 'aboutData').textContent;
+  assert.match(text, /^1 positions from real Lichess games\./);
+  assert.match(text, /no human-model \(Maia\) data/);
+  assert.doesNotMatch(text, /names/i, 'no claim about names without provenance');
+  assert.doesNotMatch(text, /Built on|Source file/);
+});
+
+test('"The data" shows its loading line before the dataset arrives, then fills in', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const w = await boot(dataOf(ROOK), { fetchImpl: async () => { await gate; return { ok: true, json: async () => dataOf(ROOK) }; } });
+  click(w, 'menuBtn');
+  assert.equal($(w, 'aboutData').textContent, 'Loading…');
+  release(); await tick();
+  assert.match($(w, 'aboutData').textContent, /1 positions from real Lichess games/);
 });

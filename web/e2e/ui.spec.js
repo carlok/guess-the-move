@@ -125,3 +125,50 @@ test('arrows are not animated under prefers-reduced-motion', async ({ page }) =>
   expect(names.length).toBeGreaterThan(0);
   expect(names.every((n) => n === 'none')).toBe(true);
 });
+
+test('the menu holds how it works, the data and the credits; it opens, traps focus and closes with Escape', async ({ page }) => {
+  await open(page);
+  const menu = page.locator('#menu');
+  await expect(menu).toBeHidden();
+  await page.locator('#menuBtn').click();
+  await expect(menu).toBeVisible();
+  await expect(page.locator('#menuBtn')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#menuClose')).toBeFocused();
+  for (const h of ['How it works', 'The data', 'Credits and licences']) await expect(menu.getByRole('heading', { name: h })).toBeVisible();
+  await expect(page.locator('#aboutData')).toContainText('1 positions from real Lichess games');
+  for (let i = 0; i < 30; i++) await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.getElementById('menu').contains(document.activeElement)), 'focus never leaves the open menu').toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(page.locator('#menuBtn')).toBeFocused();
+});
+
+test('the menu: no horizontal scroll, every control is a comfortable target, and the page behind does not scroll', async ({ page }) => {
+  await open(page);
+  await page.locator('#menuBtn').click();
+  await page.locator('#menu a').last().scrollIntoViewIfNeeded();
+  const m = await page.evaluate(() => {
+    const menu = document.getElementById('menu');
+    const small = [...menu.querySelectorAll('button, nav a')].map((e) => e.getBoundingClientRect()).filter((r) => r.height < 44 || r.width < 44).length;
+    return { hOverflow: menu.scrollWidth > menu.clientWidth, page: document.documentElement.scrollWidth > innerWidth, small, locked: getComputedStyle(document.documentElement).overflow };
+  });
+  expect(m.hOverflow).toBe(false);
+  expect(m.page).toBe(false);
+  expect(m.small, 'buttons and nav links under 44 px').toBe(0);
+  expect(m.locked).toBe('hidden');
+});
+
+test('"Show the quick tour" in the menu brings the onboarding back', async ({ page }) => {
+  await open(page);
+  await page.locator('#menuBtn').click();
+  await page.locator('#tourBtn').click();
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('#onboarding')).toBeVisible();
+});
+
+test('every credit link opens in a new tab without leaking the opener', async ({ page }) => {
+  await open(page);
+  await page.locator('#menuBtn').click();
+  const bad = await page.$$eval('#menu a[href^="http"]', (as) => as.filter((a) => a.target !== '_blank' || !/noopener/.test(a.rel)).map((a) => a.href));
+  expect(bad).toEqual([]);
+});

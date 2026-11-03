@@ -26,6 +26,10 @@ for (const theme of ['light', 'dark']) {
     await scan(page, `${theme} onboarding`);
     await page.locator('#onboardingClose').click();
     await scan(page, `${theme} position`);
+    await page.locator('#menuBtn').click();
+    await expect(page.locator('#menu')).toBeVisible();
+    await scan(page, `${theme} menu`);
+    await page.keyboard.press('Escape');
     await clickMove(page, 'a1a8');
     await expect(page.locator('#confirm')).toBeVisible();
     await scan(page, `${theme} pending`);

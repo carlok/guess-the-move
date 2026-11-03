@@ -21,8 +21,8 @@
     </div>
     <div class="topbar-actions">
       <a id="demoChip" class="demo-chip" href="#banner" aria-label="Demo data: details at the bottom of the page" hidden>Demo</a>
-      <button id="helpBtn" type="button" class="icon-btn" aria-label="How it works">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      <button id="menuBtn" type="button" class="icon-btn" aria-label="Menu: how it works, about the data, credits" aria-expanded="false" aria-controls="menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
       </button>
       <button id="themeToggle" type="button" class="icon-btn" aria-label="Switch to the dark theme">
         <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
@@ -30,6 +30,61 @@
       </button>
     </div>
   </header>
+
+  <div id="menuBackdrop" class="menu-backdrop" hidden></div>
+  <div id="menu" class="menu" role="dialog" aria-modal="true" aria-labelledby="menuTitle" hidden>
+    <div class="menu-head">
+      <h2 id="menuTitle">About Guess the Move</h2>
+      <button id="menuClose" type="button" class="icon-btn" aria-label="Close the menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <nav class="menu-nav" aria-label="In this menu"><a href="#menuHow">How it works</a><a href="#menuData">The data</a><a href="#menuCredits">Credits</a></nav>
+
+    <section id="menuHow" aria-labelledby="howTitle">
+      <h3 id="howTitle">How it works</h3>
+      <p>You see a real position from a real game between players of a known rating, and you guess a move. Then the app shows four moves side by side:</p>
+      <ul>
+        <li><strong>Yours.</strong></li>
+        <li><strong>Stockfish's.</strong> The objectively best move, as judged by the strongest open-source engine.</li>
+        <li><strong>The real player's.</strong> What a person of that rating actually played.</li>
+        <li><strong>Maia's.</strong> What a typical player of that rating would play, according to a model trained on millions of human games.</li>
+      </ul>
+      <p>The interesting part is where they disagree. If the real player and Maia differ, the player did something unusual. If Maia and Stockfish differ, that is a typical human mistake at that level. If the real player found Stockfish's move but Maia would not, it was a hard one to find.</p>
+      <h4>What the numbers mean</h4>
+      <dl>
+        <dt>Cost</dt><dd>How much chance of winning a move gives up compared with the best move, in percentage points (using the Lichess win-probability curve). Lower is better.</dd>
+        <dt>Move quality</dt><dd>That cost turned into a score from 0 to 100 with the Lichess accuracy formula. Shown in "Find the best move" mode.</dd>
+        <dt>Closeness</dt><dd>How near your move is to another move, measured the same way; 100 means the same move. Shown in "Predict the real move" mode.</dd>
+        <dt>Plausible</dt><dd>The share of players of the real player's rating who would choose that move, according to Maia.</dd>
+      </dl>
+      <h4>Good to know</h4>
+      <ul>
+        <li>Nothing is calculated while you play. Every legal move of every position was scored in advance, so the page works with no server.</li>
+        <li>Your statistics stay in this browser. Nothing is sent anywhere.</li>
+        <li>Move by tapping a piece and then its square, by dragging it, or with the keyboard (arrow keys, Enter, Escape). On touch screens you confirm before the answer is revealed; you can change that in the settings.</li>
+      </ul>
+      <button id="tourBtn" type="button">Show the quick tour</button>
+    </section>
+
+    <section id="menuData" aria-labelledby="dataTitle">
+      <h3 id="dataTitle">The data</h3>
+      <ul id="aboutData" class="about-list"><li>Loading…</li></ul>
+    </section>
+
+    <section id="menuCredits" aria-labelledby="creditsTitle">
+      <h3 id="creditsTitle">Credits and licences</h3>
+      <ul class="credits">
+        <li><strong>Games:</strong> the <a href="https://database.lichess.org" target="_blank" rel="noopener noreferrer">Lichess open database</a> (CC0). Thank you to Lichess and to everyone whose games these are.</li>
+        <li><strong>Stockfish 19:</strong> <a href="https://stockfishchess.org" target="_blank" rel="noopener noreferrer">the Stockfish developers</a>, GPL-3.0.</li>
+        <li><strong>Maia-3 (Chessformer):</strong> the <a href="https://github.com/CSSLab/maia3" target="_blank" rel="noopener noreferrer">CSSLab</a> at the University of Toronto, AGPL-3.0; <a href="https://arxiv.org/abs/2605.19091" target="_blank" rel="noopener noreferrer">paper</a>.</li>
+        <li><strong>Win probability and accuracy formulas:</strong> <a href="https://lichess.org/page/accuracy" target="_blank" rel="noopener noreferrer">Lichess</a>.</li>
+        <li><strong>Chess pieces:</strong> "cburnett" by Colin M. L. Burnett, GPL-2.0-or-later, from <a href="https://github.com/lichess-org/lila/tree/master/public/piece/cburnett" target="_blank" rel="noopener noreferrer">lichess-org/lila</a>.</li>
+        <li><strong>Icons:</strong> <a href="https://lucide.dev" target="_blank" rel="noopener noreferrer">Lucide</a> (ISC), some derived from Feather by Cole Bemis (MIT).</li>
+        <li><strong>This app:</strong> free software under the GNU AGPL, version 3 or later. <a id="sourceLink" href="https://github.com/carlok/guess-the-move" target="_blank" rel="noopener noreferrer">Source code</a>. The full list of third-party material and licences is in the <code>NOTICE</code> file.</li>
+      </ul>
+    </section>
+  </div>
 
   <section id="onboarding" class="onboarding" aria-labelledby="onboardingTitle" hidden>
     <h2 id="onboardingTitle">How it works</h2>
