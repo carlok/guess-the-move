@@ -19,14 +19,28 @@ const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollW
 
 test('the top bar fits: stats, sound, menu and theme are all visible, at least 44 px, with no horizontal scroll', async ({ page }) => {
   await open(page);
+  const vw = page.viewportSize().width; // not innerWidth: that grows when something overflows, which would hide the very failure
   for (const id of ['statsBtn', 'soundToggle', 'menuBtn', 'themeToggle']) {
     const box = await page.locator('#' + id).boundingBox();
     expect(box, id).not.toBeNull();
     expect(box.width, id).toBeGreaterThanOrEqual(44); expect(box.height, id).toBeGreaterThanOrEqual(44);
-    const inside = await page.evaluate((i) => { const r = document.getElementById(i).getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }, id);
-    expect(inside, id + ' inside the viewport').toBe(true);
+    expect(box.x, id + ' inside the viewport').toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, id + ' inside the viewport').toBeLessThanOrEqual(vw);
   }
-  expect(await noHScroll(page)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vw);
+});
+
+test('the top bar still fits with a much wider font (Linux and Android default fonts are wider than macOS ones)', async ({ page }) => {
+  await page.addInitScript(() => {
+    const sheet = new CSSStyleSheet(); // a constructed sheet: the strict CSP forbids injected <style> elements
+    sheet.replaceSync('* { font-family: "DejaVu Sans", Verdana, "Courier New", monospace !important; }');
+    document.adoptedStyleSheets = [sheet];
+  });
+  await open(page);
+  const vw = page.viewportSize().width;
+  const right = await page.locator('#themeToggle').evaluate((e) => e.getBoundingClientRect().right);
+  expect(right).toBeLessThanOrEqual(vw);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vw);
 });
 
 test('the timer runs while a position is open, freezes at the reveal and starts again on the next one', async ({ page }) => {

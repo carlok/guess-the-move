@@ -51,7 +51,8 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); max-width: 1180px; margin: 0 auto; padding: var(--s-3) var(--s-4); }
 .brand h1 { margin: 0; font-size: var(--fs-xl); white-space: nowrap; }
 .sub { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
-.topbar-actions { display: flex; gap: var(--s-2); }
+.brand { min-width: 0; }
+.topbar-actions { display: flex; gap: var(--s-2); flex-shrink: 0; }
 
 /* Neither of these may sit in the page flow above <main>: inserting them after load would shift the whole layout (CLS). */
 .onboarding {
@@ -166,7 +167,8 @@ textarea, input[type="number"] { width: 100%; font: inherit; color: var(--fg); b
 footer { max-width: 1180px; margin: var(--s-5) auto var(--s-6); padding: 0 var(--s-4); color: var(--muted); font-size: var(--fs-sm); }
 
 @media (max-width: 480px) {
-  .topbar { padding: var(--s-2) var(--s-4); } .brand h1 { font-size: var(--fs-lg); } .sub { display: none; }
+  .topbar { padding: var(--s-2) var(--s-4); } .brand h1 { font-size: var(--fs-lg); white-space: normal; line-height: 1.15; } .sub { display: none; }
+  .topbar-actions { gap: var(--s-1); } /* four buttons: the title wraps before the buttons are pushed off a narrow screen */
   #gameMain { gap: var(--s-3); } .boardwrap { border-radius: 0; box-shadow: none; }
 }
 
