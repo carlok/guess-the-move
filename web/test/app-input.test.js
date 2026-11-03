@@ -276,7 +276,7 @@ test('verdict, legend and cost bars after the reveal', async () => {
   assert.match($(best, 'verdict').textContent, /found Stockfish/);
   assert.equal($(best, 'legend').querySelectorAll('[data-key]').length, 4);
   assert.ok($(best, 'result').querySelector('.cost-bar'));
-  assert.match($(best, 'result').textContent, /Source game/);
+  assert.match($(best, 'result').textContent, /See the original game/);
   assert.equal($(best, 'prompt').hidden, true);
 
   const maia = await boot(dataOf(ROOK));

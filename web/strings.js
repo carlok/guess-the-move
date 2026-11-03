@@ -46,7 +46,7 @@
     toggleThemeToDark: 'Switch to the dark theme',
     toggleThemeToLight: 'Switch to the light theme',
     noMaia: 'No human-model data for this position (unknown rating), so plausibility is not shown.',
-    sourceGame: 'Source game',
+    sourceGame: 'See the original game',
     stats: {
       none: 'No guesses yet.', guesses: 'Guesses', bestMean: 'Best-move mode: mean quality',
       predictMean: 'Predict mode: mean closeness', foundBest: 'Found a best-eval move',

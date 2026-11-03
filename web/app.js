@@ -195,6 +195,12 @@
     }).join('');
   }
 
+  /* The link to the original game. On Lichess a "#<ply>" suffix opens the game at that half-move, i.e. at the position
+   * that was guessed (assumed from Lichess's behaviour, not verified for every game page). Anything else stays as is. */
+  function gameLink(p) {
+    return /^https:\/\/lichess\.org\/[A-Za-z0-9]{8,12}$/.test(p.site) && Number.isInteger(p.ply) ? p.site + '#' + p.ply : p.site;
+  }
+
   function renderResult() {
     var r = S.result, p = S.pos, box = $('result'), real = r.refs[1];
     var head, detail;
@@ -223,7 +229,7 @@
     if (!hasMaia) html += '<p class="detail">' + T.noMaia + '</p>';
     var tags = (p.tags || []).filter(function (t) { return T.tags[t]; });
     if (tags.length) html += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(T.tags[t]) + '</span>'; }).join('') + '</div>';
-    if (p.site) html += '<p class="detail"><a href="' + esc(p.site) + '" rel="noopener noreferrer" target="_blank">' + T.sourceGame + '</a></p>';
+    if (p.site) html += '<p class="detail"><a href="' + esc(gameLink(p)) + '" rel="noopener noreferrer" target="_blank">' + T.sourceGame + '</a></p>';
     box.innerHTML = html;
     box.hidden = false;
 

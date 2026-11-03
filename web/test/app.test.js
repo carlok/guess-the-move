@@ -149,3 +149,19 @@ test('demo banner appears for demo datasets', async () => {
   assert.equal($(w, 'banner').hidden, false);
   assert.match($(w, 'banner').textContent, /Demo data/);
 });
+
+test('the original game is linked, at the guessed position on Lichess and plainly elsewhere', async () => {
+  const lichess = { ...ROOK, ply: 24, site: 'https://lichess.org/AbCd1234' };
+  const w = await boot(dataOf(lichess));
+  click(w, 'a1'); click(w, 'a8');
+  const a = $(w, 'result').querySelector('a');
+  assert.equal(a.getAttribute('href'), 'https://lichess.org/AbCd1234#24');
+  assert.equal(a.textContent, 'See the original game');
+  assert.equal(a.getAttribute('rel'), 'noopener noreferrer');
+  const other = await boot(dataOf({ ...ROOK, ply: 24, site: 'https://example.org/game/1' }));
+  click(other, 'a1'); click(other, 'a8');
+  assert.equal($(other, 'result').querySelector('a').getAttribute('href'), 'https://example.org/game/1');
+  const none = await boot(dataOf({ ...ROOK, site: null }));
+  click(none, 'a1'); click(none, 'a8');
+  assert.equal($(none, 'result').querySelector('a'), null);
+});

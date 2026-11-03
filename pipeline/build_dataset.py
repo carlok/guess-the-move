@@ -82,7 +82,7 @@ def build_positions(
     *,
     max_abs_cp: int | None = 500,
     drop_trivial: bool = True,
-    store_players: bool = True,
+    store_players: bool = False,
     progress: Callable[[int, int], None] | None = None,
 ) -> list[dict]:
     positions: list[dict] = []
