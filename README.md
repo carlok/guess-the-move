@@ -110,7 +110,7 @@ make ci                  # coverage, all tests, browser tests, container check: 
 make containers-check    # only the images: builds web, builder and api, starts web + api on a private network, probes them
 ```
 
-`make ci` passes locally (2026-11-04). First run on GitHub (private repo, `ubuntu-24.04`): the Python job and the container job passed (podman and the images behave like on a Mac); in the web job 90 of 91 browser tests passed, and the failing one failed identically on every retry, so it is deterministic on the runner's Linux Chrome, not flaky (see `PROMPT.md` 14.1). To run the workflow file itself locally you need [`act`](https://github.com/nektos/act) (not installed here), which executes the jobs in containers; the `containers` job needs podman or Docker inside that, so `make containers-check` is the faithful local check for that job. The workflow reads the code and nothing else (no secrets, read-only token), and its actions are pinned to major versions.
+`make ci` passes locally (2026-11-04). On GitHub (private repo, `ubuntu-24.04`) all three jobs pass (run 41683889843: 226 Python tests, 91 browser tests, the container check); getting there needed one fix to how the browser tests script a touch drag (see `PROMPT.md` 14.1). To run the workflow file itself locally you need [`act`](https://github.com/nektos/act) (not installed here), which executes the jobs in containers; the `containers` job needs podman or Docker inside that, so `make containers-check` is the faithful local check for that job. The workflow reads the code and nothing else (no secrets, read-only token), and its actions are pinned to major versions.
 
 ## Licence
 
