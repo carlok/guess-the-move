@@ -1,11 +1,12 @@
 'use strict';
 const { test, expect } = require('@playwright/test');
-const { serveSubset, watchProblems } = require('./helpers');
+const { serveSubset, watchProblems, preset } = require('./helpers');
 
 // Negative control for smoke.spec.js: if an inline style is NOT reported as a violation, the "zero CSP
 // violations" assertion there proves nothing. Only meaningful where the CSP header exists (the nginx container).
 test('an inline style is blocked and reported by the container CSP', async ({ page }) => {
   test.skip(!process.env.GTM_BASE_URL, 'the CSP header comes from the nginx container');
+  await preset(page);
   const watch = watchProblems(page);
   await serveSubset(page);
   await page.goto('/');

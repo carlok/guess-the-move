@@ -1,6 +1,8 @@
 // Browser tests (real Chrome, real layout, real pointer events). jsdom cannot test any of that.
 // Default: serves ./web with python's http.server. GTM_BASE_URL=http://127.0.0.1:8080 runs the same specs
 // against a running container instead. Uses the installed Google Chrome (no browser download).
+// Three viewports (PROMPT.md 2.2): desktop 1280x800, tablet 768x1024, phone 390x844 with touch and DPR 2.
+// Mouse and keyboard specs (input.spec.js) run on desktop and tablet, touch specs (touch.spec.js) on the phone.
 const { defineConfig } = require('@playwright/test');
 
 const external = process.env.GTM_BASE_URL;
@@ -15,5 +17,12 @@ module.exports = defineConfig({
     url: 'http://127.0.0.1:8765/index.html',
     reuseExistingServer: true,
   },
-  projects: [{ name: 'desktop', use: { viewport: { width: 1280, height: 800 } } }],
+  projects: [
+    { name: 'desktop', testIgnore: /touch\.spec/, use: { viewport: { width: 1280, height: 800 } } },
+    { name: 'tablet', testIgnore: /touch\.spec/, use: { viewport: { width: 768, height: 1024 } } },
+    {
+      name: 'phone', testIgnore: /input\.spec/,
+      use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+    },
+  ],
 });

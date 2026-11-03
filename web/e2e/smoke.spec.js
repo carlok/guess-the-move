@@ -1,8 +1,9 @@
 'use strict';
 const { test, expect } = require('@playwright/test');
-const { serveSubset, watchProblems, bestMove, clickMove } = require('./helpers');
+const { serveSubset, watchProblems, bestMove, clickMove, preset } = require('./helpers');
 
 test('loads with no console errors or CSP violations and plays one position to the reveal', async ({ page }) => {
+  await preset(page);
   const watch = watchProblems(page);
   const chosen = await serveSubset(page);
   await page.goto('/');
@@ -10,6 +11,7 @@ test('loads with no console errors or CSP violations and plays one position to t
   await expect(page.locator('[data-sq]')).toHaveCount(64);
 
   await clickMove(page, bestMove(chosen[0]));
+  if (await page.locator('#confirm').isVisible()) await page.locator('#confirm').click(); // phones confirm first
   await expect(page.locator('#result')).toBeVisible();
   await expect(page.locator('#result')).toContainText('Move quality: 100/100');
   await expect(page.locator('#result tbody tr')).not.toHaveCount(0);

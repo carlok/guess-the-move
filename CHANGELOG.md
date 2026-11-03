@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Containers verified (T1): both images and the Maia builder variant built, started and probed; compose and Quadlet (inside the podman machine VM) work. Health check moved from the Containerfile (ignored for OCI images) to run time. `make e2e` runs Playwright specs in Chrome (`web/e2e`), also against a running container (`GTM_BASE_URL`). README container section rewritten with what worked.
 - Quality gate (T8): `make coverage` fails below 90% lines / 85% branches overall and 100% lines on `winpct`, `tags`, `sampler` (Python, `tools/check_coverage.py`) and 95% / 90% on `scoring.js` + `app.js` (JS, `npm run coverage`). The jsdom harness now measures `app.js` (`web/test/harness.js`, `vm.Script` with real file names). New tests: `build_dataset.main()` end to end with a UCI stub engine, `backends.py` through a fake `maia2` module and MultiPV fallbacks, `hypothesis` property tests, seeded shared vectors (`tests/gen_vectors.py`, freshness-checked). `make mutation` (mutmut, Stryker) is a spot-check, not a gate. Python coverage 84% -> 100%.
 - Fix: `select()` keeps each position+move id once; two games reaching the same position and move used to yield duplicate ids.
 - Fix: `tag_position` no longer raises `KeyError` when Maia's top move is not among the evaluated moves; the `trivial` rule drops a redundant clause.
