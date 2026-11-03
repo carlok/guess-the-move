@@ -8,11 +8,11 @@ FROM docker.io/library/python:3.12-slim
 ARG WITH_MAIA=0
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Native Stockfish from Debian (GPL-3.0), installed at /usr/games/stockfish. Its version follows the
-# base image's Debian release; the dataset meta records the engine name, so builds stay traceable.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends stockfish \
- && rm -rf /var/lib/apt/lists/*
+# The official Stockfish release (GPL-3.0), verified against the SHA-256 published on its release page and installed at
+# /usr/local/bin/stockfish. (Debian's package lags: it was 17.1 when 19 was current.) The dataset meta records the
+# engine name and version, so builds stay traceable.
+COPY containers/common/install_stockfish.py /tmp/install_stockfish.py
+RUN python /tmp/install_stockfish.py && rm /tmp/install_stockfish.py
 
 WORKDIR /app
 COPY requirements.txt requirements-maia.txt ./
@@ -23,7 +23,7 @@ RUN pip install -r requirements.txt \
     fi
 
 COPY pipeline/ pipeline/
-ENV GTM_ENGINE=/usr/games/stockfish
+ENV GTM_ENGINE=/usr/local/bin/stockfish
 
 # Mount PGNs at /in (read-only) and an output directory at /out. A URL also works for --pgn.
 ENTRYPOINT ["python", "-m", "pipeline.build_dataset"]

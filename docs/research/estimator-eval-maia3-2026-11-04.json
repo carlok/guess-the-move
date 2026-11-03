@@ -1,0 +1,55 @@
+{
+  "players": 150,
+  "ratings": {
+    "min": 1106,
+    "max": 1986
+  },
+  "model": "maia3-23m",
+  "grid": [
+    1000,
+    1100,
+    1200,
+    1300,
+    1400,
+    1500,
+    1600,
+    1700,
+    1800,
+    1900,
+    2000,
+    2100,
+    2200
+  ],
+  "interval": "80% credible, narrowest run of adjacent 100-point grid points",
+  "by_moves_observed": {
+    "5": {
+      "coverage_pct": 85.3,
+      "mean_interval_width_elo": 796,
+      "mae_elo": 180,
+      "constant_guess_mae_elo": 191
+    },
+    "10": {
+      "coverage_pct": 82.0,
+      "mean_interval_width_elo": 701,
+      "mae_elo": 182,
+      "constant_guess_mae_elo": 191
+    },
+    "20": {
+      "coverage_pct": 80.7,
+      "mean_interval_width_elo": 597,
+      "mae_elo": 159,
+      "constant_guess_mae_elo": 191
+    },
+    "30": {
+      "coverage_pct": 80.7,
+      "mean_interval_width_elo": 523,
+      "mae_elo": 160,
+      "constant_guess_mae_elo": 191
+    }
+  },
+  "bytes_per_position": {
+    "single_elo_block": 203,
+    "by_elo_table": 2502,
+    "ratio": 12.3
+  }
+}

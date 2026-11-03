@@ -58,7 +58,7 @@ What the first real runs showed (details in `PROMPT.md` 14.1):
 - The web container runs as uid 101 with `--read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges`: nginx-unprivileged needs nothing writable beyond `/tmp`.
 - The health check is passed at run time (`--health-cmd`, compose `healthcheck:`, Quadlet `HealthCmd=`), not with `HEALTHCHECK` in the Containerfile: podman builds OCI images and OCI has no such field.
 - Files the builder writes to a bind mount belong to your user on the Mac (mode 600 as seen from macOS), and the nginx user in the web container reads them fine. No `--userns=keep-id` was needed.
-- The builder image uses Debian's `stockfish` (`/usr/games/stockfish`, 17.1 at the time of writing); the dataset `meta.engine` records whichever engine ran.
+- The builder and api images install the official Stockfish 19 release (`containers/common/install_stockfish.py`, SHA-256 checked, `/usr/local/bin/stockfish`); Debian's package was 17.1. The dataset `meta.provenance.engine` records whichever engine ran.
 - Quadlet on macOS lives inside the machine VM: `podman machine ssh`, then copy the unit to `~/.config/containers/systemd/`, `systemctl --user daemon-reload && systemctl --user start guess-the-move-web`. The image must be in the VM's store (build with the normal `podman` client first).
 
 ## The api service (optional)
@@ -66,8 +66,9 @@ What the first real runs showed (details in `PROMPT.md` 14.1):
 A small stateless HTTP JSON service (Starlette + uvicorn, Python 3.12) for what the static dataset cannot answer: **any FEN** with Stockfish and, if you give a rating, Maia; and a **level estimate** from your own guesses. It runs in its own container, is never published to the host, and the web container exposes it to the browser as `/api/`. The page feature-detects `GET /api/healthz`: with no api, nothing changes and nothing is shown.
 
 ```bash
-make api-image WITH_MAIA=1      # Stockfish (Debian package) + CPU torch + maia2; without WITH_MAIA it serves engine evaluations only
-make api-weights                # once: downloads Maia-2's weights (about 280 MB, from Google Drive) into the gtm-models volume
+make api-image WITH_MAIA=1      # official Stockfish 19 + CPU torch + Maia-3; without WITH_MAIA it serves engine evaluations only
+make api-weights                # once: downloads the Maia-3 weights (88 MB for the 23M model, from Hugging Face) into the gtm-models volume
+                                # MAIA=maia2 builds with Maia-2 instead; MAIA_MODEL=maia3-5m|maia3-79m picks another size
 make run && make run-api        # web on http://127.0.0.1:8080, api on the private "gtm" network
 podman compose --profile api up --build       # the same with compose; add --profile cache for Valkey
 ```

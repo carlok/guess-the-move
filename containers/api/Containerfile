@@ -9,11 +9,11 @@ FROM docker.io/library/python:3.12-slim
 ARG WITH_MAIA=0
 ARG MAIA_MODE=none
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    GTM_API_ENGINE=/usr/games/stockfish MAIA2_HOME=/models HOME=/tmp GTM_API_MAIA=${MAIA_MODE}
+    GTM_API_ENGINE=/usr/local/bin/stockfish MAIA2_HOME=/models HOME=/tmp GTM_API_MAIA=${MAIA_MODE}
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends stockfish \
- && rm -rf /var/lib/apt/lists/* \
+# The official Stockfish release, verified against its published SHA-256 (Debian's package lags behind).
+COPY containers/common/install_stockfish.py /tmp/install_stockfish.py
+RUN python /tmp/install_stockfish.py && rm /tmp/install_stockfish.py \
  && useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin gtm \
  && mkdir /models && chown gtm:gtm /models
 

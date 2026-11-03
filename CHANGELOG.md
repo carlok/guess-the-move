@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Stockfish 19 in the `builder` and `api` images: the official release, installed by `containers/common/install_stockfish.py` with a SHA-256 check, instead of Debian's 17.1. Dataset 2,000 positions (Maia-3 23M, stratified, game links, provenance, no names). Estimator re-evaluated with Maia-3: calibrated.
 - Provenance: each position carries a `game` block from the PGN headers (ratings, UTC date and time, time control, result, opening, clock; usernames and titles only with `--store-players`, off by default because the game link `site` is the goal) and `meta.provenance` records the engine, the Maia model and checkpoint hash, the source, every filter, tool versions and the command.
 - Sampling (owner: more positions, better spread): `--stratify` (default) keeps equal shares of each phase x 200-point rating band, `select` balances across the same strata, `--workers N` runs N Stockfish processes in parallel.
 - Maia-3 (decided 2026-11-03, switch written but not run against the real model): `Maia3Backend`, `--maia maia3`, candidates carry up to seven earlier positions, estimator `FINE_GRID`, API/containers default to `maia3`. See `PROMPT.md` 14.1 for what is untested. The shipped dataset is still Maia-2.

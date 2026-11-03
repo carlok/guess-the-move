@@ -1,7 +1,7 @@
 """Entry point: `uvicorn --factory api.main:build_app`. Everything is configured by environment variables so the same
 image runs anywhere:
 
-  GTM_API_ENGINE        UCI engine command (default /usr/games/stockfish)
+  GTM_API_ENGINE        UCI engine command (default /usr/local/bin/stockfish)
   GTM_API_ENGINES       size of the engine pool, one process each (default 2)
   GTM_API_MAIA          maia3 | maia2 | none (default maia3)   GTM_API_MAIA_MODEL maia3-5m | maia3-23m | maia3-79m
   GTM_API_MAIA_KIND     rapid | blitz (maia2 only)           MAIA2_HOME directory for the downloaded weights
@@ -25,7 +25,7 @@ def build_app():
 
     logging.basicConfig(level=os.environ.get("GTM_API_LOG", "INFO"), format="%(asctime)s %(name)s %(message)s")
     settings = Settings(trust_proxy=os.environ.get("GTM_API_TRUST_PROXY") == "1")
-    command = shlex.split(os.environ.get("GTM_API_ENGINE", "/usr/games/stockfish"))
+    command = shlex.split(os.environ.get("GTM_API_ENGINE", "/usr/local/bin/stockfish"))
     backends = [StockfishBackend(command, nodes=settings.nodes_default) for _ in range(int(os.environ.get("GTM_API_ENGINES", "2")))]
     maia = None
     which, home = os.environ.get("GTM_API_MAIA", "maia3"), os.environ.get("MAIA2_HOME", "./maia2_models")

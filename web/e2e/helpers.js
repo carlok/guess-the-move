@@ -6,11 +6,16 @@ const G = require('../scoring.js');
 async function serveSubset(page, pick = (positions) => positions.slice(0, 1)) {
   const chosen = [];
   await page.route('**/data/positions.json', async (route) => {
-    const res = await route.fetch();
-    const data = await res.json();
-    data.positions = pick(data.positions);
-    chosen.splice(0, chosen.length, ...data.positions);
-    await route.fulfill({ response: res, json: data });
+    try {
+      const res = await route.fetch();
+      const data = await res.json();
+      data.positions = pick(data.positions);
+      chosen.splice(0, chosen.length, ...data.positions);
+      await route.fulfill({ response: res, json: data });
+    } catch (e) {
+      // The page can end while a second request for the file (the preload) is still being read: not a failure of the test.
+      if (!page.isClosed()) throw e;
+    }
   });
   return chosen;
 }
