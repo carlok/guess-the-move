@@ -68,6 +68,7 @@
       <h4>Good to know</h4>
       <ul>
         <li><strong>Previous</strong> (or <kbd>p</kbd>) reopens an earlier position of this visit to study it again: the timer stops at the time you took, the full answer is shown, and nothing is recorded a second time. <strong>Try again</strong> plays it afresh with the timer reset; <strong>Next</strong> walks forward through the ones you reviewed and then suggests a new position.</li>
+        <li><strong>Your level</strong>, on the stats page, is estimated from your first-time guesses in "Find the best move" mode: your moves are compared with how often players of each rating choose them (Maia-3), and positions where ratings disagree count for more. It is a Lichess-equivalent rating with an 80% range, not a FIDE rating, and it assumes you choose like a player of your rating does in a game.</li>
         <li>A timer runs on each position and starts again with the next one; it pauses when you leave the tab or open a view, and its time goes into your stats. You can hide it in the settings.</li>
         <li>Moves and results have sounds, made in your browser. The speaker button in the top bar mutes them.</li>
         <li>Nothing is calculated while you play. Every legal move of every position was scored in advance, so the page works with no server.</li>
@@ -108,7 +109,7 @@
 
   <main id="gameMain">
     <section class="stage" aria-label="Board">
-      <div class="posinfo"><span id="posInfo"></span><span id="reviewChip" class="review-chip" hidden>Review</span><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
+      <div class="posinfo"><span id="posInfo"></span><span id="reviewChip" class="review-chip" hidden>Review</span><span id="pickChip" class="review-chip" hidden></span><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
       <div id="boardWrap" class="boardwrap">
         <div id="skeleton" class="skeleton" aria-hidden="true"></div>
         <svg id="boardSvg" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Chess board" tabindex="0">
@@ -175,6 +176,8 @@
       </details>
 
       <div class="settings">
+        <label class="check"><input type="checkbox" id="adaptiveToggle"> Pick positions that sharpen my level estimate</label>
+        <p class="muted small">Chooses positions where players of different ratings disagree most, so fewer guesses are needed. It makes your set of positions less random.</p>
         <label class="check"><input type="checkbox" id="timerToggle"> Show the timer</label>
         <label class="check"><input type="checkbox" id="confirmToggle"> Confirm moves before revealing</label>
         <p class="muted small">Useful on touch screens, where a slip of the finger would reveal the answer.</p>
@@ -219,6 +222,7 @@
   <script defer src="sound.js"></script>
   <script defer src="stats.js"></script>
   <script defer src="backup.js"></script>
+  <script defer src="level.js"></script>
   <script defer src="app.js"></script>
 </body>
 </html>

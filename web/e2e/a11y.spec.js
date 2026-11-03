@@ -70,6 +70,19 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
+for (const theme of ['light', 'dark']) {
+  test(`axe: ${theme} theme, the stats page with the level card`, async ({ page }) => {
+    const BY = { 1000: { a1a8: 0.1, g1g2: 0.6 }, 2200: { a1a8: 0.8, g1g2: 0.05 } };
+    const positions = Array.from({ length: 10 }, (_, i) => ({ ...ROOK, id: 'h' + i, maia: { ...ROOK.maia, by_elo: BY } }));
+    const history = Array.from({ length: 8 }, (_, i) => ({ id: 'h' + i, mode: 'best', phase: 'endgame', tags: [], cost: 0, score: 100, mb: true, mr: false, mm: false, t: 1_700_000_000_000 + i * 60_000, dur: 10, fen: ROOK.fen, uci: i % 2 ? 'g1g2' : 'a1a8', opp: 1500 }));
+    await preset(page, { theme, store: { history } });
+    await serveDataset(page, positions);
+    await page.goto('/#stats');
+    await expect(page.locator('.level-card svg.chart')).toHaveCount(2);
+    await scan(page, `${theme} level card`);
+  });
+}
+
 test('axe: error state', async ({ page }) => {
   await preset(page);
   await page.route('**/data/positions.json', (route) => route.fulfill({ status: 503, body: 'down' }));

@@ -904,3 +904,112 @@ test('right after answering, Previous goes to the answer before it, not to the o
   click(w, 'next');
   assert.equal(timerText(w), '0:22', 'forward again reaches the second');
 });
+
+/* ---------- the level estimate ---------- */
+
+const ANCHORED = (id, by) => ({ ...ROOK, id, maia: { elo: 1500, probs: {}, by_elo: by } });
+const STRONG_AT_HIGH = { 1000: { a1a8: 0.1, g1g2: 0.6, a1a7: 0.2 }, 1600: { a1a8: 0.4, g1g2: 0.3, a1a7: 0.2 }, 2200: { a1a8: 0.8, g1g2: 0.05, a1a7: 0.1 } };
+const ALIKE = { 1000: { a1a8: 0.7, g1g2: 0.1 }, 1600: { a1a8: 0.7, g1g2: 0.1 }, 2200: { a1a8: 0.7, g1g2: 0.1 } };
+const entryFor = (id, uci, over = {}) => ({ id, mode: 'best', phase: 'endgame', tags: [], cost: 1, score: 90, mb: true, mr: false, mm: false, t: Date.now(), dur: 5, fen: ROOK.fen, uci, opp: 1500, ...over });
+const levelData = (n) => dataOf(...Array.from({ length: n }, (_, i) => ANCHORED('h' + i, STRONG_AT_HIGH)));
+const levelText = (w) => $(w, 'statsBody').querySelector('.level-card');
+
+test('"Your level" says so when the dataset has no rating data, and how many more guesses are needed before an estimate', async () => {
+  let w = await boot(dataOf(ROOK), { ls: { history: many(6) } });
+  click(w, 'statsBtn');
+  assert.match($(w, 'statsBody').textContent, /carries no rating data for the models/);
+  w = await boot(levelData(10), { ls: { history: [entryFor('h0', 'a1a8'), entryFor('h1', 'a1a8')] } });
+  click(w, 'statsBtn');
+  assert.match(levelText(w).textContent, /Play 3 more positions in "Find the best move" mode/);
+  assert.ok(levelText(w).querySelector('#suggestBtn'));
+  assert.equal(levelText(w).querySelectorAll('svg.chart').length, 0);
+});
+
+test('with five or more first-time guesses the card shows an estimate, its range, a density and the trend; stronger moves give a higher estimate', async () => {
+  const hist = (uci) => Array.from({ length: 8 }, (_, i) => entryFor('h' + i, uci, { t: i }));
+  const strong = await boot(levelData(10), { ls: { history: hist('a1a8') } });
+  click(strong, 'statsBtn');
+  const card = levelText(strong), num = (w) => Number(levelText(w).querySelector('.level-big').textContent.match(/\d+/)[0]);
+  assert.match(card.querySelector('.level-range').textContent, /80% range \d+ to \d+, from your last 8 first-time guesses/);
+  assert.equal(card.querySelectorAll('svg.chart').length, 2, 'density and trend');
+  assert.ok(card.querySelector('.ch-band') && card.querySelector('.ch-area') && card.querySelector('.ch-mean'));
+  const weak = await boot(levelData(10), { ls: { history: hist('g1g2') } });
+  click(weak, 'statsBtn');
+  assert.ok(num(strong) > num(weak) + 300, `${num(strong)} vs ${num(weak)}`);
+  assert.ok(num(strong) >= 1000 && num(strong) <= 2200);
+});
+
+test('only the first time a position was seen counts, and only when it was a best-move guess', async () => {
+  const repeats = Array.from({ length: 6 }, (_, i) => entryFor('h0', 'a1a8', { t: i }));
+  let w = await boot(levelData(10), { ls: { history: repeats } });
+  click(w, 'statsBtn');
+  assert.match(levelText(w).textContent, /Play 4 more positions/, 'six looks at one position are one guess');
+  const firstInPredict = [entryFor('h0', 'a1a8', { mode: 'predict', t: 0 }), ...Array.from({ length: 5 }, (_, i) => entryFor('h' + (i + 1), 'a1a8', { t: i + 1 })), entryFor('h0', 'a1a8', { t: 9 })];
+  w = await boot(levelData(10), { ls: { history: firstInPredict } });
+  click(w, 'statsBtn');
+  assert.match(levelText(w).textContent, /Play 0 more|80% range/, 'five counted guesses are enough');
+  assert.match(levelText(w).querySelector('.level-range').textContent, /from your last 5 first-time guesses/, 'h0 was first met in predict mode: not counted, not counted again');
+  w = await boot(levelData(10), { ls: { history: [entryFor('zz-not-in-the-data', 'a1a8'), ...Array.from({ length: 4 }, (_, i) => entryFor('h' + i, 'a1a8', { t: i }))] } });
+  click(w, 'statsBtn');
+  assert.match(levelText(w).textContent, /Play 1 more position /, 'a guess whose position is no longer in the data is skipped');
+});
+
+test('Suggest a position goes back to the board with the position that teaches most, in best-move mode, with a fresh timer and a chip', async () => {
+  const clock = { t: 0 };
+  const data = dataOf(ANCHORED('same', ALIKE), ANCHORED('hard', STRONG_AT_HIGH), ANCHORED('same2', ALIKE));
+  const w = await boot(data, { clock, ls: { history: [entryFor('same', 'a1a8')] } });
+  w.document.querySelector('input[value=predict]').click();
+  clock.t += 20_000;
+  click(w, 'statsBtn');
+  click(w, 'suggestBtn');
+  await tick();
+  assert.equal($(w, 'statsView').hidden, true);
+  assert.equal(w.document.querySelector('input[name=mode]:checked').value, 'best');
+  assert.equal($(w, 'pickChip').hidden, false);
+  assert.match($(w, 'pickChip').textContent, /Chosen to sharpen your estimate \(\d\.\d\d bits\)/);
+  assert.equal(timerText(w), '0:00');
+  assert.equal($(w, 'result').hidden, true, 'a live, unanswered position');
+  clock.t += 4_000; w.__intervals[0]();
+  assert.equal(timerText(w), '0:04', 'and the timer is running');
+});
+
+test('Suggest does nothing when no position carries rating data or has anything to teach', async () => {
+  const w = await boot(dataOf(ROOK), { ls: { history: many(6) } });
+  click(w, 'statsBtn');
+  assert.equal(w.document.getElementById('suggestBtn'), null, 'the unavailable card has no button');
+  const flat = await boot(dataOf(ANCHORED('a', ALIKE), ANCHORED('b', ALIKE)), { ls: { history: [entryFor('a', 'a1a8')] } });
+  click(flat, 'statsBtn');
+  click(flat, 'suggestBtn');
+  assert.equal($(flat, 'statsView').hidden, false, 'stays on the stats page: nothing to suggest');
+});
+
+test('the adaptive setting picks the most informative position, is remembered, and does nothing in predict mode or without rating data', async () => {
+  const data = dataOf(ANCHORED('same', ALIKE), ANCHORED('hard', STRONG_AT_HIGH));
+  const off = await boot(data);
+  assert.equal($(off, 'adaptiveToggle').checked, false);
+  assert.equal($(off, 'pickChip').hidden, true);
+  const on = await boot(data, { ls: { adaptive: true } });
+  assert.equal($(on, 'adaptiveToggle').checked, true);
+  assert.equal($(on, 'pickChip').hidden, false, 'the first position is already the informative one (the other teaches nothing)');
+  assert.match($(on, 'pickChip').textContent, /bits/);
+  $(on, 'adaptiveToggle').checked = false; $(on, 'adaptiveToggle').dispatchEvent(new on.Event('change', { bubbles: true }));
+  assert.equal(JSON.parse(on.localStorage.getItem('gtm.v1.adaptive')), false);
+  const predict = await boot(data, { ls: { adaptive: true } });
+  predict.document.querySelector('input[value=predict]').click();
+  click(predict, 'skip');
+  assert.equal($(predict, 'pickChip').hidden, true, 'predict mode is not about your level');
+  const plain = await boot(dataOf(ROOK, CAPTURE), { ls: { adaptive: true } });
+  click(plain, 'skip');
+  assert.equal($(plain, 'pickChip').hidden, true, 'no rating data: a random position');
+});
+
+test('opening the page at #stats before the data has loaded fills in the level card once it arrives', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const data = levelData(10);
+  const w = await boot(data, { hash: '#stats', ls: { history: Array.from({ length: 6 }, (_, i) => entryFor('h' + i, 'a1a8', { t: i })) },
+    fetchImpl: async () => { await gate; return { ok: true, json: async () => data }; } });
+  assert.equal(levelText(w), null, 'no data yet: no level card');
+  release(); await tick();
+  assert.match(levelText(w).querySelector('.level-big').textContent, /About \d+/);
+});

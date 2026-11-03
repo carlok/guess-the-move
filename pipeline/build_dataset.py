@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 
 import chess
 
+from .anchors import ANCHORS, by_elo as anchors_by_elo, describe as describe_anchors, maia_probs
 from .sampler import Candidate, SamplerConfig, band_of, open_text, sample_candidates
 from .tags import TagConfig, phase_of, tag_position
 from .winpct import win_pct
@@ -35,6 +36,21 @@ from .winpct import win_pct
 SCHEMA = 1
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ENGINE = f"node {ROOT / 'tools/engine-node/node_modules/stockfish/bin/stockfish-19-single.js'}"
+
+
+def resolve_anchors(spec: str, maia_kind: str) -> tuple[int, ...]:
+    """The --maia-anchors value as a sorted tuple of ratings; () when there is no Maia or none were asked for."""
+    if maia_kind == "none" or spec == "none" or (spec == "auto" and maia_kind != "maia3"):
+        return ()
+    if spec == "auto":
+        return ANCHORS
+    try:
+        ratings = sorted({int(x) for x in spec.split(",")})
+    except ValueError:
+        raise ValueError(f"--maia-anchors must be 'auto', 'none' or a comma list of ratings, got {spec!r}") from None
+    if len(ratings) < 2 or not all(0 <= r <= 5000 for r in ratings):
+        raise ValueError("--maia-anchors needs at least two different ratings between 0 and 5000")
+    return tuple(ratings)
 
 
 def source_label(src: str) -> str:
@@ -83,6 +99,7 @@ def build_positions(
     max_abs_cp: int | None = 500,
     drop_trivial: bool = True,
     store_players: bool = False,
+    anchors: tuple[int, ...] = (),
     progress: Callable[[int, int], None] | None = None,
 ) -> list[dict]:
     positions: list[dict] = []
@@ -102,8 +119,8 @@ def build_positions(
         maia_block = None
         probs: dict[str, float] = {}
         if c.player_elo is not None and getattr(maia, "name", None):
-            args = (c.fen, c.player_elo, c.opp_elo or c.player_elo)
-            raw = maia.probs(*args, history=c.history) if getattr(maia, "uses_history", False) else maia.probs(*args)
+            opp = c.opp_elo or c.player_elo
+            raw = maia_probs(maia, c.fen, c.player_elo, opp, c.history)
             if not set(raw) <= legal:
                 raise RuntimeError(
                     f"maia backend returned moves that are not legal UCI for {c.fen}: "
@@ -111,6 +128,8 @@ def build_positions(
                 )
             probs = {m: round(p, 4) for m, p in raw.items() if p >= 0.001}
             maia_block = {"elo": c.player_elo, "probs": probs}
+            if anchors:
+                maia_block["by_elo"] = anchors_by_elo(maia, c.fen, opp, legal, c.history, anchors)
 
         tags = tag_position(evals, c.real_uci, probs, tag_cfg)
         if drop_trivial and "trivial" in tags:
@@ -201,6 +220,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--nodes", type=int, default=400_000, help="node budget per position (MultiPV over all legal moves)")
     ap.add_argument("--maia", choices=["none", "maia2", "maia3"], default="none")
     ap.add_argument("--maia-model", default="maia3-23m", help="Maia-3 model alias: maia3-5m, maia3-23m (default) or maia3-79m")
+    ap.add_argument("--maia-anchors", default="auto",
+                    help="ratings at which Maia's move probabilities are stored per position, for the in-browser level estimate: "
+                         "comma list, 'none', or 'auto' (the default: pipeline.anchors.ANCHORS for maia3, none otherwise)")
     ap.add_argument("--maia-kind", choices=["rapid", "blitz"], default="rapid")
     ap.add_argument("--maia-home", default=os.environ.get("MAIA2_HOME", "./maia2_models"),
                     help="where the Maia weights are kept and downloaded to (maia2: its own folder, maia3: the Hugging Face cache); "
@@ -229,6 +251,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--keep-trivial", action="store_true")
     ap.add_argument("--demo", action="store_true", help="mark the dataset as demo data")
     args = ap.parse_args(argv)
+    try:
+        anchors = resolve_anchors(args.maia_anchors, args.maia)  # checked first: a typo must not cost a long run
+    except ValueError as e:
+        ap.error(str(e))
 
     scfg = SamplerConfig(
         min_elo=args.min_elo,
@@ -289,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         positions = build_positions(
             cands, engines, maia, tcfg,
-            max_abs_cp=args.max_abs_cp, drop_trivial=not args.keep_trivial, store_players=args.store_players, progress=progress,
+            max_abs_cp=args.max_abs_cp, drop_trivial=not args.keep_trivial, store_players=args.store_players, anchors=anchors, progress=progress,
         )
     finally:
         for e in engines:
@@ -314,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
         "provenance": {
             "engine": engine_info,
             "maia": maia_info,
+            "maia_anchors": describe_anchors(anchors) if anchors else None,
             "source": {
                 "file": label,
                 "url": args.pgn.split("?", 1)[0] if is_url else None,  # never the query string: it may carry a token

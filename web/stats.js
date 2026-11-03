@@ -119,6 +119,62 @@
     return svg(w, 240, label, p.grid + dots);
   }
 
+  /* ---- the level card: a density of the estimate, and the estimate as you played ---- */
+
+  var R_MIN = 1000, R_MAX = 2200;
+
+  function ratingPlane(w, h, xLabels) {
+    var L = 44, R = 12, T = 10, B = 26, pw = w - L - R, ph = h - T - B, out = '', r;
+    for (r = R_MIN; r <= R_MAX; r += 400) {
+      var y = T + ph * (1 - (r - R_MIN) / (R_MAX - R_MIN));
+      out += '<line class="ch-grid" x1="' + L + '" x2="' + (w - R) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>' +
+        '<text class="ch-tick" x="' + (L - 6) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end">' + r + '</text>';
+    }
+    (xLabels || []).forEach(function (l) {
+      out += '<text class="ch-tick" x="' + (L + pw * l.at).toFixed(1) + '" y="' + (h - 6) + '" text-anchor="' + (l.at === 0 ? 'start' : l.at === 1 ? 'end' : 'middle') + '">' + esc(l.text) + '</text>';
+    });
+    return { L: L, T: T, pw: pw, ph: ph, grid: out, y: function (v) { return T + ph * (1 - (Math.max(R_MIN, Math.min(R_MAX, v)) - R_MIN) / (R_MAX - R_MIN)); } };
+  }
+
+  /* The posterior over ratings as an area, with the 80% range shaded and the mean marked. Horizontal axis: rating. */
+  function densityChart(w, lv, label) {
+    var h = 170, L = 12, R = 12, T = 10, B = 26, pw = w - L - R, ph = h - T - B, g = lv.grid, p = lv.density;
+    var top = Math.max.apply(null, p) || 1, x = function (r) { return L + pw * (r - R_MIN) / (R_MAX - R_MIN); };
+    var pts = g.map(function (r, i) { return x(r).toFixed(1) + ',' + (T + ph * (1 - p[i] / top)).toFixed(1); });
+    var area = x(g[0]).toFixed(1) + ',' + (T + ph) + ' ' + pts.join(' ') + ' ' + x(g[g.length - 1]).toFixed(1) + ',' + (T + ph);
+    var ticks = '';
+    for (var r = R_MIN; r <= R_MAX; r += 200) ticks += '<text class="ch-tick" x="' + x(r).toFixed(1) + '" y="' + (h - 6) + '" text-anchor="' + (r === R_MIN ? 'start' : r === R_MAX ? 'end' : 'middle') + '">' + r + '</text>';
+    var band = '<rect class="ch-band" x="' + x(lv.lo).toFixed(1) + '" y="' + T + '" width="' + Math.max(2, x(lv.hi) - x(lv.lo)).toFixed(1) + '" height="' + ph + '"/>';
+    return svg(w, h, label, band + '<polygon class="ch-area" points="' + area + '"/><line class="ch-mean" x1="' + x(lv.mean).toFixed(1) + '" x2="' + x(lv.mean).toFixed(1) + '" y1="' + T + '" y2="' + (T + ph) + '"/>' +
+      '<line class="ch-grid" x1="' + L + '" x2="' + (w - R) + '" y1="' + (T + ph) + '" y2="' + (T + ph) + '"/>' + ticks);
+  }
+
+  /* The estimate and its 80% range after each counted guess. */
+  function trendChart(w, series, label) {
+    var h = 200, n = series.length, first = series[0].n, last = series[n - 1].n;
+    var p = ratingPlane(w, h, [{ at: 0, text: '#' + first }, { at: 1, text: '#' + last }]);
+    var x = function (i) { return p.L + p.pw * (n === 1 ? 0.5 : i / (n - 1)); };
+    var up = series.map(function (s, i) { return x(i).toFixed(1) + ',' + p.y(s.hi).toFixed(1); });
+    var down = series.map(function (s, i) { return x(i).toFixed(1) + ',' + p.y(s.lo).toFixed(1); }).reverse();
+    var line = series.map(function (s, i) { return x(i).toFixed(1) + ',' + p.y(s.mean).toFixed(1); }).join(' ');
+    return svg(w, h, label, p.grid + '<polygon class="ch-band" points="' + up.concat(down).join(' ') + '"/><polyline class="ch-line c-real" points="' + line + '"/>');
+  }
+
+  function levelCard(lv, T, w, raw) {
+    var L = T.level, body = '', title = L.title;
+    if (lv.unavailable) return need(title, L.unavailable);
+    var suggest = '<button id="suggestBtn" type="button">' + esc(L.suggest) + '</button>';
+    if (lv.need) return '<div class="chart-card level-card"><h3>' + esc(title) + '</h3><p class="muted">' + esc(L.need(lv.need)) + '</p>' + suggest + '</div>';
+    body += '<p class="level-big">' + esc(L.headline(round(lv.mean))) + '</p><p class="level-range">' + esc(L.range(round(lv.lo), round(lv.hi), lv.n)) + '</p>';
+    // side by side on a wide page, each drawn at the width it is shown at
+    var cw = Math.max(W_MIN, Math.min(W_MAX, raw >= 900 ? Math.floor((raw - 56) / 2) : raw - 40));
+    body += '<div class="level-charts"><div>' + densityChart(cw, lv, L.densityAlt(round(lv.mean), round(lv.lo), round(lv.hi))) + '</div>';
+    if (lv.series.length >= 2) body += '<div><h4>' + esc(L.trendTitle) + '</h4>' + trendChart(cw, lv.series, L.trendAlt(lv.n)) + '</div>';
+    body += '</div>';
+    return '<div class="chart-card level-card"><h3>' + esc(title) + '</h3>' + body + '<p class="muted">' + esc(L.caption) + '</p>' +
+      '<details class="reliability"><summary>' + esc(L.reliability) + '</summary><p>' + esc(L.reliabilityText) + '</p></details>' + suggest + '</div>';
+  }
+
   function card(title, caption, chart) {
     return '<figure class="chart-card"><figcaption><h3>' + esc(title) + '</h3><p>' + esc(caption) + '</p></figcaption>' + chart + '</figure>';
   }
@@ -141,6 +197,7 @@
     out += '<dl class="kpis">' + tiles.map(function (t) { return '<div class="kpi"><dt>' + esc(t[0]) + '</dt><dd>' + esc(t[1]) + '</dd></div>'; }).join('') + '</dl>';
 
     out += '<div class="charts">';
+    if (opts && opts.level) out += levelCard(opts.level, T, w, Math.round((opts && opts.width) || W_MAX));
     // quality over time
     if (S.bestScores.length >= MIN_POINTS) {
       var tr = trend(S.bestScores);

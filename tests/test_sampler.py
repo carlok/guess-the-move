@@ -1,4 +1,5 @@
 import io
+import pytest
 import random
 
 import chess.pgn
@@ -296,3 +297,98 @@ def test_missing_headers_become_none_and_the_questionmark_placeholder_is_not_a_v
     text = game().replace('[Result "*"]', '[Result "*"]\n[White "?"]\n[ECO "?"]')
     g = sample(text, per_game=1, min_ply=0)[0].game
     assert g["white"] is None and g["eco"] is None and g["black"] is None and g["time_control"] is None
+
+
+# ---- a download that drops or stalls carries on from where it was ----
+
+class _Resp:
+    def __init__(self, data, status=206, fail_after=None):
+        self.data, self.status, self.fail_after, self.i = data, status, fail_after, 0
+
+    def read(self, n):
+        if self.fail_after is not None and self.i >= self.fail_after:
+            raise TimeoutError("The read operation timed out")
+        chunk = self.data[self.i:self.i + n]
+        self.i += len(chunk)
+        return chunk
+
+    def close(self):
+        pass
+
+
+def test_a_stalled_download_resumes_from_the_byte_it_reached(capsys):
+    from pipeline.sampler import ResumableHTTP
+
+    payload = bytes(range(256)) * 40
+    asked = []
+
+    def opener(url, offset):
+        asked.append(offset)
+        return _Resp(payload[offset:], status=206 if offset else 200, fail_after=1000 if len(asked) == 1 else None)
+
+    r = ResumableHTTP("https://x/y.zst", opener=opener)
+    got = b""
+    while chunk := r.read(333):
+        got += chunk
+    assert got == payload
+    # the fake breaks once 1000+ bytes were served; 333-byte reads deliver 1332 before the failure, and the resume starts there
+    assert asked == [0, 1332], "the second request starts exactly after the last byte delivered"
+    assert "resuming (1/5)" in capsys.readouterr().err
+    r.close()
+    assert r.closed
+
+
+def test_a_download_that_keeps_failing_gives_up_and_a_server_that_ignores_the_range_is_an_error():
+    from pipeline.sampler import ResumableHTTP
+
+    always = ResumableHTTP("u", retries=2, opener=lambda url, off: _Resp(b"abc", fail_after=0))
+    with pytest.raises(TimeoutError):
+        always.read(10)
+    whole = {"n": 0}
+
+    def ignores_range(url, off):
+        whole["n"] += 1
+        return _Resp(b"x" * 50, status=200, fail_after=10 if whole["n"] == 1 else None)
+
+    r = ResumableHTTP("u", opener=ignores_range)
+    r.read(10)
+    with pytest.raises(RuntimeError, match="did not resume"):
+        r.read(10)
+
+
+def test_open_text_streams_urls_through_the_resumable_reader(monkeypatch):
+    import pipeline.sampler as S
+
+    seen = []
+
+    class Fake(io.RawIOBase):
+        def __init__(self, url):
+            seen.append(url)
+            self.buf = io.BytesIO(b"[Event \"x\"]\n\n1. e4 *\n")
+
+        def readable(self):
+            return True
+
+        def readinto(self, b):
+            data = self.buf.read(len(b))
+            b[: len(data)] = data
+            return len(data)
+
+    monkeypatch.setattr(S, "ResumableHTTP", Fake)
+    with S.open_text("https://example.org/g.pgn") as h:
+        assert h.read().startswith("[Event")
+    assert seen == ["https://example.org/g.pgn"]
+
+
+def test_the_real_opener_asks_for_the_rest_of_the_file_only_when_resuming(monkeypatch):
+    import urllib.request
+
+    from pipeline.sampler import ResumableHTTP
+
+    asked = []
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout: asked.append((req.full_url, dict(req.header_items()), timeout)) or "resp")
+    assert ResumableHTTP._open("https://x/y.zst", 0) == "resp" and ResumableHTTP._open("https://x/y.zst", 12345) == "resp"
+    (u0, h0, t0), (u1, h1, t1) = asked
+    assert "Range" not in h0 and h1["Range"] == "bytes=12345-", "a fresh download has no Range; a resume asks from the byte reached"
+    assert u0 == u1 == "https://x/y.zst" and t0 == t1 == 60
+    assert "guess-the-move" in h0["User-agent"]

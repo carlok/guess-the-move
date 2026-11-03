@@ -7,6 +7,7 @@ most `limit` candidates, so a multi-GB archive can be sampled with `max_games`.
 from __future__ import annotations
 
 import io
+import sys
 import math
 import random
 from collections import deque
@@ -83,6 +84,55 @@ def band_of(elo: int, cfg: SamplerConfig) -> int:
     return (top // 200) * 200
 
 
+class ResumableHTTP(io.RawIOBase):
+    """A streamed HTTP download that carries on from the byte it reached when the connection stalls or drops.
+
+    A multi-GB archive read for minutes will meet a read timeout sooner or later; without this the whole run is lost.
+    On an error it reopens the URL with `Range: bytes=<offset>-` (up to `retries` times in a row) and carries on. If the
+    server answers a resume with the whole file (status 200 instead of 206) that is an error, not a silent restart."""
+
+    def __init__(self, url: str, retries: int = 5, opener=None):
+        self.url, self.retries, self.pos, self.opener, self.resp = url, retries, 0, opener or self._open, None
+
+    @staticmethod
+    def _open(url: str, offset: int):
+        import urllib.request
+
+        headers = {"User-Agent": "guess-the-move/0.1 (pgn sampler)"}
+        if offset:
+            headers["Range"] = f"bytes={offset}-"
+        return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60)
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, b) -> int:
+        failures = 0
+        while True:
+            try:
+                if self.resp is None:
+                    self.resp = self.opener(self.url, self.pos)
+                    if self.pos and getattr(self.resp, "status", 206) != 206:
+                        raise RuntimeError(f"the server did not resume {self.url} at byte {self.pos} (status {self.resp.status})")
+                data = self.resp.read(len(b))
+                b[: len(data)] = data
+                self.pos += len(data)
+                return len(data)
+            except RuntimeError:
+                raise
+            except (OSError, ValueError) as e:  # timeouts, resets and short reads
+                failures += 1
+                if failures > self.retries:
+                    raise
+                print(f"  stream error at byte {self.pos} ({e!r}); resuming ({failures}/{self.retries})", file=sys.stderr)
+                self.resp = None
+
+    def close(self) -> None:
+        if self.resp is not None:
+            self.resp.close()
+        super().close()
+
+
 def open_text(source: str | Path) -> IO[str]:
     """Open a PGN source as text: a local file, or an http(s) URL that is streamed.
 
@@ -95,8 +145,7 @@ def open_text(source: str | Path) -> IO[str]:
     if src.startswith(("http://", "https://")):
         import urllib.request
 
-        req = urllib.request.Request(src, headers={"User-Agent": "guess-the-move/0.1 (pgn sampler)"})
-        raw = urllib.request.urlopen(req, timeout=60)
+        raw = ResumableHTTP(src)
         name = src.split("?", 1)[0]
     else:
         raw, name = open(src, "rb"), src

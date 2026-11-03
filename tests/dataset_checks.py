@@ -37,8 +37,12 @@ def check_positions(data: dict) -> None:
         for m in board.legal_moves:  # SAN strings agree with python-chess
             assert p["san"][m.uci()] == board.san(m)
         if p["maia"] is not None:
+            assert set(p["maia"]) <= {"elo", "probs", "by_elo"}
             assert set(p["maia"]["probs"]) <= legal
             assert p["player_elo"] == p["maia"]["elo"]
+            for rating, dist in (p["maia"].get("by_elo") or {}).items():  # Maia at fixed rating anchors, for the in-browser estimate
+                assert rating.isdigit() and 0 <= int(rating) <= 5000
+                assert set(dist) <= legal and all(0 < q <= 1 for q in dist.values()) and sum(dist.values()) <= 1.01  # 4-decimal rounding of up to ~40 moves can add a little
         if p["player_elo"] is None:
             assert p["maia"] is None
 

@@ -187,3 +187,63 @@ test('Previous reopens an answered position to study: answer and arrows shown, t
   await page.keyboard.press('n');
   await expect(page.locator('#reviewChip'), 'past the last reviewed one: a new position').toBeHidden();
 });
+
+/* ---------- the level estimate ---------- */
+
+const BY = {
+  1000: { a1a8: 0.1, g1g2: 0.6, a1a7: 0.2 }, 1600: { a1a8: 0.4, g1g2: 0.3, a1a7: 0.2 }, 2200: { a1a8: 0.8, g1g2: 0.05, a1a7: 0.1 }
+};
+const ALIKE = { 1000: { a1a8: 0.7, g1g2: 0.1 }, 1600: { a1a8: 0.7, g1g2: 0.1 }, 2200: { a1a8: 0.7, g1g2: 0.1 } };
+const anchored = (id, by) => ({ ...ROOK, id, maia: { ...ROOK.maia, by_elo: by } });
+const POSITIONS = [...Array.from({ length: 12 }, (_, i) => anchored('h' + i, BY)), anchored('flat', ALIKE)];
+const FIRST_TIME = Array.from({ length: 8 }, (_, i) => ({
+  id: 'h' + i, mode: 'best', phase: 'endgame', tags: [], cost: i % 2 ? 40 : 0, score: i % 2 ? 40 : 100, mb: i % 2 === 0, mr: false, mm: false,
+  t: 1_700_000_000_000 + i * 60_000, dur: 10 + i, fen: ROOK.fen, uci: i % 2 ? 'g1g2' : 'a1a8', opp: 1500
+}));
+
+async function openLevel(page, hash = '', store = { history: FIRST_TIME }) {
+  await preset(page, { confirm: false, store });
+  await serveDataset(page, POSITIONS);
+  await page.goto('/' + hash);
+}
+
+test('"Your level" on the stats page: an estimate with its range and two charts, no horizontal scroll', async ({ page }) => {
+  await openLevel(page, '#stats');
+  const card = page.locator('.level-card');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.level-big')).toHaveText(/About \d{4}/);
+  await expect(card.locator('.level-range')).toContainText('80% range');
+  await expect(card.locator('svg.chart')).toHaveCount(2);
+  for (const c of await card.locator('svg.chart').all()) { const b = await c.boundingBox(); expect(b.width).toBeGreaterThan(200); expect(b.height).toBeGreaterThan(60); }
+  expect(await noHScroll(page)).toBe(true);
+  const n = Number((await card.locator('.level-big').textContent()).match(/\d+/)[0]);
+  expect(n).toBeGreaterThanOrEqual(1000); expect(n).toBeLessThanOrEqual(2200);
+});
+
+test('with too few guesses the card says how many more are needed', async ({ page }) => {
+  await openLevel(page, '#stats', { history: FIRST_TIME.slice(0, 2) });
+  await expect(page.locator('.level-card')).toContainText('Play 3 more positions');
+  await expect(page.locator('.level-card svg.chart')).toHaveCount(0);
+});
+
+test('Suggest a position leaves the stats page for the board, with a chip naming why, and the position can be played', async ({ page }) => {
+  await openLevel(page, '#stats');
+  await page.locator('#suggestBtn').click();
+  await expect(page.locator('#statsView')).toBeHidden();
+  await expect(page.locator('#pickChip')).toBeVisible();
+  await expect(page.locator('#pickChip')).toContainText('bits');
+  await expect(page.locator('#timer')).not.toHaveText('9:99');
+  await clickMove(page, 'a1a8');
+  await expect(page.locator('#result')).toBeVisible();
+  await expect(page.locator('#pickChip'), 'the chip is about the position being chosen, not the answer').toBeVisible();
+});
+
+test('the adaptive setting is remembered across a reload and shows the chip on the positions it picks', async ({ page }) => {
+  await openLevel(page, '', { history: [] });
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await expect(page.locator('#pickChip')).toBeHidden();
+  await page.locator('#adaptiveToggle').check();
+  await page.reload();
+  await expect(page.locator('#adaptiveToggle')).toBeChecked();
+  await expect(page.locator('#pickChip')).toBeVisible();
+});

@@ -11,7 +11,7 @@
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
-  var TRAIL_MAX = 100;
+  var TRAIL_MAX = 100, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
@@ -20,6 +20,7 @@
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
     seen: new Set(), history: [], showTimer: true, statsPushed: false,
+    adaptive: false, hasAnchors: false, byId: null, picked: null,
     trail: [], cur: null // positions answered in this visit, and the one being reviewed (null: a live position)
   };
   var snd = null; // sound effects, made in init()
@@ -208,6 +209,8 @@
     $('back').hidden = trailIndex() === 0; // also offered when every position is answered and no live one is left
     $('tryAgain').hidden = !reviewing;
     $('reviewChip').hidden = !reviewing;
+    $('pickChip').hidden = reviewing || S.picked === null || !S.pos;
+    if (!$('pickChip').hidden) $('pickChip').textContent = T.level.pickedBits(S.picked);
     $('skip').hidden = !S.pos || S.revealed;
     $('confirm').hidden = !S.pending || S.revealed;
     $('next').hidden = !S.revealed;
@@ -329,8 +332,9 @@
 
   /* `review` (a trail entry) reopens a position already answered in this visit: the answer is shown, the timer stays
    * stopped at the time taken and nothing is written to the history. Without it the position is a fresh attempt. */
-  function loadPosition(p, review) {
+  function loadPosition(p, review, bits) {
     S.cur = review ? S.trail.indexOf(review) : null;
+    S.picked = bits === undefined ? null : bits;
     S.pos = p; S.parsed = B.parseFen(p.fen); S.flipped = S.parsed.stm === 'b';
     S.legalFrom = {};
     Object.keys(p.evals).forEach(function (u) { (S.legalFrom[u.slice(0, 2)] = S.legalFrom[u.slice(0, 2)] || []).push(u); });
@@ -379,7 +383,9 @@
       $('prompt').textContent = $('unseen').checked ? T.prompt.noneUnseen : T.prompt.none;
       return;
     }
-    loadPosition(list[Math.floor(Math.random() * list.length)]);
+    var pick = S.adaptive && S.mode === 'best' && S.hasAnchors ? sharpest(list) : null;
+    if (pick) loadPosition(pick.pos, undefined, pick.bits);
+    else loadPosition(list[Math.floor(Math.random() * list.length)]);
   }
 
   function clearSelection() { S.selected = null; S.promo = null; S.pending = null; refresh(); }
@@ -628,7 +634,8 @@
       return r.json();
     }).then(function (d) {
       if (!d || d.schema !== 1 || !Array.isArray(d.positions)) throw new Error('unsupported data file (expected schema 1)');
-      S.data = d;
+      S.data = d; S.byId = null;
+      S.hasAnchors = d.positions.some(function (p) { return window.GTM_LEVEL.anchorsOf(p); });
       var counts = {};
       d.positions.forEach(function (p) { (p.tags || []).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
       $('tag').innerHTML = '<option value="any">' + T.anyOption + '</option>' + Object.keys(T.tags).filter(function (t) { return counts[t]; })
@@ -636,6 +643,7 @@
       if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; $('demoChip').hidden = false; }
       $('skeleton').hidden = true;
       if (menuIsOpen()) renderAbout();
+      if (statsIsOpen()) drawStats(); // opened at #stats before the data arrived: the level card needs it
       renderStats(); nextPosition();
     }).catch(function (e) {
       $('skeleton').hidden = true;
@@ -689,12 +697,56 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
+  /* ---------- level estimate (web/level.js): from first-time best-move guesses, using the anchors stored in the data ---------- */
+
+  function positionById() {
+    if (!S.byId && S.data) { S.byId = {}; S.data.positions.forEach(function (p) { S.byId[p.id] = p; }); }
+    return S.byId || {};
+  }
+
+  /* One observation per position, the first time it was seen, and only when that was a best-move guess: a second look
+   * (a retry, or a position first met in predict mode) comes after the answer was shown and says nothing about level. */
+  function levelObservations() {
+    var byId = positionById(), seen = {}, obs = [];
+    S.history.forEach(function (e) {
+      if (seen[e.id]) return;
+      seen[e.id] = true;
+      var p = byId[e.id];
+      if (e.mode === 'best' && e.uci && p && window.GTM_LEVEL.anchorsOf(p)) obs.push({ pos: p, uci: e.uci });
+    });
+    return obs.slice(-LEVEL_WINDOW);
+  }
+
+  function levelModel() {
+    if (!S.data) return null;
+    if (!S.hasAnchors) return { unavailable: true };
+    var obs = levelObservations(), lv = window.GTM_LEVEL;
+    if (obs.length < LEVEL_MIN) return { need: LEVEL_MIN - obs.length, n: obs.length };
+    var post = lv.posterior(obs), sm = lv.summary(post), series = [];
+    for (var k = LEVEL_MIN; k <= obs.length; k++) { var s = lv.summary(lv.posterior(obs.slice(0, k))); series.push({ n: k, mean: s.mean, lo: s.lo, hi: s.hi }); }
+    return { n: obs.length, mean: sm.mean, lo: sm.lo, hi: sm.hi, sd: sm.sd, grid: post.grid, density: post.p, series: series };
+  }
+
+  /* The position expected to tell most about the level now, from `list`; null when there is none. */
+  function sharpest(list) {
+    return window.GTM_LEVEL.suggest(list, window.GTM_LEVEL.posterior(levelObservations()), Math.random, 5);
+  }
+
+  function suggestAndGo() {
+    if (!S.data) return;
+    var list = applyFilters(), s = sharpest(list.length ? list : S.data.positions);
+    if (!s) return;
+    document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
+    closeStatsView();
+    loadPosition(s.pos, undefined, s.bits);
+  }
+
   /* ---------- the full stats view (a page of its own, reachable at #stats) ---------- */
 
   function statsIsOpen() { return !$('statsView').hidden; }
 
   /* Charts are drawn at the width of the page, so they are redrawn when the window is resized (or the phone turned). */
-  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(S.history, T, { width: $('statsBody').clientWidth || undefined }); }
+  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(S.history, T, { width: $('statsBody').clientWidth || undefined, level: levelModel() }); }
 
   function showStats(on) {
     if (on === statsIsOpen()) return;
@@ -757,6 +809,8 @@
     svg = $('boardSvg');
     S.seen = new Set(store.get(SEEN_KEY, []));
     S.history = store.get(HISTORY_KEY, []);
+    S.adaptive = store.get(ADAPTIVE_KEY, false) === true;
+    $('adaptiveToggle').checked = S.adaptive;
     S.showTimer = store.get(TIMER_KEY, true) !== false;
     $('timerToggle').checked = S.showTimer; $('timer').hidden = !S.showTimer;
     snd = window.GTM_SOUND ? window.GTM_SOUND.create(window.AudioContext || window.webkitAudioContext, store.get(SOUND_KEY, true) !== false) : null;
@@ -816,6 +870,8 @@
       if (snd) { snd.setEnabled(!snd.isEnabled()); store.set(SOUND_KEY, snd.isEnabled()); }
       updateSoundButton(); sfx('tick');
     });
+    $('adaptiveToggle').addEventListener('change', function () { S.adaptive = $('adaptiveToggle').checked; store.set(ADAPTIVE_KEY, S.adaptive); });
+    $('statsBody').addEventListener('click', function (e) { if (e.target && e.target.id === 'suggestBtn') suggestAndGo(); });
     $('timerToggle').addEventListener('change', function () { S.showTimer = $('timerToggle').checked; store.set(TIMER_KEY, S.showTimer); $('timer').hidden = !S.showTimer; });
     $('statsBtn').addEventListener('click', openStatsView);
     $('openStats').addEventListener('click', openStatsView);
