@@ -12,7 +12,7 @@ class FakeEngine:
 
     name = "fake-material"
 
-    def analyse_all(self, board):
+    def analyse_all(self, board, nodes=None):
         out = {}
         for m in board.legal_moves:
             b = board.copy()

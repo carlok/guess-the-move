@@ -1,0 +1,5 @@
+# Runtime dependencies of the `api` service (containers/api). Pipeline deps come from requirements.txt.
+# Versions are the ones the tests ran against. `valkey` is only imported when VALKEY_URL is set.
+starlette==1.10.0
+uvicorn==0.54.0
+valkey==6.2.0

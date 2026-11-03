@@ -26,10 +26,12 @@ class StockfishBackend:
     def _cp(self, info: chess.engine.InfoDict, turn: chess.Color) -> int:
         return info["score"].pov(turn).score(mate_score=MATE_CP)
 
-    def analyse_all(self, board: chess.Board) -> dict[str, int]:
-        """UCI move -> centipawns from the side to move's point of view, for every legal move."""
+    def analyse_all(self, board: chess.Board, nodes: int | None = None) -> dict[str, int]:
+        """UCI move -> centipawns from the side to move's point of view, for every legal move.
+
+        `nodes` overrides the budget given at construction for this call (the API sets it per request)."""
         moves = list(board.legal_moves)
-        limit = chess.engine.Limit(nodes=self.nodes)
+        limit = chess.engine.Limit(nodes=nodes or self.nodes)
         infos = self._engine.analyse(board, limit, multipv=len(moves))
         out: dict[str, int] = {}
         for info in infos:

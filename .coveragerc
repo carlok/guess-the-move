@@ -1,6 +1,6 @@
 [run]
 branch = True
-source = pipeline
+source = pipeline, api
 # Nothing is omitted. Code that cannot run without torch must say so with `# pragma: no cover  # <reason>`.
 
 [report]
