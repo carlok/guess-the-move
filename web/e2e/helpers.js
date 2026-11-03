@@ -36,13 +36,16 @@ async function serveDataset(page, positions) {
 
 /* Skip the first-run onboarding (its own spec covers it) and start from a known theme/confirm setting. */
 async function preset(page, { onboarded = true, theme, confirm } = {}) {
-  await page.addInitScript(({ onboarded, theme, confirm }) => {
+  const id = `gtm.preset.${Math.random().toString(36).slice(2)}`;
+  await page.addInitScript(({ id, onboarded, theme, confirm }) => {
     try {
+      if (sessionStorage.getItem(id)) return; // already applied in this tab: do not undo what the page saved since
+      sessionStorage.setItem(id, '1');
       if (onboarded) localStorage.setItem('gtm.v1.onboarded', 'true');
       if (theme) localStorage.setItem('gtm.v1.theme', JSON.stringify(theme));
       if (confirm !== undefined) localStorage.setItem('gtm.v1.confirm', JSON.stringify(confirm));
     } catch (e) { /* storage unavailable */ }
-  }, { onboarded, theme, confirm });
+  }, { id, onboarded, theme, confirm });
 }
 
 const bestMove = (pos) => G.bestMove(pos.evals);

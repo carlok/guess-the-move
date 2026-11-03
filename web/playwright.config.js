@@ -1,5 +1,5 @@
 // Browser tests (real Chrome, real layout, real pointer events). jsdom cannot test any of that.
-// Default: serves ./web with python's http.server. GTM_BASE_URL=http://127.0.0.1:8080 runs the same specs
+// Default: serves ./web with e2e/serve.js. GTM_BASE_URL=http://127.0.0.1:8080 runs the same specs
 // against a running container instead. Uses the installed Google Chrome (no browser download).
 // Three viewports (PROMPT.md 2.2): desktop 1280x800, tablet 768x1024, phone 390x844 with touch and DPR 2.
 // Mouse and keyboard specs (input.spec.js) run on desktop and tablet, touch specs (touch.spec.js) on the phone.
@@ -13,7 +13,7 @@ module.exports = defineConfig({
   reporter: [['list']],
   use: { baseURL: external || 'http://127.0.0.1:8765', channel: 'chrome', trace: 'retain-on-failure' },
   webServer: external ? undefined : {
-    command: 'python3 -m http.server -d . -b 127.0.0.1 8765',
+    command: 'node e2e/serve.js 8765',
     url: 'http://127.0.0.1:8765/index.html',
     reuseExistingServer: true,
   },

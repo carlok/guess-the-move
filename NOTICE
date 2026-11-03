@@ -1,0 +1,21 @@
+Guess the Move bundles third-party material. Each item below keeps its own licence.
+
+Chess pieces: "cburnett" set by Colin M.L. Burnett (Cburnett)
+  Files: web/pieces.svg (the 12 SVG pieces from lichess-org/lila, public/piece/cburnett, merged into one sprite)
+  Source: https://github.com/lichess-org/lila/tree/master/public/piece/cburnett
+  Licence: GNU GPL version 2 or later. The same artwork on Wikimedia Commons (File:Chess_klt45.svg) is
+  offered under a triple licence (GFDL, BSD, GPL); see https://commons.wikimedia.org/wiki/File:Chess_klt45.svg
+  Read 2026-11-03. Chosen because it is not non-commercial or share-alike-restricted (staunty, fresca, california
+  and other lila sets are CC BY-NC-SA 4.0 and were rejected).
+
+Icons: Lucide, https://github.com/lucide-icons/lucide
+  Files: inline <svg> elements in web/index.html (moon, sun, circle-question-mark)
+  Licence: ISC, "Copyright (c) 2026 Lucide Icons and Contributors"; icons derived from Feather are MIT, "Copyright
+  (c) 2013-2023 Cole Bemis". Licence text: https://github.com/lucide-icons/lucide/blob/main/LICENSE (read 2026-11-03).
+
+  ISC License: Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee
+  is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING
+  ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+
+The repository's own licence has not been chosen yet (see PROMPT.md section 12).

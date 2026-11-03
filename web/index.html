@@ -1,64 +1,112 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="A free chess trainer: guess a move in a real position, then compare it with Stockfish, the real player and Maia.">
   <title>Guess the Move</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
 </head>
 <body>
-  <header>
-    <h1>Guess the Move</h1>
-    <p class="sub">See each position through another player's eyes.</p>
+  <a class="skip-link" href="#boardSvg">Skip to the board</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <h1>Guess the Move</h1>
+      <p class="sub">See each position through another player's eyes.</p>
+    </div>
+    <div class="topbar-actions">
+      <button id="helpBtn" type="button" class="icon-btn" aria-label="How it works">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      </button>
+      <button id="themeToggle" type="button" class="icon-btn" aria-label="Switch to the dark theme">
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+      </button>
+    </div>
   </header>
 
   <div id="banner" class="banner" hidden></div>
 
+  <section id="onboarding" class="onboarding" aria-labelledby="onboardingTitle" hidden>
+    <h2 id="onboardingTitle">How it works</h2>
+    <ol>
+      <li class="onboarding-step"><strong>Look.</strong> A real position from a real game.</li>
+      <li class="onboarding-step"><strong>Move.</strong> Tap, tap or drag a piece. The keyboard works too.</li>
+      <li class="onboarding-step"><strong>Compare.</strong> See Stockfish, the real player and Maia, and how close your move was.</li>
+    </ol>
+    <button id="onboardingClose" type="button" class="primary">Got it</button>
+  </section>
+
   <main>
-    <section class="left" aria-label="Board">
+    <section class="stage" aria-label="Board">
       <div id="posInfo" class="posinfo"></div>
-      <div id="boardWrap" class="boardwrap"></div>
+      <div id="boardWrap" class="boardwrap">
+        <div id="skeleton" class="skeleton" aria-hidden="true"></div>
+        <svg id="boardSvg" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Chess board" tabindex="0">
+          <g id="gSquares"></g>
+          <g id="gMarks"></g>
+          <g id="gPieces"></g>
+          <g id="gHover"><rect id="hoverSq" class="hover off" width="100" height="100"/></g>
+          <g id="gArrows"></g>
+          <g id="gGhost"></g>
+        </svg>
+      </div>
       <div id="promo" class="promo" hidden></div>
+      <div class="slot">
+        <div id="prompt" class="prompt" aria-live="polite"></div>
+        <p id="verdict" class="verdict" hidden></p>
+        <div id="legend" class="legend" hidden></div>
+      </div>
     </section>
 
-    <section class="right" aria-label="Controls and results">
+    <section id="panel" class="panel" aria-label="Controls and results">
       <fieldset class="modes">
         <legend>Mode</legend>
         <label><input type="radio" name="mode" value="best" checked> Find the best move</label>
         <label><input type="radio" name="mode" value="predict"> Predict the real move</label>
       </fieldset>
 
-      <div class="filters">
-        <label>Phase
-          <select id="phase">
-            <option value="any">Any</option>
-            <option value="opening">Opening</option>
-            <option value="middlegame">Middlegame</option>
-            <option value="endgame">Endgame</option>
-          </select>
-        </label>
-        <label>Kind
-          <select id="tag"><option value="any">Any</option></select>
-        </label>
-        <label class="check"><input type="checkbox" id="unseen" checked> Unseen only</label>
-        <span id="matchCount" class="muted"></span>
-      </div>
+      <details id="filters" class="filters" open>
+        <summary>Filters <span id="matchCount" class="muted"></span></summary>
+        <div class="filter-grid">
+          <label>Phase
+            <select id="phase">
+              <option value="any">Any</option>
+              <option value="opening">Opening</option>
+              <option value="middlegame">Middlegame</option>
+              <option value="endgame">Endgame</option>
+            </select>
+          </label>
+          <label>Kind
+            <select id="tag"><option value="any">Any</option></select>
+          </label>
+          <label class="check"><input type="checkbox" id="unseen" checked> Unseen only</label>
+        </div>
+      </details>
 
-      <div id="prompt" class="prompt" aria-live="polite"></div>
       <div id="result" class="result" hidden aria-live="polite"></div>
-
-      <div class="actions">
-        <button id="skip" type="button">Skip</button>
-        <button id="next" type="button" class="primary" hidden>Next position (n)</button>
-      </div>
 
       <details class="stats">
         <summary>Session stats</summary>
         <div id="stats"></div>
         <button id="resetStats" type="button" class="link">Reset stats</button>
       </details>
+
+      <div class="settings">
+        <label class="check"><input type="checkbox" id="confirmToggle"> Confirm moves before revealing</label>
+        <p class="muted small">Useful on touch screens, where a slip of the finger would reveal the answer.</p>
+      </div>
     </section>
+
+    <div id="actionBar" class="actionbar">
+      <button id="skip" type="button">Skip</button>
+      <button id="confirm" type="button" class="primary" hidden>Confirm move</button>
+      <button id="next" type="button" class="primary" hidden>Next position (n)</button>
+    </div>
   </main>
 
   <footer>
@@ -67,7 +115,11 @@
        Free software; no data leaves your browser.</p>
   </footer>
 
+  <div id="live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="strings.js"></script>
   <script src="scoring.js"></script>
+  <script src="board.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

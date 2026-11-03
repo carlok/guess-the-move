@@ -52,8 +52,12 @@ def test_web_assets_are_csp_clean():
     html = read("web/index.html")
     assert not re.search(r"<script(?![^>]*\bsrc=)[^>]*>", html), "inline <script> would be blocked"
     assert not re.search(r"<style\b", html), "inline <style> would be blocked"
-    for rel in ("web/index.html", "web/app.js"):
+    for rel in ("web/index.html", "web/app.js", "web/board.js", "web/theme.js", "web/strings.js", "web/pieces.svg"):
         assert not re.search(r"""\bstyle\s*=\s*["'\\]""", read(rel)), f"inline style= attribute in {rel}"
+    scripts = re.findall(r'<script\s+src="([^"]+)"', html)
+    assert scripts, "no scripts"
+    for src in scripts:  # every script the page loads must be copied into the web image
+        assert f"web/{src}" in read("containers/web/Containerfile"), f"{src} is not copied into the image"
 
 
 def test_every_chip_class_has_a_colour():

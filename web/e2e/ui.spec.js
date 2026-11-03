@@ -68,17 +68,18 @@ test('no layout shift when the result appears: the board does not move or resize
   expect(after).toEqual(before);
 });
 
-test('the primary action is in view before and after the reveal', async ({ page }) => {
+test('the action bar is in view before and after the reveal, and the next button leads it', async ({ page }) => {
   await open(page);
   const vh = page.viewportSize().height;
   const inView = async () => {
-    const box = await page.locator('#primaryAction').boundingBox();
-    return box !== null && box.y >= 0 && box.y + box.height <= vh;
+    const box = await page.locator('#actionBar').boundingBox();
+    return box !== null && box.y >= 0 && box.y + box.height <= vh + 1;
   };
   expect(await inView()).toBe(true);
   await play(page);
   expect(await inView()).toBe(true);
-  await expect(page.locator('#primaryAction')).toContainText(/next/i);
+  await expect(page.locator('#next')).toBeVisible();
+  await expect(page.locator('#next')).toContainText(/next/i);
 });
 
 test('the board fits the viewport: edge to edge on a phone, within the height on desktop', async ({ page }) => {
@@ -95,7 +96,7 @@ test('touch targets are at least 44x44 CSS px on a phone', async ({ page }) => {
   test.skip(page.viewportSize().width > 480, 'phone layout only');
   await open(page);
   const small = await page.evaluate(() => Array.from(document.querySelectorAll('button, select, input, summary, a[href]'))
-    .filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; })
+    .filter((el) => { const r = el.getBoundingClientRect(); return r.width > 2 && r.height > 2 && getComputedStyle(el).visibility !== 'hidden'; }) // visually hidden helpers are 1px
     .map((el) => { const r = el.closest('label')?.getBoundingClientRect() || el.getBoundingClientRect(); return { id: el.id || el.tagName, w: Math.round(r.width), h: Math.round(r.height) }; })
     .filter((r) => r.w < 44 || r.h < 44));
   expect(small).toEqual([]);
