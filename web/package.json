@@ -4,9 +4,10 @@
   "private": true,
   "description": "Static front-end for Guess-the-Move. No runtime dependencies; jsdom is used only by the tests.",
   "scripts": {
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node --test \"test/*.test.js\" \"test/*.slow.js\"",
     "coverage": "node --test --experimental-test-coverage --test-coverage-include=scoring.js --test-coverage-include=board.js --test-coverage-include=theme.js --test-coverage-include=app.js --test-coverage-lines=95 --test-coverage-branches=90 \"test/*.test.js\"",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:fast": "node --test \"test/*.test.js\""
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

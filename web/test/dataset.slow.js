@@ -1,5 +1,7 @@
 'use strict';
-/* End-to-end on the shipped dataset: for EVERY position, play the engine's best move by clicking squares
+/* Slow (about 30 s for 2,000 positions) and run by `npm test` but not by `npm run coverage`: instrumented, a fresh jsdom per position
+ * exhausts memory, and the lines it exercises are covered by the other tests.
+ * End-to-end on the shipped dataset: for EVERY position, play the engine's best move by clicking squares
  * and check the app reports a perfect guess. Catches FEN/orientation/promotion/castling mismatches. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
