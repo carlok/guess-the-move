@@ -7,6 +7,7 @@ most `limit` candidates, so a multi-GB archive can be sampled with `max_games`.
 from __future__ import annotations
 
 import io
+import math
 import random
 from collections import deque
 from dataclasses import dataclass
@@ -15,6 +16,8 @@ from typing import IO, Iterator
 
 import chess
 import chess.pgn
+
+from .tags import phase_of
 
 SKIP_TERMINATIONS = {"Abandoned", "Rules infraction"}
 
@@ -33,6 +36,10 @@ class SamplerConfig:
     # (Lichess [%clk] comments). Time-trouble moves say little about how a player of that rating thinks. A position
     # without clock data is kept and counted in stats["no_clock_info"]. None switches the filter off.
     min_clock_s: float | None = None
+    # Stratified sampling: keep an equal quota of candidates per (phase, 200-point rating band) instead of the population's
+    # shares (which are mostly middlegame and mostly the middle of the rating range). `n_strata` sizes the quota.
+    stratify: bool = False
+    n_strata: int = 12
 
 
 @dataclass(frozen=True)
@@ -45,7 +52,14 @@ class Candidate:
     player_elo: int | None
     opp_elo: int | None
     site: str | None
+    phase: str = ""                   # opening | middlegame | endgame, as in the dataset
     history: tuple[str, ...] = ()     # FENs of up to 7 earlier positions of the game, oldest first (for models that read history)
+
+
+def band_of(elo: int, cfg: SamplerConfig) -> int:
+    """Lower edge of the 200-point rating band; a rating at the configured maximum belongs to the top band below it."""
+    top = elo if cfg.max_elo is None else min(elo, cfg.max_elo - 1)
+    return (top // 200) * 200
 
 
 def open_text(source: str | Path) -> IO[str]:
@@ -140,6 +154,7 @@ def positions_from_game(
                     player_elo=player,
                     opp_elo=opp,
                     site=site,
+                    phase=phase_of(board),
                     history=tuple(earlier),
                 )
             )
@@ -158,13 +173,16 @@ def sample_candidates(
 ) -> list[Candidate]:
     """Reservoir-sample up to `limit` candidates over the whole stream (deterministic for a seed).
 
+    With cfg.stratify there is one reservoir per (phase, rating band) with a quota of ceil(limit / cfg.n_strata) each, so
+    a rare stratum (endgames, the top rating band) is as well represented as a common one, as far as the input has them.
+
     If `stats` is given it is filled with games_read / games_used, so callers can notice an
     empty or silently truncated input, and with eligible (positions that passed every filter, before the per-game sample), low_clock_dropped / no_clock_info (positions the clock
     filter removed, and positions it could not judge because the PGN has no clock comments).
     """
     rng = random.Random(seed)
-    reservoir: list[Candidate] = []
-    seen = 0
+    quota = math.ceil(limit / cfg.n_strata) if cfg.stratify else limit
+    pools: dict[tuple, dict] = {}  # stratum -> {"res": reservoir, "seen": count}
     if stats is not None:
         stats.update(games_read=0, games_used=0, low_clock_dropped=0, no_clock_info=0, eligible=0)
     for n_games, game in enumerate(iter_games(handle)):
@@ -177,11 +195,13 @@ def sample_candidates(
         if stats is not None:
             stats["games_used"] += 1
         for cand in positions_from_game(game, cfg, rng, stats):
-            seen += 1
-            if len(reservoir) < limit:
-                reservoir.append(cand)
+            key = (cand.phase, band_of(cand.player_elo, cfg) if cand.player_elo is not None else -1) if cfg.stratify else ()
+            pool = pools.setdefault(key, {"res": [], "seen": 0})
+            pool["seen"] += 1
+            if len(pool["res"]) < quota:
+                pool["res"].append(cand)
             else:
-                j = rng.randrange(seen)
-                if j < limit:
-                    reservoir[j] = cand
-    return reservoir
+                j = rng.randrange(pool["seen"])
+                if j < quota:
+                    pool["res"][j] = cand
+    return [c for key in sorted(pools, key=str) for c in pools[key]["res"]]

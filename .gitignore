@@ -25,3 +25,4 @@ reports/
 docs/lighthouse/mobile.report.*
 .venv-maia/
 maia2_models/
+hf_cache/

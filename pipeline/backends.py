@@ -109,7 +109,7 @@ class Maia3Backend:
     uses_history = True
     grid = FINE_GRID
 
-    def __init__(self, model: str = "maia3-5m", device: str = "cpu", cache_dir: str | None = None):
+    def __init__(self, model: str = "maia3-23m", device: str = "cpu", cache_dir: str | None = None):
         from maia3.dataset import get_historical_tokens, get_legal_moves_mask, tokenize_board
         from maia3.model_registry import resolve_checkpoint_path
         from maia3.uci import load_model, parse_args

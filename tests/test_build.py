@@ -145,3 +145,48 @@ def test_real_engine_integration():
         assert mate["a1a8"] > 9_000  # back-rank mate in one is encoded as a near-MATE_CP score
     finally:
         eng.close()
+
+
+def test_select_balances_across_phase_and_rating_band_and_reports_short_strata():
+    pos = ([{"id": f"a{i}", "phase": "opening", "player_elo": 1300} for i in range(20)]
+           + [{"id": f"b{i}", "phase": "opening", "player_elo": 1900} for i in range(3)]
+           + [{"id": f"c{i}", "phase": "endgame", "player_elo": 1300} for i in range(2)])
+    out = select(pos, 9, seed=1)
+    strata = [(p["phase"], p["player_elo"] // 200) for p in out]
+    assert len(out) == 9
+    assert strata.count(("opening", 9)) == 3 and strata.count(("endgame", 6)) == 2 and strata.count(("opening", 6)) == 4, \
+        "the scarce strata are taken whole, the common one fills the rest"
+    assert select(pos, 9, seed=1) == out
+
+
+def test_parallel_engines_give_the_same_positions_in_the_same_order():
+    cands = [cand(FEN_A, "e4d5", 4), cand(FEN_B, "g8f6", 5), cand(FEN_A, "e4d5", 6, elo=1700), cand(FEN_B, "g8f6", 7, elo=1300)]
+    seq = build_positions(cands, FakeEngine(), FakeMaia(), max_abs_cp=None, drop_trivial=False)
+    engines = [FakeEngine(), FakeEngine(), FakeEngine()]
+    par = build_positions(cands, engines, FakeMaia(), max_abs_cp=None, drop_trivial=False)
+    assert par == seq and len(par) == 4
+
+
+def test_every_parallel_engine_is_used_and_errors_in_a_worker_surface():
+    import threading
+
+    class Counting(FakeEngine):
+        def __init__(self):
+            self.n, self.threads = 0, set()
+
+        def analyse_all(self, board, nodes=None):
+            self.n += 1
+            self.threads.add(threading.get_ident())
+            return super().analyse_all(board, nodes)
+
+    cands = [cand(FEN_B, "g8f6", i) for i in range(12)]
+    engines = [Counting(), Counting()]
+    build_positions(cands, engines, FakeMaia(), max_abs_cp=None, drop_trivial=False)
+    assert sum(e.n for e in engines) == 12 and all(e.n > 0 for e in engines)
+
+    class Lazy(FakeEngine):
+        def analyse_all(self, board, nodes=None):
+            return {}
+
+    with pytest.raises(RuntimeError, match="do not cover the legal moves"):
+        build_positions(cands[:3], [Lazy(), Lazy()], FakeMaia(), max_abs_cp=None)

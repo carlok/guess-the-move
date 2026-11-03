@@ -30,7 +30,7 @@ def build_app():
     maia = None
     which, home = os.environ.get("GTM_API_MAIA", "maia3"), os.environ.get("MAIA2_HOME", "./maia2_models")
     if which == "maia3":
-        maia = MaiaRunner(Maia3Backend(model=os.environ.get("GTM_API_MAIA_MODEL", "maia3-5m"), cache_dir=home))
+        maia = MaiaRunner(Maia3Backend(model=os.environ.get("GTM_API_MAIA_MODEL", "maia3-23m"), cache_dir=home))
     elif which == "maia2":
         maia = MaiaRunner(Maia2Backend(kind=os.environ.get("GTM_API_MAIA_KIND", "rapid"), save_root=home))
     cache = LRUCache(settings.cache_size)

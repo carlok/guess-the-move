@@ -174,3 +174,14 @@ def test_maia3_is_given_the_games_earlier_positions_and_named_in_the_meta(tmp_pa
     check_dataset(data)
     assert data["meta"]["maia"] == "maia3-23m"
     assert max(n for kind, n in seen[1:] if kind == "probs") == 7 and any(n > 0 for kind, n in seen[1:] if kind == "probs")
+
+
+def test_workers_flag_runs_several_engine_processes_and_stratify_can_be_switched_off(tmp_path, capsys):
+    rc, out = run(tmp_path, "--workers", "3")
+    data = json.loads(out.read_text())
+    assert rc == 0 and data["meta"]["workers"] == 3
+    check_dataset(data)
+    assert data["meta"]["stratified"] is True and data["meta"]["n_strata"] == 12
+    (tmp_path / "plain").mkdir()
+    rc, out = run(tmp_path / "plain", "--no-stratify")
+    assert rc == 0 and json.loads(out.read_text())["meta"]["stratified"] is False

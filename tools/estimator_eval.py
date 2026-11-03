@@ -23,7 +23,7 @@ import chess.pgn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pipeline.backends import Maia2Backend  # noqa: E402
+from pipeline.backends import Maia2Backend, Maia3Backend  # noqa: E402
 from pipeline.estimator import GRID, bucket, credible_interval, posterior, uniform_prior  # noqa: E402
 from pipeline.sampler import _elo, open_text  # noqa: E402
 
@@ -32,12 +32,13 @@ NS = (5, 10, 20, 30)
 
 def player_moves(game, color, min_clock=30.0, min_ply=8):
     """Observations (position, move) for one side, in game order, under the dataset's filters."""
-    board, out = game.board(), []
+    board, out, earlier = game.board(), [], []
     for node in game.mainline():
         mover = chess.WHITE if board.turn == chess.WHITE else chess.BLACK
         clk = node.clock()
         if mover == color and board.ply() >= min_ply and board.legal_moves.count() >= 2 and (clk is None or clk >= min_clock):
-            out.append((board.fen(), node.move.uci()))
+            out.append((board.fen(), node.move.uci(), tuple(earlier[-7:])))
+        earlier.append(board.fen())
         board.push(node.move)
     return out
 
@@ -48,6 +49,8 @@ def main() -> int:
     ap.add_argument("--skip-games", type=int, default=200000)
     ap.add_argument("--read-games", type=int, default=30000, help="games to read after the skipped ones")
     ap.add_argument("--players", type=int, default=150)
+    ap.add_argument("--maia", default="maia2", choices=["maia2", "maia3"])
+    ap.add_argument("--maia-model", default="maia3-23m")
     ap.add_argument("--kind", default="rapid")
     ap.add_argument("--maia-home", default="./maia2_models")
     ap.add_argument("--out", type=Path)
@@ -75,8 +78,12 @@ def main() -> int:
                 players.append((me, opp, moves[: max(NS)]))
     print(f"{len(players)} held-out players (games {args.skip_games}+)", file=sys.stderr)
 
-    maia = Maia2Backend(kind=args.kind, save_root=args.maia_home)
-    prior = uniform_prior()
+    maia = (Maia3Backend(model=args.maia_model, cache_dir=args.maia_home) if args.maia == "maia3"
+            else Maia2Backend(kind=args.kind, save_root=args.maia_home))
+    grid = getattr(maia, "grid", GRID)
+    use_history = getattr(maia, "uses_history", False)
+    prior = uniform_prior(grid)
+    nearest = (lambda e: min(grid, key=lambda g: abs(g - e))) if args.maia == "maia3" else bucket
     cover = {n: [] for n in NS}
     width = {n: [] for n in NS}
     err = {n: [] for n in NS}
@@ -84,17 +91,17 @@ def main() -> int:
     sizes_by_elo, sizes_single = [], []
     for k, (me, opp, moves) in enumerate(players):
         obs = []
-        for fen, mv in moves:
-            by = {e: maia.probs(fen, e, opp) for e in GRID}
+        for fen, mv, hist in moves:
+            by = {e: (maia.probs(fen, e, opp, history=hist) if use_history else maia.probs(fen, e, opp)) for e in grid}
             obs.append({"move": mv, "probs": by})
             if k < 20:  # size of what a by-Elo table would add to one position
                 tiny = lambda d: {m: round(p, 3) for m, p in d.items() if p >= 0.001}
-                sizes_by_elo.append(len(json.dumps({str(e): tiny(by[e]) for e in GRID}, separators=(",", ":"))))
-                sizes_single.append(len(json.dumps({"elo": me, "probs": tiny(by[bucket(me)])}, separators=(",", ":"))))
-        truth = bucket(me)
+                sizes_by_elo.append(len(json.dumps({str(e): tiny(by[e]) for e in grid}, separators=(",", ":"))))
+                sizes_single.append(len(json.dumps({"elo": me, "probs": tiny(by[nearest(me)])}, separators=(",", ":"))))
+        truth = nearest(me)
         for n in NS:
-            post = posterior(obs[:n], prior)
-            lo, hi = credible_interval(post, 0.8)
+            post = posterior(obs[:n], prior, grid)
+            lo, hi = credible_interval(post, 0.8, grid)
             cover[n].append(lo <= truth <= hi)
             width[n].append(hi - lo + 100)
             err[n].append(abs(sum(e * p for e, p in post.items()) - me))
@@ -104,14 +111,14 @@ def main() -> int:
 
     report = {
         "players": len(players), "ratings": {"min": min(p[0] for p in players), "max": max(p[0] for p in players)},
-        "interval": "80% credible, narrowest run of adjacent 100-point buckets",
+        "model": maia.name, "grid": list(grid), "interval": "80% credible, narrowest run of adjacent 100-point grid points",
         "by_moves_observed": {
             str(n): {"coverage_pct": round(100 * statistics.mean(cover[n]), 1), "mean_interval_width_elo": round(statistics.mean(width[n])),
                      "mae_elo": round(statistics.mean(err[n])), "constant_guess_mae_elo": round(statistics.mean(const_err[n]))}
             for n in NS},
-        "bytes_per_position": {"single_elo_block": round(statistics.mean(sizes_single)), "by_elo_table_11_buckets": round(statistics.mean(sizes_by_elo))},
+        "bytes_per_position": {"single_elo_block": round(statistics.mean(sizes_single)), "by_elo_table": round(statistics.mean(sizes_by_elo))},
     }
-    report["bytes_per_position"]["ratio"] = round(report["bytes_per_position"]["by_elo_table_11_buckets"] / report["bytes_per_position"]["single_elo_block"], 1)
+    report["bytes_per_position"]["ratio"] = round(report["bytes_per_position"]["by_elo_table"] / report["bytes_per_position"]["single_elo_block"], 1)
     text = json.dumps(report, indent=2)
     print(text)
     if args.out:

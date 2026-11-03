@@ -222,3 +222,47 @@ def test_candidates_carry_up_to_seven_previous_positions_oldest_first():
     assert len(by_ply[3].history) == 3 and by_ply[3].history[-1] == by_ply[2].fen and by_ply[3].history[0] == by_ply[0].fen
     assert len(by_ply[12].history) == 7, "the model reads at most 8 positions: the current one and seven before it"
     assert by_ply[12].history[-1] == by_ply[11].fen and by_ply[12].history[0] == by_ply[5].fen
+
+
+# --- stratified sampling: equal shares of each phase x rating band instead of the population's skew -----------------------
+
+
+def long_game(white, black, plies_text):
+    return (f'[Event "Rated Rapid game"]\n[Site "https://lichess.org/abcd1234"]\n[Result "*"]\n'
+            f'[WhiteElo "{white}"]\n[BlackElo "{black}"]\n\n{plies_text} *\n\n')
+
+
+# 16 opening plies, so with min_ply=8 every eligible position of this game is "opening"
+OPENING = "1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6"
+
+
+def test_candidates_know_their_phase():
+    cands = sample(game(), per_game=100, min_ply=0)
+    assert {c.phase for c in cands} == {"opening"}
+
+
+def test_band_of_groups_ratings_in_200_point_bands_and_folds_the_top_edge_in():
+    from pipeline.sampler import band_of
+
+    cfg = SamplerConfig(min_elo=1200, max_elo=2000)
+    assert [band_of(e, cfg) for e in (1200, 1399, 1400, 1999, 2000)] == [1200, 1200, 1400, 1800, 1800]
+    assert band_of(2431, SamplerConfig()) == 2400
+
+
+def test_stratified_sampling_gives_each_band_its_share_however_unbalanced_the_input():
+    # 30 games at ~1300 and 3 games at ~1900: a plain reservoir of 8 would be almost all 1300
+    text = "".join(long_game(1300, 1300, OPENING) for _ in range(30)) + "".join(long_game(1900, 1900, OPENING) for _ in range(3))
+    cfg = SamplerConfig(min_elo=1200, max_elo=2000, per_game=2, stratify=True, n_strata=2)
+    cands = sample_candidates(io.StringIO(text), cfg, 8, 0)
+    low, high = [c for c in cands if c.player_elo < 1600], [c for c in cands if c.player_elo >= 1600]
+    assert len(cands) == 8 and len(low) == 4 and len(high) == 4
+    plain = sample_candidates(io.StringIO(text), SamplerConfig(min_elo=1200, max_elo=2000, per_game=2), 8, 0)
+    assert sum(1 for c in plain if c.player_elo >= 1600) < 4, "without stratification the rare band is under-represented"
+
+
+def test_stratified_sampling_is_deterministic_for_a_seed_and_never_exceeds_the_limit():
+    text = "".join(long_game(1300 + 20 * i, 1500, OPENING) for i in range(20))
+    cfg = SamplerConfig(min_elo=1200, max_elo=2000, per_game=2, stratify=True, n_strata=4)
+    a = sample_candidates(io.StringIO(text), cfg, 6, 5)
+    assert a == sample_candidates(io.StringIO(text), cfg, 6, 5)
+    assert len(a) <= 6 * 1 + 4  # quota per stratum is ceil(limit / n_strata)

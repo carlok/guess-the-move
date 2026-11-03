@@ -15,8 +15,10 @@ import json
 import os
 import random
 import shlex
+import queue
 import sys
-from dataclasses import asdict
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -24,7 +26,7 @@ from urllib.parse import urlparse
 
 import chess
 
-from .sampler import Candidate, SamplerConfig, open_text, sample_candidates
+from .sampler import Candidate, SamplerConfig, band_of, open_text, sample_candidates
 from .tags import TagConfig, phase_of, tag_position
 from .winpct import win_pct
 
@@ -39,6 +41,37 @@ def source_label(src: str) -> str:
     return Path(path).name
 
 
+def _evaluate_all(cands: list[Candidate], engines: list, progress) -> list[dict[str, int]]:
+    """Engine evaluations of every legal move of every candidate, in candidate order. One engine runs in this thread;
+    several (one UCI process each) share the work through a thread pool."""
+    n = len(cands)
+    if len(engines) == 1:
+        out = []
+        for i, c in enumerate(cands):
+            if progress:
+                progress(i, n)
+            out.append(engines[0].analyse_all(chess.Board(c.fen)))
+        return out
+    free: queue.Queue = queue.Queue()
+    for e in engines:
+        free.put(e)
+
+    def work(c: Candidate) -> dict[str, int]:
+        e = free.get()
+        try:
+            return e.analyse_all(chess.Board(c.fen))
+        finally:
+            free.put(e)
+
+    out = []
+    with ThreadPoolExecutor(max_workers=len(engines)) as pool:
+        for i, evals in enumerate(pool.map(work, cands)):
+            if progress:
+                progress(i, n)
+            out.append(evals)
+    return out
+
+
 def build_positions(
     cands: list[Candidate],
     engine,
@@ -50,13 +83,12 @@ def build_positions(
     progress: Callable[[int, int], None] | None = None,
 ) -> list[dict]:
     positions: list[dict] = []
-    for i, c in enumerate(cands):
-        if progress:
-            progress(i, len(cands))
+    engines = list(engine) if isinstance(engine, (list, tuple)) else [engine]
+    all_evals = _evaluate_all(cands, engines, progress)
+    for c, evals in zip(cands, all_evals):
         board = chess.Board(c.fen)
         legal = {m.uci() for m in board.legal_moves}
 
-        evals = engine.analyse_all(board)
         if set(evals) != legal:
             raise RuntimeError(f"engine evals do not cover the legal moves for {c.fen}")
         if c.real_uci not in legal:
@@ -104,27 +136,29 @@ def build_positions(
     return positions
 
 
-def select(positions: list[dict], keep: int, seed: int = 0) -> list[dict]:
-    """Keep up to `keep` positions, balanced across phases (round-robin), deterministic for a seed.
+def select(positions: list[dict], keep: int, seed: int = 0, band=lambda elo: elo // 200) -> list[dict]:
+    """Keep up to `keep` positions, balanced across (phase, rating band) strata (round-robin), deterministic for a seed.
+    A stratum with fewer positions than its share is taken whole and the others fill the rest.
 
     A position+move pair appears once: two games can reach the same position and play the same move
     (common in openings), and `id` is a hash of exactly that. The first occurrence wins.
     """
     rng = random.Random(seed)
-    by_phase: dict[str, list[dict]] = {}
+    strata: dict[tuple, list[dict]] = {}
     seen: set[str] = set()
     for p in positions:
         if p["id"] in seen:
             continue
         seen.add(p["id"])
-        by_phase.setdefault(p["phase"], []).append(p)
-    for group in by_phase.values():
+        elo = p.get("player_elo")
+        strata.setdefault((p["phase"], band(elo) if elo is not None else -1), []).append(p)
+    for group in strata.values():
         rng.shuffle(group)
     out: list[dict] = []
-    while len(out) < keep and any(by_phase.values()):
-        for phase in sorted(by_phase):
-            if by_phase[phase] and len(out) < keep:
-                out.append(by_phase[phase].pop())
+    while len(out) < keep and any(strata.values()):
+        for key in sorted(strata):
+            if strata[key] and len(out) < keep:
+                out.append(strata[key].pop())
     return out
 
 
@@ -144,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--engine", default=os.environ.get("GTM_ENGINE", DEFAULT_ENGINE), help="UCI engine command")
     ap.add_argument("--nodes", type=int, default=400_000, help="node budget per position (MultiPV over all legal moves)")
     ap.add_argument("--maia", choices=["none", "maia2", "maia3"], default="none")
-    ap.add_argument("--maia-model", default="maia3-5m", help="Maia-3 model alias: maia3-5m, maia3-23m or maia3-79m")
+    ap.add_argument("--maia-model", default="maia3-23m", help="Maia-3 model alias: maia3-5m, maia3-23m (default) or maia3-79m")
     ap.add_argument("--maia-kind", choices=["rapid", "blitz"], default="rapid")
     ap.add_argument("--maia-home", default=os.environ.get("MAIA2_HOME", "./maia2_models"),
                     help="where the Maia weights are kept and downloaded to (maia2: its own folder, maia3: the Hugging Face cache); "
@@ -159,6 +193,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--per-game", type=int, default=2)
     ap.add_argument("--time-controls", help="comma list, e.g. Rapid,Classical")
     ap.add_argument("--max-games", type=int)
+    ap.add_argument("--workers", type=int, default=1, help="engine processes analysing in parallel (one thread each)")
+    ap.add_argument("--stratify", action=argparse.BooleanOptionalAction, default=True,
+                    help="sample an equal share of every phase x 200-point rating band (default) instead of the population's")
     ap.add_argument("--min-clock-seconds", type=float, default=30.0,
                     help="drop positions where the mover had less than this many seconds left after the real move "
                          "(Lichess [%%clk] comments); 0 switches the filter off. Positions without clock data are kept")
@@ -178,7 +215,11 @@ def main(argv: list[str] | None = None) -> int:
         require_elo=not args.allow_missing_elo,
         max_games=args.max_games,
         min_clock_s=args.min_clock_seconds or None,
+        stratify=args.stratify,
     )
+    if args.stratify:  # three phases times the number of rating bands the filter allows
+        bands = {band_of(e, scfg) for e in range(args.min_elo, args.max_elo + 1)} if args.min_elo and args.max_elo else set(range(4))
+        scfg = replace(scfg, n_strata=3 * len(bands))
     label = source_label(args.pgn)
     stats: dict = {}
     try:
@@ -203,7 +244,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from .backends import Maia2Backend, Maia3Backend, NullMaia, StockfishBackend
 
-    engine = StockfishBackend(shlex.split(args.engine), nodes=args.nodes)
+    engines = [StockfishBackend(shlex.split(args.engine), nodes=args.nodes) for _ in range(max(1, args.workers))]
+    engine = engines[0]
     if args.maia == "maia2":
         maia = Maia2Backend(kind=args.maia_kind, save_root=args.maia_home)
     elif args.maia == "maia3":
@@ -218,13 +260,14 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         positions = build_positions(
-            cands, engine, maia, tcfg,
+            cands, engines, maia, tcfg,
             max_abs_cp=args.max_abs_cp, drop_trivial=not args.keep_trivial, progress=progress,
         )
     finally:
-        engine.close()
+        for e in engines:
+            e.close()
 
-    chosen = select(positions, args.keep, args.seed)
+    chosen = select(positions, args.keep, args.seed, band=lambda elo: band_of(elo, scfg))
     meta = {
         "engine": engine.name,
         "nodes": args.nodes,
@@ -234,6 +277,9 @@ def main(argv: list[str] | None = None) -> int:
         "demo": args.demo,
         "seed": args.seed,
         "min_clock_seconds": scfg.min_clock_s,
+        "stratified": scfg.stratify,
+        "n_strata": scfg.n_strata,
+        "workers": len(engines),
         "sampling": stats,
         "thresholds": asdict(tcfg),
         "win_pct_scale": "lichess",
