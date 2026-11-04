@@ -305,3 +305,22 @@ test('a link to a position or to an answer opens it in a real browser, and the c
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/#p=aaaaaaaaaa&m=a1a8`);
   expect(await noHScroll(page)).toBe(true);
 });
+
+/* ---------- retry your mistakes ---------- */
+
+test('a position queued for retry comes back with a Retry chip, and the stats page can fetch it on demand', async ({ page }) => {
+  const positions = ['aaaaaaaaaa', 'bbbbbbbbbb', 'cccccccccc'].map((id) => ({ ...ROOK, id }));
+  await preset(page, { confirm: false, store: { srs: { bbbbbbbbbb: { box: 1, due: 4, ok: 0 } }, plays: 9, history: FIRST_TIME.slice(0, 2) } });
+  await serveDataset(page, positions);
+  await page.goto('/');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await expect(page.locator('#retryChip')).toBeVisible();
+  await clickMove(page, 'a1a8');                 // a good retry: it climbs a box and is not due again soon
+  await expect(page.locator('#result')).toBeVisible();
+  await page.locator('#statsBtn').click();
+  await expect(page.locator('.srs-card')).toContainText('0 due now, 1 in the queue');
+  await page.locator('#retryNowBtn').click();
+  await expect(page.locator('#statsView')).toBeHidden();
+  await expect(page.locator('#retryChip')).toBeVisible();
+  expect(await noHScroll(page)).toBe(true);
+});

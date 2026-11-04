@@ -1197,3 +1197,105 @@ test('every position of the shipped dataset has an id the link router accepts', 
   const data = require('../data/positions.json');
   assert.ok(data.positions.every((p) => /^[0-9a-f]{10}$/.test(p.id)));
 });
+
+/* ---------- retry your mistakes ---------- */
+
+const six = () => dataOf(...Array.from({ length: 8 }, (_, i) => ({ ...ROOK, id: 'e' + String(i).repeat(9) })));
+const srsOf = (w) => JSON.parse(w.localStorage.getItem('gtm.v1.srs') || '{}');
+const playsOf = (w) => JSON.parse(w.localStorage.getItem('gtm.v1.plays') || '0');
+const bestThenNext = (w) => { play(w, 'a1', 'a8'); click(w, 'next'); };
+const blunderThenNext = (w) => { play(w, 'g1', 'f1'); click(w, 'next'); };
+const chip = (w) => $(w, 'retryChip').hidden === false;
+
+test('a mistake joins the queue, due after five more positions; a good guess does not', async () => {
+  const w = await boot(six());
+  bestThenNext(w);
+  assert.deepEqual(srsOf(w), {});
+  blunderThenNext(w);
+  const q = srsOf(w);
+  assert.deepEqual(Object.values(q), [{ box: 1, due: 7, ok: 0 }], 'the 2nd play + 5');
+  assert.equal(playsOf(w), 2);
+});
+
+test('the position comes back when it is due, even though "unseen only" is on, and wears a Retry chip', async () => {
+  const w = await boot(six());
+  blunderThenNext(w);                                  // play 1: due at 6
+  assert.equal(chip(w), false);
+  for (let i = 0; i < 5; i++) { assert.equal(chip(w), false, `play ${i + 2}`); bestThenNext(w); }
+  assert.equal(chip(w), true, 'six plays done: the mistake is due');
+  assert.equal($(w, 'result').hidden, true, 'live, not a review');
+  assert.ok(pieceAt(w, 'a1'));
+});
+
+test('a good retry moves the position up a box; a retry is never followed by another retry straight away', async () => {
+  const w = await boot(six());
+  blunderThenNext(w); blunderThenNext(w);              // both queued: due 6 and 7
+  for (let i = 0; i < 4; i++) bestThenNext(w);         // plays 3..6
+  assert.equal(chip(w), true, 'the first is due at 6');
+  bestThenNext(w);                                     // a good retry, play 7
+  const boxes = Object.values(srsOf(w)).map((e) => e.box).sort();
+  assert.deepEqual(boxes, [1, 2], 'one climbed to box 2, the other still waits in box 1');
+  assert.equal(chip(w), false, 'the second one is due too but a retry does not follow a retry');
+  bestThenNext(w);
+  assert.equal(chip(w), false);
+  bestThenNext(w);
+  assert.equal(chip(w), true, 'after two ordinary positions it is its turn');
+});
+
+test('the switch, predict mode and the phase filter all keep retries away', async () => {
+  const off = await boot(six(), { ls: { srson: false } });
+  assert.equal($(off, 'srsToggle').checked, false);
+  blunderThenNext(off); for (let i = 0; i < 6; i++) bestThenNext(off);
+  assert.equal(chip(off), false, 'switched off');
+  assert.deepEqual(Object.keys(srsOf(off)).length, 1, 'but the mistake is still queued');
+  const pred = await boot(six());
+  pred.document.querySelector('input[value=predict]').click();
+  play(pred, 'g1', 'f1');
+  assert.deepEqual(srsOf(pred), {}, 'predicting is not solving');
+  const filtered = await boot(six());
+  blunderThenNext(filtered); for (let i = 0; i < 5; i++) bestThenNext(filtered);
+  $(filtered, 'unseen').checked = false;
+  $(filtered, 'phase').value = 'opening'; $(filtered, 'phase').dispatchEvent(new filtered.Event('change', { bubbles: true }));
+  assert.equal($(filtered, 'prompt').textContent.includes('No positions match') || chip(filtered) === false, true);
+  const stored = await boot(six());
+  $(stored, 'srsToggle').checked = false; $(stored, 'srsToggle').dispatchEvent(new stored.Event('change', { bubbles: true }));
+  assert.equal(JSON.parse(stored.localStorage.getItem('gtm.v1.srson')), false);
+});
+
+test('the stats page shows how many are due; "Retry one now" jumps to one in best-move mode', async () => {
+  const w = await boot(six(), { ls: { srs: { e000000000: { box: 1, due: 99, ok: 0 }, nope: { box: 1, due: 1, ok: 0 } }, plays: 3, history: many(2) } });
+  click(w, 'statsBtn');
+  const card = $(w, 'statsBody').querySelector('.srs-card');
+  assert.match(card.textContent, /Mistakes to retry/); assert.match(card.textContent, /0 due now, 1 in the queue/);
+  assert.doesNotMatch(card.textContent, /2 in the queue/, 'an id the dataset does not have is not counted');
+  w.document.querySelector('input[value=predict]').click();
+  click(w, 'retryNowBtn'); await tick();
+  assert.equal($(w, 'statsView').hidden, true);
+  assert.equal(w.document.querySelector('input[name=mode]:checked').value, 'best');
+  assert.equal(chip(w), true, 'the queued position that exists in the data, even though it is not due yet');
+  const empty = await boot(six(), { ls: { history: many(2) } });
+  click(empty, 'statsBtn');
+  assert.match($(empty, 'statsBody').querySelector('.srs-card').textContent, /Nothing to retry/);
+  assert.equal(empty.document.getElementById('retryNowBtn'), null);
+});
+
+test('the queue is saved with the stats file, merged back on loading, reset with the stats, and corrupt storage is ignored', async () => {
+  const q = { e000000000: { box: 2, due: 30, ok: 1 } };
+  const w = await boot(six(), { clock: { t: 0 }, ls: { srs: q, plays: 12, history: many(2) } });
+  const got = { text: null }; const RealBlob = w.Blob;
+  w.Blob = function (parts, o) { got.text = parts.join(''); return new RealBlob(parts, o); };
+  w.URL.createObjectURL = () => 'blob:x'; w.URL.revokeObjectURL = () => {}; w.HTMLAnchorElement.prototype.click = () => {};
+  click(w, 'statsBtn'); click(w, 'exportBtn');
+  const body = JSON.parse(got.text);
+  assert.deepEqual(body.srs, q); assert.equal(body.plays, 12);
+  const other = await boot(six(), { ls: { srs: { e111111111: { box: 1, due: 5, ok: 0 } }, plays: 3, history: many(1) } });
+  click(other, 'statsBtn');
+  await loadFile(other, JSON.stringify({ app: 'guess-the-move', format: 1, history: many(2), seen: [], srs: { ...q, bad: { box: 9 } }, plays: 12 }));
+  assert.deepEqual(Object.keys(srsOf(other)).sort(), ['e000000000', 'e111111111'], 'merged, and the invalid entry dropped');
+  assert.equal(playsOf(other), 12, 'the larger play count wins');
+  click(other, 'resetStats');
+  assert.deepEqual(srsOf(other), {}); assert.equal(playsOf(other), 0);
+  const corrupt = await boot(six(), { ls: { srs: 'garbage', plays: 'many' } });
+  assert.equal(chip(corrupt), false); bestThenNext(corrupt);
+  assert.equal(playsOf(corrupt), 1);
+});

@@ -110,7 +110,7 @@
 
   <main id="gameMain">
     <section class="stage" aria-label="Board">
-      <div class="posinfo"><span id="posInfo"></span><span id="reviewChip" class="review-chip" hidden>Review</span><span id="pickChip" class="review-chip" hidden></span><button id="linkBtn" type="button" class="icon-btn link-btn" aria-label="Copy a link to this position" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
+      <div class="posinfo"><span id="posInfo"></span><span id="reviewChip" class="review-chip" hidden>Review</span><span id="pickChip" class="review-chip" hidden></span><span id="retryChip" class="review-chip" hidden>Retry</span><button id="linkBtn" type="button" class="icon-btn link-btn" aria-label="Copy a link to this position" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
       <div id="boardWrap" class="boardwrap">
         <div id="skeleton" class="skeleton" aria-hidden="true"></div>
         <svg id="boardSvg" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Chess board" tabindex="0">
@@ -178,6 +178,8 @@
       </details>
 
       <div class="settings">
+        <label class="check"><input type="checkbox" id="srsToggle"> Bring back positions I got wrong</label>
+        <p class="muted small">Positions where you gave up 10 or more win-% points come back after 5, then 15, then 40 positions, until you get them right four times. At most one position in three is a retry.</p>
         <label class="check"><input type="checkbox" id="adaptiveToggle"> Pick positions that sharpen my level estimate</label>
         <p class="muted small">Chooses positions where players of different ratings disagree most, so fewer guesses are needed. It makes your set of positions less random.</p>
         <label class="check"><input type="checkbox" id="timerToggle"> Show the timer</label>
@@ -222,6 +224,7 @@
   <script defer src="scoring.js"></script>
   <script defer src="board.js"></script>
   <script defer src="classify.js"></script>
+  <script defer src="srs.js"></script>
   <script defer src="tierview.js"></script>
   <script defer src="sound.js"></script>
   <script defer src="stats.js"></script>

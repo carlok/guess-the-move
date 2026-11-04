@@ -115,6 +115,12 @@
     },
     timer: { label: 'Time on this position', show: 'Show the timer', showHelp: 'Your time is still recorded for the stats when the timer is hidden.' },
     sound: { off: 'Turn sounds on', on: 'Mute sounds', setting: 'Sounds' },
+    srs: {
+      chip: 'Retry', cardTitle: 'Mistakes to retry',
+      cardNone: 'Nothing to retry. A position where you give up 10 or more win-% points in "Find the best move" mode comes back here.',
+      cardCounts: function (due, total) { return due + ' due now, ' + total + ' in the queue. A retry comes back after 5, then 15, then 40 positions, and leaves the queue after four good ones.'; },
+      retryNow: 'Retry one now'
+    },
     link: {
       copyPos: 'Copy a link to this position', copyAnswer: 'Copy a link to my answer', copied: 'Link copied.', copiedAnswer: 'Link to your answer copied.',
       manual: function (url) { return 'Copy this link: ' + url; },

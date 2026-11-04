@@ -15,11 +15,11 @@
   var num = function (v) { return typeof v === 'number' && isFinite(v); };
   var bool = function (v) { return v === true || v === false ? v : null; };
 
-  function build(history, seen, meta, now) {
+  function build(history, seen, meta, now, extra) {
     return {
       app: APP, format: FORMAT, exported: new Date(now).toISOString(),
       dataset: { built: (meta && meta.built) || null, source: (meta && meta.source) || null },
-      history: history, seen: Array.from(seen)
+      history: history, seen: Array.from(seen), srs: (extra && extra.srs) || {}, plays: (extra && extra.plays) || 0
     };
   }
 
@@ -52,7 +52,8 @@
     var history = [], skipped = 0;
     d.history.forEach(function (e) { var c = cleanEntry(e); if (c) history.push(c); else skipped++; });
     var seen = Array.isArray(d.seen) ? d.seen.filter(function (s) { return typeof s === 'string' && s.length <= 64; }).slice(0, MAX_SEEN) : [];
-    return { ok: true, history: history, seen: seen, skipped: skipped };
+    var srs = d.srs && typeof d.srs === 'object' && !Array.isArray(d.srs) ? d.srs : {};
+    return { ok: true, history: history, seen: seen, skipped: skipped, srs: srs, plays: num(d.plays) && d.plays >= 0 ? Math.floor(d.plays) : 0 };
   }
 
   /* Union by guess (position id + time), oldest first, newest `max` kept. */

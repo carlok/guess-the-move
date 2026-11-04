@@ -178,6 +178,13 @@
       '<details class="reliability"><summary>' + esc(L.reliability) + '</summary><p>' + esc(L.reliabilityText) + '</p></details>' + suggest + '</div>';
   }
 
+  /* The retry queue: how many positions are due, and a button to take one now. */
+  function srsCard(srs, T) {
+    var L = T.srs, body = srs.total ? '<p class="level-big">' + esc(srs.due) + '</p><p class="muted">' + esc(L.cardCounts(srs.due, srs.total)) + '</p><button id="retryNowBtn" type="button">' + esc(L.retryNow) + '</button>'
+      : '<p class="muted">' + esc(L.cardNone) + '</p>';
+    return '<div class="chart-card srs-card"><h3>' + esc(L.cardTitle) + '</h3>' + body + '</div>';
+  }
+
   function card(title, caption, chart) {
     return '<figure class="chart-card"><figcaption><h3>' + esc(title) + '</h3><p>' + esc(caption) + '</p></figcaption>' + chart + '</figure>';
   }
@@ -201,6 +208,7 @@
 
     out += '<div class="charts">';
     if (opts && opts.level) out += levelCard(opts.level, T, w, Math.round((opts && opts.width) || W_MAX));
+    if (opts && opts.srs) out += srsCard(opts.srs, T);
     // quality over time
     if (S.bestScores.length >= MIN_POINTS) {
       var tr = trend(S.bestScores);

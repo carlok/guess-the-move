@@ -6,12 +6,12 @@
 (function () {
   'use strict';
 
-  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW;
+  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SRS = window.GTM_SRS;
   var SPRITE = 'pieces.svg#';
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
-  var TRAIL_MAX = 100, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
+  var TRAIL_MAX = 100, SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
@@ -20,6 +20,7 @@
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
     seen: new Set(), history: [], showTimer: true, statsPushed: false,
+    srs: {}, plays: 0, srsOn: true, sinceRetry: RETRY_GAP, retrying: false,
     adaptive: false, hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
     trail: [], cur: null // positions answered in this visit, and the one being reviewed (null: a live position)
   };
@@ -212,6 +213,7 @@
     $('reviewChip').hidden = !reviewing;
     $('reviewChip').textContent = reviewing && S.trail[S.cur] && S.trail[S.cur].shared ? T.link.sharedChip : T.review.chip;
     $('linkBtn').hidden = !S.pos || !!S.pos.custom;
+    $('retryChip').hidden = reviewing || !S.retrying || !S.pos;
     $('pickChip').hidden = reviewing || S.picked === null || !S.pos;
     if (!$('pickChip').hidden) $('pickChip').textContent = T.level.pickedBits(S.picked);
     $('skip').hidden = !S.pos || S.revealed;
@@ -336,6 +338,36 @@
 
   /* ---------- flow ---------- */
 
+  function passesFilters(p) {
+    var phase = $('phase').value, tag = $('tag').value;
+    return (phase === 'any' || p.phase === phase) && (tag === 'any' || (p.tags || []).indexOf(tag) >= 0);
+  }
+
+  /* The queued position to retry: the one due first, or any queued one with `any`. It respects the phase and kind
+   * filters (not "unseen only": a retry is a position you have seen). */
+  function pickRetry(any) {
+    var by = positionById(), ids = any ? SRS.queue(S.srs) : SRS.due(S.srs, S.plays), i;
+    for (i = 0; i < ids.length; i++) if (by[ids[i]] && passesFilters(by[ids[i]])) return by[ids[i]];
+    return null;
+  }
+
+  /* The queue without positions the loaded dataset does not have (they could never be shown). */
+  function srsPresent() {
+    if (!S.data) return S.srs;
+    var by = positionById(), out = {};
+    Object.keys(S.srs).forEach(function (id) { if (by[id]) out[id] = S.srs[id]; });
+    return out;
+  }
+
+  function retryNow() {
+    var p = S.data && pickRetry(true);
+    if (!p) return;
+    document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
+    closeStatsView();
+    S.sinceRetry = 0;
+    loadPosition(p, undefined, undefined, true);
+  }
+
   function applyFilters() {
     var phase = $('phase').value, tag = $('tag').value, unseen = $('unseen').checked;
     var list = S.data.positions.filter(function (p) {
@@ -348,8 +380,9 @@
 
   /* `review` (a trail entry) reopens a position already answered in this visit: the answer is shown, the timer stays
    * stopped at the time taken and nothing is written to the history. Without it the position is a fresh attempt. */
-  function loadPosition(p, review, bits) {
+  function loadPosition(p, review, bits, retrying) {
     S.cur = review ? S.trail.indexOf(review) : null;
+    S.retrying = !!retrying;
     S.picked = bits === undefined ? null : bits;
     S.pos = p; S.parsed = B.parseFen(p.fen); S.flipped = S.parsed.stm === 'b';
     S.legalFrom = {};
@@ -394,6 +427,9 @@
 
   function nextPosition() {
     var list = applyFilters();
+    var retry = S.srsOn && S.mode === 'best' && S.sinceRetry >= RETRY_GAP ? pickRetry(false) : null;
+    if (retry) { S.sinceRetry = 0; loadPosition(retry, undefined, undefined, true); return; }
+    S.sinceRetry++;
     if (!list.length) {
       S.cur = null; S.pos = null; svgReset(); setPrompt(); refresh(); $('result').hidden = true; timerReset();
       $('prompt').textContent = $('unseen').checked ? T.prompt.noneUnseen : T.prompt.none;
@@ -422,6 +458,8 @@
       });
       if (S.history.length > HISTORY_MAX) S.history = S.history.slice(-HISTORY_MAX);
       store.set(HISTORY_KEY, S.history);
+      S.plays++; store.set(PLAYS_KEY, S.plays);
+      if (S.mode === 'best') { S.srs = SRS.update(S.srs, S.plays, S.pos.id, S.result.you.cost); store.set(SRS_KEY, S.srs); }
       S.trail.push({ pos: S.pos, uci: uci, mode: S.mode, dur: Math.round(elapsedMs() / 1000) });
       if (S.trail.length > TRAIL_MAX) S.trail.shift();
     }
@@ -816,7 +854,7 @@
     });
   }
 
-  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, level: levelModel() }); }
+  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays) }); }
 
   function showStats(on) {
     if (on === statsIsOpen()) return;
@@ -844,7 +882,7 @@
   function backupMsg(t) { $('backupMsg').textContent = t; }
 
   function exportStats() {
-    var now = nowMs(), body = window.GTM_BACKUP.build(S.history, S.seen, S.data && S.data.meta, now);
+    var now = nowMs(), body = window.GTM_BACKUP.build(S.history, S.seen, S.data && S.data.meta, now, { srs: S.srs, plays: S.plays });
     var url = window.URL.createObjectURL(new window.Blob([JSON.stringify(body, null, 2) + '\n'], { type: 'application/json' }));
     var a = document.createElement('a');
     a.href = url; a.download = window.GTM_BACKUP.fileName(now);
@@ -862,7 +900,8 @@
       var m = window.GTM_BACKUP.merge(S.history, r.history, HISTORY_MAX);
       S.history = m.history;
       r.seen.forEach(function (id) { S.seen.add(id); });
-      store.set(HISTORY_KEY, S.history); store.set(SEEN_KEY, Array.from(S.seen));
+      S.srs = SRS.merge(S.srs, SRS.sanitize(r.srs)); S.plays = Math.max(S.plays, r.plays);
+      store.set(HISTORY_KEY, S.history); store.set(SEEN_KEY, Array.from(S.seen)); store.set(SRS_KEY, S.srs); store.set(PLAYS_KEY, S.plays);
       renderStats(); updateEstimate(); if (S.data) applyFilters();
       drawStats();
       sfx('good'); backupMsg(T.backup.imported(m.added, m.duplicates, r.skipped));
@@ -877,7 +916,7 @@
 
   /* The scripts this one needs. If one did not load (a 404 from a stale image or a bad deploy, a blocked request) say so
    * plainly instead of failing on the first move with a console error. GTM_SOUND is optional (the page works without it). */
-  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
+  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SRS', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
 
   function missingScripts() { return REQUIRED.filter(function (k) { return !window[k]; }); }
 
@@ -892,6 +931,8 @@
     svg = $('boardSvg');
     S.seen = new Set(store.get(SEEN_KEY, []));
     S.history = store.get(HISTORY_KEY, []);
+    S.srs = SRS.sanitize(store.get(SRS_KEY, {})); S.plays = Math.max(0, Math.floor(Number(store.get(PLAYS_KEY, 0)) || 0));
+    S.srsOn = store.get(SRS_ON_KEY, true) !== false; $('srsToggle').checked = S.srsOn;
     S.adaptive = store.get(ADAPTIVE_KEY, false) === true;
     $('adaptiveToggle').checked = S.adaptive;
     S.showTimer = store.get(TIMER_KEY, true) !== false;
@@ -943,7 +984,7 @@
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
     $('skip').addEventListener('click', function () { if (S.pos) S.seen.add(S.pos.id); store.set(SEEN_KEY, Array.from(S.seen)); goNext(); });
     $('resetStats').addEventListener('click', function () {
-      S.history = []; S.seen = new Set(); store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); renderStats(); updateEstimate(); if (S.data) applyFilters();
+      S.history = []; S.seen = new Set(); S.srs = {}; S.plays = 0; store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); store.set(SRS_KEY, {}); store.set(PLAYS_KEY, 0); renderStats(); updateEstimate(); if (S.data) applyFilters();
     });
     $('confirmToggle').addEventListener('change', function () {
       S.confirm = $('confirmToggle').checked; store.set(CONFIRM_KEY, S.confirm);
@@ -954,13 +995,14 @@
       if (snd) { snd.setEnabled(!snd.isEnabled()); store.set(SOUND_KEY, snd.isEnabled()); }
       updateSoundButton(); sfx('tick');
     });
+    $('srsToggle').addEventListener('change', function () { S.srsOn = $('srsToggle').checked; store.set(SRS_ON_KEY, S.srsOn); });
     $('adaptiveToggle').addEventListener('change', function () { S.adaptive = $('adaptiveToggle').checked; store.set(ADAPTIVE_KEY, S.adaptive); });
     $('result').addEventListener('click', function (e) {
       if (e.target && e.target.id === 'copyAnswer') { copyLink(S.result.you.uci); return; }
       var b = e.target.closest ? e.target.closest('.ml-row') : null;
       if (b) togglePreview(b.getAttribute('data-uci'));
     });
-    $('statsBody').addEventListener('click', function (e) { if (e.target && e.target.id === 'suggestBtn') suggestAndGo(); });
+    $('statsBody').addEventListener('click', function (e) { if (e.target && e.target.id === 'suggestBtn') suggestAndGo(); if (e.target && e.target.id === 'retryNowBtn') retryNow(); });
     $('timerToggle').addEventListener('change', function () { S.showTimer = $('timerToggle').checked; store.set(TIMER_KEY, S.showTimer); $('timer').hidden = !S.showTimer; });
     $('statsBtn').addEventListener('click', openStatsView);
     $('openStats').addEventListener('click', openStatsView);

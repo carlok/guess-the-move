@@ -194,14 +194,14 @@ html.menu-open { overflow: hidden; }
 
 /* Timer, sound button */
 .posinfo { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
-.level-card { grid-column: 1 / -1; }
+.level-card, .srs-card { grid-column: 1 / -1; }
 .level-card h4 { margin: var(--s-4) 0 var(--s-1); font-size: var(--fs-md); }
 .level-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--s-4); }
 .level-card .level-charts h4 { margin: 0 0 var(--s-1); }
 .reliability { border: 0; background: none; margin: 0 0 var(--s-3); padding: 0; }
 .reliability summary { padding: 0; cursor: pointer; color: var(--accent); min-height: var(--tap); display: flex; align-items: center; }
 .reliability p { margin: 0; }
-.level-card .level-big { margin: 0; font-size: 2.4rem; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.level-card .level-big, .srs-card .level-big { margin: 0; font-size: 2.4rem; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .level-card .level-range { margin: 0 0 var(--s-3); color: var(--muted); }
 .ch-area { fill: var(--c-real); fill-opacity: .35; stroke: var(--c-real); stroke-width: 2; }
 .ch-band { fill: var(--c-real); fill-opacity: .16; }
