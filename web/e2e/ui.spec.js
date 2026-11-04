@@ -173,3 +173,22 @@ test('every credit link opens in a new tab without leaking the opener', async ({
   const bad = await page.$$eval('#menu a[href^="http"]', (as) => as.filter((a) => a.target !== '_blank' || !/noopener/.test(a.rel)).map((a) => a.href));
   expect(bad).toEqual([]);
 });
+
+test('the filter dropdowns stay inside the panel however long their options are', async ({ page }) => {
+  const tags = ['real_blunder', 'real_is_best', 'maia_miss', 'maia_error', 'hard_find', 'only_move', 'real_mistake', 'trivial'];
+  const long = (i) => ({ ...ROOK, id: 'f' + String(i).padStart(9, '0'), tags: [tags[i % tags.length]],
+    game: { opening: 'Queen\'s Gambit Declined: Orthodox Defense, Rubinstein Attack, Carlsbad Variation', eco: 'D63' } });
+  await preset(page, { confirm: false });
+  await serveDataset(page, Array.from({ length: 12 }, (_, i) => long(i)));
+  await page.goto('/');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  const m = await page.evaluate(() => {
+    const right = (s) => document.querySelector(s).getBoundingClientRect().right;
+    return { panel: right('#panel'), filters: right('#filters'), tag: right('#tag'), opening: right('#opening'), phase: right('#phase'), vw: innerWidth, sw: document.documentElement.scrollWidth };
+  });
+  expect(m.tag, 'Kind').toBeLessThanOrEqual(m.filters + 0.5);
+  expect(m.opening, 'Opening').toBeLessThanOrEqual(m.filters + 0.5);
+  expect(m.phase, 'Phase').toBeLessThanOrEqual(m.filters + 0.5);
+  expect(m.filters).toBeLessThanOrEqual(m.panel + 0.5);
+  expect(m.sw, 'no horizontal scroll').toBeLessThanOrEqual(m.vw);
+});
