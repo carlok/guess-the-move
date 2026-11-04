@@ -14,7 +14,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import build_dist as D  # noqa: E402
 
-CODE_GZIP_BUDGET = 72 * 1024          # scripts and styles, gzipped; 60 KB until save-image, then 66; the pages, level matching and challenges took it to 68.6 KB measured (lazy-loading share.js and report.js would bring it back down)
+FIRST_LOAD_GZIP_BUDGET = 60 * 1024    # scripts and styles the page loads at the start, gzipped (the budget the Lighthouse run was held to)
+CODE_GZIP_BUDGET = 72 * 1024          # all of them, with the parts that load on first use (save image, stats file, stats charts)
 DATA_GZIP_BUDGET = 1600 * 1024        # the shipped dataset, gzipped
 
 
@@ -146,6 +147,7 @@ def test_local_assets_finds_scripts_and_styles_in_any_attribute_order_and_ignore
 
 def test_the_shipped_site_is_within_its_size_budgets(built):
     _, r = built
+    assert r["first_load_gzip"] <= FIRST_LOAD_GZIP_BUDGET, f"the first load is {r['first_load_gzip'] / 1024:.1f} KB of scripts and styles gzipped"
     assert r["code_gzip"] <= CODE_GZIP_BUDGET, f"scripts and styles are {r['code_gzip'] / 1024:.1f} KB gzipped"
     assert r["data_gzip"] <= DATA_GZIP_BUDGET, f"the dataset is {r['data_gzip'] / 1024:.1f} KB gzipped"
 
@@ -153,3 +155,23 @@ def test_the_shipped_site_is_within_its_size_budgets(built):
 def test_main_builds_and_reports(tmp_path, capsys):
     assert D.main(["--out", str(tmp_path / "d")]) == 0
     assert "files" in capsys.readouterr().err and (tmp_path / "d" / "version.json").exists()
+
+
+def test_lazy_assets_are_the_scripts_marked_text_lazy_in_any_attribute_order():
+    html = ('<script defer src="a.js"></script><script type="text/lazy" src="b.js"></script>'
+            '<script src="c.js" type="text/lazy"></script><script type="text/lazy" src="https://x.example/d.js"></script>')
+    assert D.lazy_assets(html) == ["b.js", "c.js"]
+
+
+def test_the_lazy_parts_are_not_in_the_first_load_but_are_built_stamped_and_precached(built):
+    out, r = built
+    html = (out / "index.html").read_text(encoding="utf-8")
+    sw = (out / "sw.js").read_text(encoding="utf-8")
+    assert sorted(r["lazy"]) == ["backup.js", "share.js", "statscharts.js"]
+    for name in r["lazy"]:
+        assert (out / name).is_file()
+        assert re.search(r'<script type="text/lazy" src="%s\?v=%s"></script>' % (re.escape(name), r["build"]), html), f"{name} is listed, inert and stamped"
+        assert f"{name}?v={r['build']}" in sw, f"{name} is precached, so it works offline"
+    assert r["first_load_gzip"] < r["code_gzip"]
+    eager = re.findall(r'<script defer src="([^"?]+)', html)
+    assert not set(eager) & set(r["lazy"]), "a lazy part is not also loaded at the start"

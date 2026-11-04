@@ -27,7 +27,7 @@ test('wrap breaks at the width, keeps a long word whole, and cuts only when aske
 
 test('the squares are the page\'s own: 64 of them, alternating, with letters and numbers on the edges, for either side', () => {
   [false, true].forEach((flipped) => {
-    const s = S.squares(flipped);
+    const s = B.squares(flipped);
     assert.equal((s.match(/<rect class="sq /g) || []).length, 64);
     assert.equal((s.match(/class="coord /g) || []).length, 16);
     const a1 = new RegExp(`data-sq="a1" x="${flipped ? 700 : 0}" y="${flipped ? 0 : 700}"`);

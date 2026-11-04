@@ -35,23 +35,6 @@
     return lines;
   }
 
-  /* The 64 squares and the file/rank letters, as the live board draws them (the page uses this function too). */
-  function squares(flipped) {
-    var s = '', i, p, x, y, f, r, onLight;
-    for (i = 0; i < 64; i++) {
-      p = B.xy(i, flipped); f = i % 8; r = Math.floor(i / 8);
-      s += '<rect class="sq ' + ((f + r) % 2 === 1 ? 'light' : 'dark') + '" data-sq="' + B.sqName(i) + '" x="' + p[0] * 100 + '" y="' + p[1] * 100 + '" width="100" height="100"/>';
-    }
-    for (i = 0; i < 64; i++) {
-      p = B.xy(i, flipped); x = p[0] * 100; y = p[1] * 100; f = i % 8; r = Math.floor(i / 8);
-      onLight = (f + r) % 2 === 1;
-      var cls = 'coord ' + (onLight ? 'on-light' : 'on-dark');
-      if (p[1] === 7) s += '<text class="' + cls + '" aria-hidden="true" x="' + (x + 80) + '" y="' + (y + 92) + '">' + B.FILES[f] + '</text>';
-      if (p[0] === 0) s += '<text class="' + cls + '" aria-hidden="true" x="' + (x + 6) + '" y="' + (y + 24) + '">' + (r + 1) + '</text>';
-    }
-    return s;
-  }
-
   /* The `<symbol>` elements of the piece sprite (pieces.svg), to be inlined. */
   function symbolsOf(spriteText) { return (String(spriteText).match(/<symbol\b[\s\S]*?<\/symbol>/g) || []).join(''); }
 
@@ -101,7 +84,7 @@
     var S = T.share.card, y = 100, out = '';
     out += '<rect width="' + W + '" height="' + H + '" fill="' + COLORS.bg + '"/>';
     out += text(BX, 40, 26, S.title, 'b');
-    out += '<g transform="translate(' + BX + ' ' + BY + ') scale(' + BOARD / 800 + ')"><g>' + squares(model.flipped) + '</g><g>' + pieces(model.board, model.flipped) + '</g><g>' + model.arrows + '</g></g>';
+    out += '<g transform="translate(' + BX + ' ' + BY + ') scale(' + BOARD / 800 + ')"><g>' + B.squares(model.flipped) + '</g><g>' + pieces(model.board, model.flipped) + '</g><g>' + model.arrows + '</g></g>';
     out += '<rect x="' + BX + '" y="' + BY + '" width="' + BOARD + '" height="' + BOARD + '" fill="none" stroke="' + COLORS.line + '" stroke-width="2"/>';
     var pl = wrap(model.posLine, 36); out += lines(PX, y, 22, pl, 28, 'b'); y += pl.length * 28;
     if (model.ratingLine) { out += text(PX, y, 18, model.ratingLine, 'm'); y += 26; }
@@ -194,7 +177,7 @@
   function fileName(kind, id) { return 'guess-the-move-' + String(id || 'position').replace(/[^A-Za-z0-9_-]/g, '') + '.' + kind; }
 
   return {
-    W: W, H: H, COLORS: COLORS, TIER_COLORS: TIER_COLORS, wrap: wrap, squares: squares, symbolsOf: symbolsOf, card: card, crc32: crc32,
+    W: W, H: H, COLORS: COLORS, TIER_COLORS: TIER_COLORS, wrap: wrap, symbolsOf: symbolsOf, card: card, crc32: crc32,
     addPngText: addPngText, readPng: readPng, isPng: isPng, rasterize: rasterize, fileName: fileName
   };
 }));
