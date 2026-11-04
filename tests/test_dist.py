@@ -1,0 +1,119 @@
+"""tools/build_dist.py: the deployable folder contains exactly what the page needs, nothing else, and stays within budget."""
+
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+
+import build_dist as D  # noqa: E402
+
+CODE_GZIP_BUDGET = 60 * 1024          # scripts and styles, gzipped (the budget the Lighthouse run was held to)
+DATA_GZIP_BUDGET = 1600 * 1024        # the shipped dataset, gzipped
+
+
+@pytest.fixture(scope="module")
+def built(tmp_path_factory):
+    out = tmp_path_factory.mktemp("dist")
+    return out, D.build(D.WEB, out)
+
+
+def test_dist_has_exactly_the_files_the_page_loads_and_the_two_it_fetches(built):
+    out, _ = built
+    html = (D.WEB / "index.html").read_text(encoding="utf-8")
+    expected = {"index.html", "version.json", "pieces.svg", "data/positions.json"} | set(D.local_assets(html))
+    present = {str(p.relative_to(out)) for p in out.rglob("*") if p.is_file()}
+    assert present == expected
+    assert {"app.js", "classify.js", "tierview.js", "report.js", "srs.js", "level.js", "style.css"} <= present
+
+
+def test_no_development_file_can_reach_a_deploy(built):
+    out, _ = built
+    names = {p.name for p in out.rglob("*")}
+    assert not names & {"package.json", "package-lock.json", "playwright.config.js", "node_modules", "test", "e2e", "serve.js", "harness.js"}
+    assert not any(n.endswith((".test.js", ".spec.js", ".slow.js")) for n in names)
+
+
+def test_version_json_lists_every_file_with_its_real_hash_and_a_build_id(built):
+    out, r = built
+    v = json.loads((out / "version.json").read_text(encoding="utf-8"))
+    assert v["build"] == r["build"] and re.fullmatch(r"[0-9a-f]{10}", v["build"])
+    assert set(v["files"]) == {str(p.relative_to(out)) for p in out.rglob("*") if p.is_file() and p.name != "version.json"}
+    for name, info in v["files"].items():
+        data = (out / name).read_bytes()
+        assert info["bytes"] == len(data) and info["sha256"] == hashlib.sha256(data).hexdigest(), name
+
+
+def test_every_script_and_style_reference_carries_the_build_id_so_an_old_cache_cannot_mix_versions(built):
+    out, r = built
+    html = (out / "index.html").read_text(encoding="utf-8")
+    refs = re.findall(r'<(?:script|link)\b[^>]*?(?:src|href)="([^"?]+\.(?:js|css))(\?[^"]*)?"', html)
+    assert len(refs) >= 10
+    assert all(q == f"?v={r['build']}" for _, q in refs), refs
+    assert "pieces.svg" not in html, "the sprite is fetched by the scripts, not referenced here"
+
+
+def test_the_build_is_deterministic_and_changes_with_the_content(tmp_path):
+    a, b = D.build(D.WEB, tmp_path / "a"), D.build(D.WEB, tmp_path / "b")
+    assert a["build"] == b["build"] and (tmp_path / "a" / "index.html").read_bytes() == (tmp_path / "b" / "index.html").read_bytes()
+    src = tmp_path / "web"
+    src.mkdir()
+    for p in D.WEB.iterdir():
+        if p.is_file():
+            (src / p.name).write_bytes(p.read_bytes())
+    (src / "data").mkdir()
+    (src / "data" / "positions.json").write_bytes((D.WEB / "data" / "positions.json").read_bytes())
+    (src / "app.js").write_text((D.WEB / "app.js").read_text(encoding="utf-8") + "\n// changed\n", encoding="utf-8")
+    assert D.build(src, tmp_path / "c")["build"] != a["build"]
+
+
+def test_meta_csp_is_the_nginx_policy_without_frame_ancestors_and_is_off_by_default(tmp_path):
+    plain = D.build(D.WEB, tmp_path / "plain")
+    assert "Content-Security-Policy" not in (tmp_path / "plain" / "index.html").read_text(encoding="utf-8") and plain["files"] > 10
+    D.build(D.WEB, tmp_path / "meta", with_meta_csp=True)
+    html = (tmp_path / "meta" / "index.html").read_text(encoding="utf-8")
+    m = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">', html)
+    assert m and m.group(1).startswith("default-src 'self'") and "frame-ancestors" not in m.group(1)
+    assert "unsafe-inline" not in m.group(1) and "unsafe-eval" not in m.group(1)
+    assert html.index("Content-Security-Policy") < html.index("<script"), "the policy comes before any script"
+    nginx = D.csp_from_nginx()
+    assert set(m.group(1).split("; ")) == set(nginx.split("; ")) - {"frame-ancestors 'none'"}
+
+
+def test_it_refuses_to_wipe_a_directory_that_is_not_a_previous_dist_and_reports_missing_files(tmp_path):
+    keep = tmp_path / "precious"
+    keep.mkdir()
+    (keep / "notes.txt").write_text("do not delete")
+    with pytest.raises(SystemExit, match="refusing to delete"):
+        D.build(D.WEB, keep)
+    assert (keep / "notes.txt").exists()
+    D.build(D.WEB, tmp_path / "again")
+    D.build(D.WEB, tmp_path / "again")  # a previous dist may be rebuilt in place
+    broken = tmp_path / "web"
+    broken.mkdir()
+    (broken / "index.html").write_text('<script src="nope.js"></script><link rel="stylesheet" href="gone.css">')
+    with pytest.raises(SystemExit, match="nope.js, gone.css"):
+        D.build(broken, tmp_path / "out")
+
+
+def test_local_assets_finds_scripts_and_styles_in_any_attribute_order_and_ignores_remote_ones():
+    html = '<script defer src="a.js"></script><script src="b.js?x=1"></script><link rel="stylesheet" href="c.css"><script src="https://cdn.example/x.js"></script><link href="d.svg" rel="icon"><script defer src="a.js"></script>'
+    assert D.local_assets(html) == ["a.js", "b.js", "c.css", "d.svg"]
+    stamped = D.ATTR.sub(lambda m: f"{m.group(1)}{m.group(2)}?v=X{m.group(4)}", '<script src="b.js?old=1"></script><script defer src="a.js"></script>')
+    assert stamped == '<script src="b.js?v=X"></script><script defer src="a.js?v=X"></script>', "an existing query is replaced, not doubled"
+
+
+def test_the_shipped_site_is_within_its_size_budgets(built):
+    _, r = built
+    assert r["code_gzip"] <= CODE_GZIP_BUDGET, f"scripts and styles are {r['code_gzip'] / 1024:.1f} KB gzipped"
+    assert r["data_gzip"] <= DATA_GZIP_BUDGET, f"the dataset is {r['data_gzip'] / 1024:.1f} KB gzipped"
+
+
+def test_main_builds_and_reports(tmp_path, capsys):
+    assert D.main(["--out", str(tmp_path / "d")]) == 0
+    assert "files" in capsys.readouterr().err and (tmp_path / "d" / "version.json").exists()

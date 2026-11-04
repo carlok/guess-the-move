@@ -14,7 +14,7 @@ IN          ?= $(CURDIR)/data
 OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
-.PHONY: help test coverage coverage-python coverage-js containers-check ci mutation e2e lighthouse web-image builder-image api-image api-weights run run-api stop dataset
+.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e lighthouse web-image builder-image api-image api-weights run run-api stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
@@ -53,6 +53,7 @@ containers-check:
 ci: coverage-python coverage-js
 	cd web && npm test
 	cd web && npx playwright test
+	$(MAKE) dist-check
 	$(MAKE) containers-check
 
 # Stryker edits web/scoring.js in place and restores it: run on a clean tree (git status).
@@ -62,6 +63,14 @@ mutation:
 	cd web && npx --yes -p @stryker-mutator/core -p @stryker-mutator/tap-runner stryker run stryker.config.json
 
 # Browser tests in real Chrome (web/e2e). GTM_BASE_URL=http://127.0.0.1:8080 targets a running container.
+# The static site and nothing else in dist/ (any web host can serve it; see docs/deploy.md). dist-check runs the page,
+# CSP and layout browser tests against that folder, so a file missing from it fails here and not in production.
+dist:
+	$(PYTHON) tools/build_dist.py --out dist
+
+dist-check: dist
+	cd web && GTM_ROOT=../dist npx playwright test smoke csp ui
+
 e2e:
 	cd web && npx playwright test
 

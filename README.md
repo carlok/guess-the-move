@@ -51,6 +51,10 @@ GTM_ENGINE=/opt/homebrew/bin/stockfish .venv/bin/python -m pytest -q   # + real-
 
 What is covered: maths, tags, sampler, `build_dataset.main()` end to end (a UCI stub script stands in for the engine and a fake `maia2` module for the model, so no Stockfish or torch is needed), shared Python/JS test vectors (`tests/gen_vectors.py` regenerates them; a test fails if they drift), `hypothesis` property tests, and the DOM flows in jsdom. Thresholds live in `tools/check_coverage.py` and `web/package.json` and only ratchet up. Browser tests (`make e2e`, Playwright in the installed Chrome, no browser download) cover what jsdom cannot: real pointer geometry, touch drag, scrolling, layout at 1280x800, 768x1024 and 390x844 (touch, DPR 2), axe-core, and a smoke run against a container (`GTM_BASE_URL=http://127.0.0.1:8080`). `make lighthouse` audits the running container. Third-party pieces and icons are listed in `NOTICE`.
 
+## Deploying
+
+`make dist` builds a clean static `dist/` for any web host, `make dist-check` tests it in a browser; the headers a host should send are in `docs/deploy.md`.
+
 ## Containers (rootless podman)
 
 The app runs as podman services. Built, started and probed on 2026-11-03 on macOS (podman 5.8.2, `libkrun` machine, rootless, arm64 Linux VM; Docker Compose v5.6.1 as the compose provider; Quadlet inside the machine VM). **Not tried:** a Linux host (SELinux `:Z` behaviour, native rootless uid mapping), `podman-compose`.
