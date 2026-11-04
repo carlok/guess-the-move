@@ -241,18 +241,19 @@ test('Suggest a position leaves the stats page for the board, with a chip naming
   await expect(page.locator('#pickChip'), 'the chip is about the position being chosen, not the answer').toBeVisible();
 });
 
-test('the adaptive setting is remembered across a reload and shows the chip on the positions it picks', async ({ page }) => {
+test('level-sharpening picks are on by default, show their chip, and switching them off is remembered across a reload', async ({ page }) => {
   await openLevel(page, '', { history: [] });
   await expect(page.locator('[data-sq]')).toHaveCount(64);
-  await expect(page.locator('#pickChip')).toBeHidden();
+  await expect(page.locator('#pickChip')).toBeVisible();
   await page.locator('#menuBtn').click();
-  await page.locator('#adaptiveToggle').check();
+  await expect(page.locator('#adaptiveToggle')).toBeChecked();
+  await page.locator('#adaptiveToggle').uncheck();
   await page.locator('#menuClose').click();
   await page.reload();
   await page.locator('#menuBtn').click();
-  await expect(page.locator('#adaptiveToggle')).toBeChecked();
+  await expect(page.locator('#adaptiveToggle')).not.toBeChecked();
   await page.locator('#menuClose').click();
-  await expect(page.locator('#pickChip')).toBeVisible();
+  await expect(page.locator('#pickChip')).toBeHidden();
 });
 
 /* ---------- move tiers ---------- */

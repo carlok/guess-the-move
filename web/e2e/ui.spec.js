@@ -192,3 +192,38 @@ test('the filter dropdowns stay inside the panel however long their options are'
   expect(m.filters).toBeLessThanOrEqual(m.panel + 0.5);
   expect(m.sw, 'no horizontal scroll').toBeLessThanOrEqual(m.vw);
 });
+
+test('on a large screen the board grows with the window height instead of leaving empty bands on both sides', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'sizes are set here, whatever the project');
+  // positions with an opening and rating data, so the opening line and the "chosen to sharpen" chip are on screen, as in real use
+  const by = { 1000: { a1a8: 0.1, g1g2: 0.6 }, 2200: { a1a8: 0.8, g1g2: 0.05 } };
+  const real = (i) => ({ ...ROOK, id: 'g' + String(i).padStart(9, '0'), game: { opening: 'Scandinavian Defense: Modern Variation', eco: 'B01' }, maia: { ...ROOK.maia, by_elo: by } });
+  await preset(page, { confirm: false });
+  await serveDataset(page, Array.from({ length: 6 }, (_, i) => real(i)));
+  await page.goto('/');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await expect(page.locator('#openingLine')).toBeVisible();
+  await expect(page.locator('#pickChip')).toBeVisible();
+  const measure = async (w, h) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(100);
+    return page.evaluate(() => {
+      const r = (s) => document.querySelector(s).getBoundingClientRect();
+      return { board: r('#boardSvg'), main: r('#gameMain'), panel: r('#panel'), prompt: r('#prompt'), top: r('.topbar'), vh: innerHeight, vw: innerWidth, sw: document.documentElement.scrollWidth };
+    });
+  };
+  const small = await measure(1280, 800);
+  expect(small.board.width, 'unchanged at 1280x800').toBeLessThanOrEqual(680);
+  const hd = await measure(1920, 1080);
+  expect(hd.board.width, 'full HD').toBeGreaterThanOrEqual(800);
+  expect(hd.prompt.bottom, 'the board and its prompt are visible without scrolling').toBeLessThanOrEqual(hd.vh);
+  expect(hd.main.width, 'the page uses the width').toBeGreaterThanOrEqual(1500);
+  const qhd = await measure(2560, 1440);
+  expect(qhd.board.width, 'QHD').toBeGreaterThanOrEqual(1100);
+  expect(qhd.prompt.bottom).toBeLessThanOrEqual(qhd.vh);
+  expect(qhd.main.width).toBeGreaterThanOrEqual(2000);
+  expect(qhd.panel.width, 'the panel stays readable, not stretched across the leftover width').toBeLessThanOrEqual(800);
+  expect(Math.abs((qhd.main.left + qhd.main.right) / 2 - qhd.vw / 2), 'centred').toBeLessThan(2);
+  expect(Math.abs(qhd.board.left - qhd.top.left - 16), 'the board lines up with the header').toBeLessThan(2);
+  for (const m of [small, hd, qhd]) expect(m.sw).toBeLessThanOrEqual(m.vw);
+});

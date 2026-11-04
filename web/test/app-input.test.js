@@ -984,28 +984,28 @@ test('Suggest does nothing when no position carries rating data or has anything 
   assert.equal($(flat, 'statsView').hidden, false, 'stays on the stats page: nothing to suggest');
 });
 
-test('the adaptive setting picks the most informative position, is remembered, and does nothing in predict mode or without rating data', async () => {
+test('picking positions that sharpen the level estimate is on by default; switching it off is remembered; it does nothing in predict mode or without rating data', async () => {
   const data = dataOf(ANCHORED('same', ALIKE), ANCHORED('hard', STRONG_AT_HIGH));
-  const off = await boot(data);
-  assert.equal($(off, 'adaptiveToggle').checked, false);
-  assert.equal($(off, 'pickChip').hidden, true);
-  assert.equal($(off, 'chips').hidden, true, 'no chip, no row');
-  const on = await boot(data, { ls: { adaptive: true } });
-  assert.equal($(on, 'adaptiveToggle').checked, true);
+  const on = await boot(data);
+  assert.equal($(on, 'adaptiveToggle').checked, true, 'on by default');
   assert.equal($(on, 'pickChip').hidden, false, 'the first position is already the informative one (the other teaches nothing)');
   assert.equal($(on, 'chips').hidden, false, 'and the row that holds the chip is shown');
   assert.match($(on, 'pickChip').textContent, /bits/);
   $(on, 'adaptiveToggle').checked = false; $(on, 'adaptiveToggle').dispatchEvent(new on.Event('change', { bubbles: true }));
   assert.equal(JSON.parse(on.localStorage.getItem('gtm.v1.adaptive')), false);
-  const predict = await boot(data, { ls: { adaptive: true } });
+  const off = await boot(data, { ls: { adaptive: false } });
+  assert.equal($(off, 'adaptiveToggle').checked, false);
+  assert.equal($(off, 'pickChip').hidden, true);
+  assert.equal($(off, 'chips').hidden, true, 'no chip, no row');
+  const predict = await boot(data);
   predict.document.querySelector('input[value=predict]').click();
   click(predict, 'skip');
   assert.equal($(predict, 'pickChip').hidden, true, 'predict mode is not about your level');
-  const plain = await boot(dataOf(ROOK, CAPTURE), { ls: { adaptive: true } });
-  click(plain, 'skip');
+  const plain = await boot(dataOf(ROOK, CAPTURE));
   assert.equal($(plain, 'pickChip').hidden, true, 'no rating data: a random position');
+  click(plain, 'skip');
+  assert.equal($(plain, 'pickChip').hidden, true);
 });
-
 test('opening the page at #stats before the data has loaded fills in the level card once it arrives', async () => {
   let release;
   const gate = new Promise((r) => { release = r; });
