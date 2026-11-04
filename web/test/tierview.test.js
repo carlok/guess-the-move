@@ -68,3 +68,12 @@ test('the list has a button per legal move with rank, tier, cost and the roles t
   const rows = [...html.matchAll(/data-uci="(\w)"/g)].map((m) => m[1]);
   assert.deepEqual(rows, V.ordered(sum.all), 'listed best to worst');
 });
+
+test('the glyph of a drawn icon is centred in its disc: the 24-unit glyph, scaled, lands on the middle (12, 12)', () => {
+  ['best', 'excellent', 'good'].forEach((t) => {
+    const m = /translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)/.exec(V.icon(t, T));
+    assert.ok(m, t);
+    const [dx, dy, s] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    assert.ok(Math.abs(dx + 12 * s - 12) < 1e-9 && Math.abs(dy + 12 * s - 12) < 1e-9, `${t}: the glyph's centre is at ${dx + 12 * s}, ${dy + 12 * s}`);
+  });
+});

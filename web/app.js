@@ -12,7 +12,7 @@
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
-  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, GOAL_KEY = 'gtm.v1.goal', GOALDAY_KEY = 'gtm.v1.goalday', ORIENT_KEY = 'gtm.v1.orientation', COORDS_KEY = 'gtm.v1.coords', SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
+  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, GOAL_KEY = 'gtm.v1.goal', GOALDAY_KEY = 'gtm.v1.goalday', ORIENT_KEY = 'gtm.v1.orientation', COORDS_KEY = 'gtm.v1.coords', SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', PICKER_KEY = 'gtm.v1.picker', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
@@ -20,10 +20,10 @@
     data: null, pos: null, parsed: null, legalFrom: {}, flipped: false,
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
-    seen: new Set(), history: [], showTimer: true, statsPushed: false,
+    seen: new Set(), history: [], showTimer: true, pagePushed: false,
     session: null, goal: 10, orientation: 'auto', coords: true,
     srs: {}, plays: 0, srsOn: true, sinceRetry: RETRY_GAP, retrying: false,
-    adaptive: false, hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
+    picker: 'sharpen', hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
     trail: [], cur: null // positions answered in this visit, and the one being reviewed (null: a live position)
   };
   var snd = null; // sound effects, made in init()
@@ -62,7 +62,7 @@
   function timerPause() { if (timer.since !== null) { timer.acc += nowMs() - timer.since; timer.since = null; } }
   function timerStop() { timerPause(); renderTimer(); }
   function timerReset() { timer.acc = 0; timer.since = null; renderTimer(); }
-  function overlayOpen() { return !$('menu').hidden || !$('statsView').hidden || !$('reportView').hidden || document.hidden === true; }
+  function overlayOpen() { return pageIsOpen() || !$('reportView').hidden || document.hidden === true; }
   function timerResume() { if (S.pos && !S.revealed && timer.since === null && !overlayOpen()) timer.since = nowMs(); }
 
   /* ---------- sound ---------- */
@@ -211,7 +211,7 @@
     if (ses) $('sessionChip').textContent = T.session.chip(ses.done ? ses.n : Math.min(ses.n, ses.rows.length + (S.revealed ? 0 : 1)), ses.n);
     $('next').textContent = ses && ses.done && S.revealed && !reviewing ? T.session.seeReport : T.next;
     $('pickChip').hidden = reviewing || S.picked === null || !S.pos;
-    if (!$('pickChip').hidden) $('pickChip').textContent = T.level.pickedBits(S.picked);
+    if (!$('pickChip').hidden) $('pickChip').textContent = typeof S.picked === 'number' ? T.level.pickedBits(S.picked) : T.level.pickedMatch(S.picked.mode, S.picked.p);
     $('skip').hidden = !S.pos || S.revealed;
     $('confirm').hidden = !S.pending || S.revealed;
     $('next').hidden = !S.revealed;
@@ -285,8 +285,8 @@
     if (!hasMaia) html += '<p class="detail">' + T.noMaia + '</p>';
     var tags = (p.tags || []).filter(function (t) { return T.tags[t]; });
     if (tags.length) html += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(T.tags[t]) + '</span>'; }).join('') + '</div>';
-    html += '<p class="detail"><button type="button" class="link" id="saveImage">' + T.share.saveImage + '</button> <button type="button" class="link" id="saveFen">' + T.share.saveFen + '</button> <button type="button" class="link" id="copyFen">' + T.share.copyFen + '</button></p>';
-    if (!p.custom) html += '<p class="detail"><button type="button" class="link" id="copyAnswer">' + T.link.copyAnswer + '</button></p>';
+    html += '<div class="result-actions"><button type="button" id="saveImage">' + T.share.saveImage + '</button><button type="button" id="saveFen">' + T.share.saveFen + '</button><button type="button" id="copyFen">' + T.share.copyFen + '</button>' +
+      (p.custom ? '' : '<button type="button" id="copyAnswer">' + T.link.copyAnswer + '</button>') + '</div>';
     if (p.site) html += '<p class="detail"><a href="' + esc(gameLink(p)) + '" rel="noopener noreferrer" target="_blank">' + T.sourceGame + '</a></p>';
     if (!p.custom) html += '<p class="detail"><a id="reportIssue" href="' + esc(issueUrl(p)) + '" rel="noopener noreferrer" target="_blank">' + T.issue.link + '</a></p>';
     box.innerHTML = html;
@@ -380,7 +380,7 @@
     var p = S.data && pickRetry(true);
     if (!p) return;
     document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
-    closeStatsView();
+    closePage();
     S.sinceRetry = 0;
     loadPosition(p, undefined, undefined, true);
   }
@@ -456,8 +456,12 @@
       $('prompt').textContent = $('unseen').checked ? T.prompt.noneUnseen : T.prompt.none;
       return;
     }
-    var pick = S.adaptive && S.mode === 'best' && S.hasAnchors ? sharpest(list) : null;
-    if (pick) loadPosition(pick.pos, undefined, pick.bits);
+    var pick = null;
+    if (S.mode === 'best' && S.hasAnchors) {
+      if (S.picker === 'sharpen') pick = sharpest(list);
+      else if (S.picker === 'match' || S.picker === 'harder') pick = matched(list, S.picker);
+    }
+    if (pick) loadPosition(pick.pos, undefined, pick.mode ? pick : pick.bits); // what the chip says: the chance of the best move, or bits
     else loadPosition(list[Math.floor(Math.random() * list.length)]);
   }
 
@@ -632,15 +636,13 @@
   }
 
   function onDocKey(e) {
-    if (e.key === 'Escape' && menuIsOpen()) { closeMenu(); return; }
-    if (menuIsOpen()) return; // the menu is modal: board shortcuts stay off while it is open
     if (reportOpen()) { if (e.key === 'Escape') closeReport(true); return; }
-    if (statsIsOpen()) { if (e.key === 'Escape') closeStatsView(); return; }
+    if (pageIsOpen()) { if (e.key === 'Escape') closePage(); return; }
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     if ((e.key === 'n' || e.key === 'N') && S.revealed) goNext();
     if ((e.key === 'p' || e.key === 'P') && !$('back').hidden) goBack();
     if ((e.key === 's' || e.key === 'S') && !$('skip').hidden) skipPosition();
-    if (e.key === '?') { openMenu(); if ($('menuKeys').scrollIntoView) $('menuKeys').scrollIntoView(); }
+    if (e.key === '?') { openPage('help'); if ($('helpKeys').scrollIntoView) $('helpKeys').scrollIntoView(); }
     if (e.key === 'Escape') {
       if (gest.active()) cancelGesture();
       else if (!S.revealed && (S.selected || S.promo || S.pending)) { clearSelection(); sfx('deselect'); announce(T.live.cancelled); }
@@ -734,8 +736,8 @@
       $('openingLabel').hidden = !top.length;
       if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; $('demoChip').hidden = false; }
       $('skeleton').hidden = true;
-      if (menuIsOpen()) renderAbout();
-      if (statsIsOpen()) drawStats(); // opened at #stats before the data arrived: the level card needs it
+      if (pageName() === 'about') renderAbout(); // opened by its link before the data arrived
+      if (pageName() === 'stats') drawStats(); // opened at #stats before the data arrived: the level card needs it
       renderStats();
       if (!consumeRoute()) nextPosition();
     }).catch(function (e) {
@@ -744,12 +746,10 @@
     });
   }
 
-  /* ---------- menu: how it works, the data, credits ---------- */
-
-  function menuIsOpen() { return !$('menu').hidden; }
+  /* ---------- the data, in the About page ---------- */
 
   function renderAbout() {
-    var el = $('aboutData'), d = S.data;
+    var el = $('aboutList'), d = S.data;
     if (!d) { el.innerHTML = '<li>' + T.about.loading + '</li>'; return; }
     var m = d.meta || {}, prov = m.provenance || {}, eng = prov.engine || {}, maia = prov.maia, items = [];
     var dates = d.positions.map(function (p) { return p.game && p.game.date; }).filter(Boolean).sort();
@@ -761,33 +761,6 @@
     if (prov.players_stored === true) items.push(T.about.namesStored);
     else if (prov.players_stored === false) items.push(T.about.names);
     el.innerHTML = items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('');
-  }
-
-  function openMenu() {
-    S.menuReturn = document.activeElement;
-    renderAbout();
-    $('menu').hidden = false; $('menuBackdrop').hidden = false;
-    $('menuBtn').setAttribute('aria-expanded', 'true');
-    document.documentElement.classList.add('menu-open');
-    timerPause(); sfx('tick');
-    $('menuClose').focus();
-  }
-
-  function closeMenu() {
-    $('menu').hidden = true; $('menuBackdrop').hidden = true;
-    $('menuBtn').setAttribute('aria-expanded', 'false');
-    document.documentElement.classList.remove('menu-open');
-    timerResume(); sfx('tick');
-    $('menuBtn').focus();
-  }
-
-  /* Keep Tab inside the open menu (it is modal). */
-  function trapTab(e) {
-    if (e.key !== 'Tab') return;
-    var f = Array.prototype.filter.call($('menu').querySelectorAll('a[href], button:not([disabled])'), function (el) { return !el.hidden; });
-    var first = f[0], last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
   /* ---------- level estimate (web/level.js): from first-time best-move guesses, using the anchors stored in the data ---------- */
@@ -825,12 +798,24 @@
     return window.GTM_LEVEL.suggest(list, window.GTM_LEVEL.posterior(levelObservations()), Math.random, 5);
   }
 
+  /* The estimated level now (the mean of the posterior), or null before LEVEL_MIN counted guesses. */
+  function levelMean() {
+    var obs = levelObservations();
+    return obs.length < LEVEL_MIN ? null : window.GTM_LEVEL.summary(window.GTM_LEVEL.posterior(obs)).mean;
+  }
+
+  /* A position of the right difficulty for the estimated level (see GTM_LEVEL.matchPick); null until there is an estimate. */
+  function matched(list, mode) {
+    var r = levelMean();
+    return r === null ? null : window.GTM_LEVEL.matchPick(list, r, mode, Math.random);
+  }
+
   function suggestAndGo() {
     if (!S.data) return;
     var list = applyFilters(), s = sharpest(list.length ? list : S.data.positions);
     if (!s) return;
     document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
-    closeStatsView();
+    closePage();
     loadPosition(s.pos, undefined, s.bits);
   }
 
@@ -888,7 +873,7 @@
 
   function parseHash() {
     var h = window.location.hash.replace(/^#/, '');
-    if (h === 'stats') return { view: 'stats' };
+    if (PAGES.indexOf(h) >= 0) return { view: h };
     var m = /^p=([0-9a-f]{10})(?:&m=([a-h][1-8][a-h][1-8][qrbn]?))?$/.exec(h);
     return m ? { view: 'position', id: m[1], move: m[2] || null } : null;
   }
@@ -912,8 +897,8 @@
     var r = S.route || parseHash();
     S.route = null;
     if (!r || r.view !== 'position') return false;
-    cleanHash(); S.statsPushed = false;
-    if (statsIsOpen()) showStats(false);
+    cleanHash(); S.pagePushed = false;
+    if (pageIsOpen()) showPage(null);
     var p = positionById()[r.id];
     if (!p) { nextPosition(); $('prompt').hidden = false; $('prompt').textContent = T.link.missing + ' ' + $('prompt').textContent; return true; }
     if (r.move && p.evals[r.move]) {
@@ -933,9 +918,16 @@
     else say(T.link.manual(url)); // no clipboard (an insecure page): show it to copy by hand
   }
 
-  /* ---------- the full stats view (a page of its own, reachable at #stats) ---------- */
+  /* ---------- pages: stats, settings, how it works, about (each reachable at #<name>) ---------- */
 
-  function statsIsOpen() { return !$('statsView').hidden; }
+  var PAGES = ['stats', 'settings', 'help', 'about'];
+
+  /* The name of the page on screen, or null when the board is. */
+  function pageName() {
+    for (var i = 0; i < PAGES.length; i++) if (!$(PAGES[i] + 'View').hidden) return PAGES[i];
+    return null;
+  }
+  function pageIsOpen() { return pageName() !== null; }
 
   /* Charts are drawn at the width of the page, so they are redrawn when the window is resized (or the phone turned). */
   /* History entries from before tiers existed get theirs from the dataset (not saved back). */
@@ -950,25 +942,40 @@
 
   function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, now: nowMs(), goal: S.goal, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays), last: store.get(LAST_KEY, null) }); }
 
-  function showStats(on) {
-    if (on === statsIsOpen()) return;
-    $('statsView').hidden = !on;
-    $('gameMain').hidden = on;
-    document.querySelector('footer').hidden = on;
-    if (on) { drawStats(); timerPause(); $('statsTitle').focus(); }
-    else { timerResume(); $('statsBtn').focus(); }
+  /* Show a page (or, with null, the board). Opening the first page pauses the timer, leaving the last one resumes it. */
+  function showPage(name) {
+    var cur = pageName();
+    if (name === cur) return;
+    PAGES.forEach(function (n) { $(n + 'View').hidden = n !== name; });
+    $('gameMain').hidden = name !== null;
+    document.querySelector('footer').hidden = name !== null;
+    Array.prototype.forEach.call(document.querySelectorAll('.pagenav a'), function (a) {
+      if (a.getAttribute('href') === '#' + name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    if (name) {
+      if (name === 'stats') drawStats();
+      if (name === 'about') renderAbout();
+      if (!cur) timerPause();
+      $(name + 'Title').focus();
+      window.scrollTo(0, 0);
+    } else {
+      timerResume();
+      ($(cur + 'Btn') || $('helpBtn')).focus();
+    }
   }
 
-  function openStatsView() {
+  /* From the board a page is a new history entry, so the browser's Back button leaves it; between pages the entry is replaced. */
+  function openPage(name) {
     sfx('tick');
-    if (window.location.hash !== '#stats') { S.statsPushed = true; window.location.hash = 'stats'; }
-    showStats(true);
+    if (pageIsOpen()) { window.history.replaceState(null, '', '#' + name); showPage(name); return; }
+    if (window.location.hash !== '#' + name) { S.pagePushed = true; window.location.hash = name; }
+    showPage(name);
   }
 
-  function closeStatsView() {
+  function closePage() {
     sfx('tick');
-    if (S.statsPushed) { S.statsPushed = false; window.history.back(); } // the hashchange below hides the view
-    else { window.history.replaceState(null, '', window.location.pathname + window.location.search); showStats(false); }
+    if (S.pagePushed) { S.pagePushed = false; window.history.back(); } // the hashchange below hides the view
+    else { window.history.replaceState(null, '', window.location.pathname + window.location.search); showPage(null); }
   }
 
   /* ---------- stats backup: download and load ---------- */
@@ -1075,14 +1082,16 @@
     S.coords = store.get(COORDS_KEY, true) !== false; $('coordsToggle').checked = S.coords; $('boardSvg').classList.toggle('no-coords', !S.coords);
     S.srs = SRS.sanitize(store.get(SRS_KEY, {})); S.plays = Math.max(0, Math.floor(Number(store.get(PLAYS_KEY, 0)) || 0));
     S.srsOn = store.get(SRS_ON_KEY, true) !== false; $('srsToggle').checked = S.srsOn;
-    S.adaptive = store.get(ADAPTIVE_KEY, true) !== false; // on unless the person turned it off
-    $('adaptiveToggle').checked = S.adaptive;
+    /* How positions are picked: 'sharpen' (the default), 'random', 'match' or 'harder'. The first version stored a yes/no under another key. */
+    S.picker = store.get(PICKER_KEY, null);
+    if (['sharpen', 'random', 'match', 'harder'].indexOf(S.picker) < 0) S.picker = store.get(ADAPTIVE_KEY, true) === false ? 'random' : 'sharpen';
+    $('picker').value = S.picker;
     S.showTimer = store.get(TIMER_KEY, true) !== false;
     $('timerToggle').checked = S.showTimer; $('timer').hidden = !S.showTimer;
     snd = window.GTM_SOUND ? window.GTM_SOUND.create(window.AudioContext || window.webkitAudioContext, store.get(SOUND_KEY, true) !== false) : null;
     updateSoundButton();
     S.route = parseHash();
-    if (S.route && S.route.view === 'stats') { S.route = null; showStats(true); }
+    if (S.route && PAGES.indexOf(S.route.view) >= 0) { var first = S.route.view; S.route = null; showPage(first); }
     S.confirm = store.get(CONFIRM_KEY, null);
     if (S.confirm === null) S.confirm = media('(pointer: coarse)'); // a slip of the finger is likelier than a slip of the mouse
     $('confirmToggle').checked = S.confirm;
@@ -1153,7 +1162,7 @@
       if (b) reviewFromReport(Number(b.getAttribute('data-index')));
     });
     $('srsToggle').addEventListener('change', function () { S.srsOn = $('srsToggle').checked; store.set(SRS_ON_KEY, S.srsOn); });
-    $('adaptiveToggle').addEventListener('change', function () { S.adaptive = $('adaptiveToggle').checked; store.set(ADAPTIVE_KEY, S.adaptive); });
+    $('picker').addEventListener('change', function () { S.picker = $('picker').value; store.set(PICKER_KEY, S.picker); });
     $('result').addEventListener('click', function (e) {
       if (e.target && e.target.id === 'copyAnswer') { copyLink(S.result.you.uci); return; }
       if (e.target && e.target.id === 'saveImage') { saveImage(); return; }
@@ -1164,9 +1173,19 @@
     });
     $('statsBody').addEventListener('click', function (e) { if (e.target && e.target.id === 'suggestBtn') suggestAndGo(); if (e.target && e.target.id === 'retryNowBtn') retryNow(); });
     $('timerToggle').addEventListener('change', function () { S.showTimer = $('timerToggle').checked; store.set(TIMER_KEY, S.showTimer); $('timer').hidden = !S.showTimer; });
-    $('statsBtn').addEventListener('click', openStatsView);
-    $('openStats').addEventListener('click', openStatsView);
-    $('statsBack').addEventListener('click', closeStatsView);
+    PAGES.forEach(function (n) {
+      $(n + 'Back').addEventListener('click', closePage);
+      if ($(n + 'Btn')) $(n + 'Btn').addEventListener('click', function () { if (pageName() === n) closePage(); else openPage(n); });
+    });
+    $('openStats').addEventListener('click', function () { openPage('stats'); });
+    Array.prototype.forEach.call(document.querySelectorAll('.pagenav'), function (nav) {
+      nav.addEventListener('click', function (e) {
+        var a = e.target.closest ? e.target.closest('a[href^="#"]') : null;
+        if (!a) return;
+        e.preventDefault();
+        if (a.getAttribute('href').slice(1) !== pageName()) openPage(a.getAttribute('href').slice(1));
+      });
+    });
     $('exportBtn').addEventListener('click', exportStats);
     $('importBtn').addEventListener('click', function () { $('importFile').click(); });
     $('importFile').addEventListener('change', function () {
@@ -1174,21 +1193,17 @@
       if (f) importStats(f);
       $('importFile').value = ''; // the same file can be chosen again
     });
-    window.addEventListener('resize', function () { if (statsIsOpen()) drawStats(); });
+    window.addEventListener('resize', function () { if (pageName() === 'stats') drawStats(); });
     window.addEventListener('hashchange', function () {
       var r = parseHash();
-      if (r && r.view === 'position') { S.route = r; if (S.data) consumeRoute(); } else showStats(window.location.hash === '#stats');
+      if (r && r.view === 'position') { S.route = r; if (S.data) consumeRoute(); } else showPage(PAGES.indexOf(window.location.hash.slice(1)) >= 0 ? window.location.hash.slice(1) : null);
     });
     $('linkBtn').addEventListener('click', function () { copyLink(null); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) timerPause(); else timerResume(); });
     window.setInterval(function () { if (timer.since !== null) renderTimer(); }, 250);
     $('analyseBtn').addEventListener('click', analyseCustom);
     $('estimateBtn').addEventListener('click', estimateLevel);
-    $('menuBtn').addEventListener('click', function () { if (menuIsOpen()) closeMenu(); else openMenu(); });
-    $('menuClose').addEventListener('click', closeMenu);
-    $('menuBackdrop').addEventListener('click', closeMenu);
-    $('menu').addEventListener('keydown', trapTab);
-    $('tourBtn').addEventListener('click', function () { closeMenu(); $('onboarding').hidden = false; });
+    $('tourBtn').addEventListener('click', function () { closePage(); $('onboarding').hidden = false; });
     $('onboardingClose').addEventListener('click', function () { $('onboarding').hidden = true; store.set(ONBOARD_KEY, true); });
     document.addEventListener('keydown', onDocKey);
   }

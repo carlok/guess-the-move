@@ -228,12 +228,12 @@ test.describe('confirm before reveal', () => {
   test('the setting is a labelled toggle and it persists', async ({ page }) => {
     await preset(page, { confirm: false });
     await open(page);
-    await page.locator('#menuBtn').click(); // the settings are in the menu
+    await page.locator('#settingsBtn').click();
     const toggle = page.getByLabel(/confirm moves/i);
     await expect(toggle).not.toBeChecked();
     await toggle.check();
     await page.reload();
-    await page.locator('#menuBtn').click();
+    await page.locator('#settingsBtn').click();
     await expect(page.getByLabel(/confirm moves/i)).toBeChecked();
   });
 });

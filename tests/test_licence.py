@@ -31,7 +31,7 @@ def test_every_bundled_third_party_item_is_listed_with_its_licence():
 
 def test_the_in_app_credits_name_everything_notice_lists_and_link_to_it():
     html = read("web/index.html")
-    credits = html[html.index('id="menuCredits"'):html.index("</section>", html.index('id="menuCredits"'))]
+    credits = html[html.index('id="aboutCredits"'):html.index("</section>", html.index('id="aboutCredits"'))]
     for item in ("cburnett", "Lucide", "Feather", "Stockfish", "Maia-3", "Lichess", "AGPL", "NOTICE"):
         assert item in credits, item
     for licence in ("GPL-3.0", "AGPL-3.0", "GPL-2.0-or-later", "ISC", "MIT", "CC0"):
