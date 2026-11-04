@@ -43,6 +43,8 @@ button {
 button:hover { background: var(--surface-2); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
 button.primary:hover { filter: brightness(1.06); }
+/* Things you can do with the answer: real buttons, wrapping on a narrow screen. */
+.result-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-3) 0; }
 button.link { border: 0; background: none; color: var(--accent); min-height: var(--tap); padding: 0; }
 button[hidden] { display: none; }
 select { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0 var(--s-2); min-height: var(--tap); }

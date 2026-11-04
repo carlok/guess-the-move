@@ -285,8 +285,8 @@
     if (!hasMaia) html += '<p class="detail">' + T.noMaia + '</p>';
     var tags = (p.tags || []).filter(function (t) { return T.tags[t]; });
     if (tags.length) html += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(T.tags[t]) + '</span>'; }).join('') + '</div>';
-    html += '<p class="detail"><button type="button" class="link" id="saveImage">' + T.share.saveImage + '</button> <button type="button" class="link" id="saveFen">' + T.share.saveFen + '</button> <button type="button" class="link" id="copyFen">' + T.share.copyFen + '</button></p>';
-    if (!p.custom) html += '<p class="detail"><button type="button" class="link" id="copyAnswer">' + T.link.copyAnswer + '</button></p>';
+    html += '<div class="result-actions"><button type="button" id="saveImage">' + T.share.saveImage + '</button><button type="button" id="saveFen">' + T.share.saveFen + '</button><button type="button" id="copyFen">' + T.share.copyFen + '</button>' +
+      (p.custom ? '' : '<button type="button" id="copyAnswer">' + T.link.copyAnswer + '</button>') + '</div>';
     if (p.site) html += '<p class="detail"><a href="' + esc(gameLink(p)) + '" rel="noopener noreferrer" target="_blank">' + T.sourceGame + '</a></p>';
     if (!p.custom) html += '<p class="detail"><a id="reportIssue" href="' + esc(issueUrl(p)) + '" rel="noopener noreferrer" target="_blank">' + T.issue.link + '</a></p>';
     box.innerHTML = html;
