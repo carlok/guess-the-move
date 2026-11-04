@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Add Maia's move probabilities at the rating anchors (`maia.by_elo`) to a dataset that was built without them.
 
 The builder stores Maia's probabilities only at the real player's rating, and Maia-3 also reads the eight positions

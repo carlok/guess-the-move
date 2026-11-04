@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Scoring maths for Guess-the-Move. Must stay numerically identical to pipeline/winpct.py
  * (tests/vectors.json is checked by both test suites).
  *

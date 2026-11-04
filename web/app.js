@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Guess the Move - UI controller. No dependencies. Needs, in this order: strings.js, scoring.js, board.js.
  *
  * The board is one persistent <svg> with layers: squares, marks (selection, targets, pending), pieces, hover,
@@ -297,6 +298,7 @@
     if (tags.length) html += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(T.tags[t]) + '</span>'; }).join('') + '</div>';
     if (!p.custom) html += '<p class="detail"><button type="button" class="link" id="copyAnswer">' + T.link.copyAnswer + '</button></p>';
     if (p.site) html += '<p class="detail"><a href="' + esc(gameLink(p)) + '" rel="noopener noreferrer" target="_blank">' + T.sourceGame + '</a></p>';
+    if (!p.custom) html += '<p class="detail"><a id="reportIssue" href="' + esc(issueUrl(p)) + '" rel="noopener noreferrer" target="_blank">' + T.issue.link + '</a></p>';
     box.innerHTML = html;
     box.hidden = false;
 
@@ -902,6 +904,13 @@
   }
 
   function cleanHash() { window.history.replaceState(null, '', window.location.pathname + window.location.search); }
+
+  /* A pre-filled issue for this position (the issue form's field ids are `position` and `dataset`). Nothing is sent from the
+   * page: it is a link, and what it carries is the position id and the dataset's build date. */
+  function issueUrl(p) {
+    var repo = $('sourceLink').href.replace(/\/$/, ''), built = S.data && S.data.meta && S.data.meta.built ? String(S.data.meta.built).slice(0, 10) : '';
+    return repo + '/issues/new?template=position.yml&title=' + encodeURIComponent('Position ' + p.id) + '&position=' + encodeURIComponent(p.id) + '&dataset=' + encodeURIComponent(built);
+  }
 
   function linkTo(uci) {
     return window.location.origin + window.location.pathname + '#p=' + S.pos.id + (uci ? '&m=' + uci : '');

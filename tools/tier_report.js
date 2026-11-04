@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* What the move tiers (web/classify.js) do on the shipped dataset: how many legal moves fall in each tier, in how many
  * positions a Brilliant or Great move exists, how Great compares with the dataset's own only_move tag, and a sample of the

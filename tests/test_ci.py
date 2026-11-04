@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Static checks on the CI workflow: that it only calls things that exist, and stays least-privilege."""
 
 import re

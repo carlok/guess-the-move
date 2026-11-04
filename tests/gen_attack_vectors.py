@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Generate tests/attack_vectors.json: for a set of positions, which pieces attack each square, as python-chess says.
 
 web/classify.js has its own attack detector (it needs one to spot sacrifices); web/test/classify.test.js checks it against

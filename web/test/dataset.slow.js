@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Slow (about 30 s for 2,000 positions) and run by `npm test` but not by `npm run coverage`: instrumented, a fresh jsdom per position
  * exhausts memory, and the lines it exercises are covered by the other tests.

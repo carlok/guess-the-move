@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Browser tests (real Chrome, real layout, real pointer events). jsdom cannot test any of that.
 // Default: serves ./web with e2e/serve.js. GTM_BASE_URL=http://127.0.0.1:8080 runs the same specs
 // against a running container instead. Uses the installed Google Chrome (no browser download).

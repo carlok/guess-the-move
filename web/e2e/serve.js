@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Static file server for the browser tests: `node e2e/serve.js [port]`. Serves ./web (or $GTM_ROOT). Node's HTTP server has a deep listen
  * backlog; python's http.server dropped connections (ERR_SOCKET_NOT_CONNECTED) under 12 parallel page loads. */
@@ -6,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = process.env.GTM_ROOT ? path.resolve(process.env.GTM_ROOT) : path.resolve(__dirname, '..'); // GTM_ROOT=../dist serves a built dist/
-const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');

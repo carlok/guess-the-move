@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Dataset invariants shared by the shipped-file test and the end-to-end pipeline tests.
 
 Independent of the pipeline: legal moves and SAN come from python-chess again, not from the builder.

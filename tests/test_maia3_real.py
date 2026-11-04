@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Maia-3 with the real package and weights. Skipped unless `maia3` is installed (the Maia venv, see requirements-maia3.txt);
 the first run downloads the weights from Hugging Face. Checks behaviour that no fake can: legal keys, mirrored Black moves,
 a proper distribution, and that the rating input actually changes the answer."""

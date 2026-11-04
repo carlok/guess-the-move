@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Win-probability and move-quality maths.
 
 Formulas are the published Lichess ones (https://lichess.org/page/accuracy):

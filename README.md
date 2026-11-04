@@ -2,6 +2,14 @@
 
 A small free-software chess trainer for learning to see a position through another player's eyes.
 
+| The answer: tiers, the scale, every move | Your level, with its limits |
+|---|---|
+| ![The answer card: the move's tier, a bar showing how the position's legal moves split across the tiers, and the list of all legal moves](docs/screens/tiers-desktop.png) | ![The level card: an estimate with its 80% range, the density, and the estimate as you play](docs/screens/level-card-desktop.png) |
+
+| Your stats | A session report (phone) |
+|---|---|
+| ![The stats page: tiles and charts](docs/screens/after-desktop-1280x800-stats-light.png) | ![The session report on a phone: quality, best moves found, time, tiers and every move](docs/screens/session-report-phone.png) |
+
 You get a real position, guess a move, and the app reveals three references and how far your guess is from each, on a normalized scale:
 
 - **Stockfish's best move** (what is objectively best),
@@ -50,6 +58,10 @@ GTM_ENGINE=/opt/homebrew/bin/stockfish .venv/bin/python -m pytest -q   # + real-
 ```
 
 What is covered: maths, tags, sampler, `build_dataset.main()` end to end (a UCI stub script stands in for the engine and a fake `maia2` module for the model, so no Stockfish or torch is needed), shared Python/JS test vectors (`tests/gen_vectors.py` regenerates them; a test fails if they drift), `hypothesis` property tests, and the DOM flows in jsdom. Thresholds live in `tools/check_coverage.py` and `web/package.json` and only ratchet up. Browser tests (`make e2e`, Playwright in the installed Chrome, no browser download) cover what jsdom cannot: real pointer geometry, touch drag, scrolling, layout at 1280x800, 768x1024 and 390x844 (touch, DPR 2), axe-core, and a smoke run against a container (`GTM_BASE_URL=http://127.0.0.1:8080`). `make lighthouse` audits the running container. Third-party pieces and icons are listed in `NOTICE`.
+
+## Installing and offline
+
+Served from a `make dist` build over https (or localhost, e.g. `make run`), the page can be installed (browser menu, "Install app" or "Add to home screen") and opens offline: the first visit caches that build's files, later visits use the network when there is one and the cache when there is not. A new build is offered with a "Reload" bar and never replaces the page you are on by itself. Details and the caching rules are in `web/sw.js`.
 
 ## Deploying
 
@@ -129,6 +141,10 @@ make containers-check    # only the images: builds web, builder and api, starts 
 ```
 
 `make ci` passes locally (2026-11-04). On GitHub (private repo, `ubuntu-24.04`) all three jobs pass (run 41683889843: 226 Python tests, 91 browser tests, the container check); getting there needed one fix to how the browser tests script a touch drag (see `PROMPT.md` 14.1). To run the workflow file itself locally you need [`act`](https://github.com/nektos/act) (not installed here), which executes the jobs in containers; the `containers` job needs podman or Docker inside that, so `make containers-check` is the faithful local check for that job. The workflow reads the code and nothing else (no secrets, read-only token), and its actions are pinned to major versions.
+
+## Contributing and security
+
+See `CONTRIBUTING.md` (how to run the tests, the rules the project keeps) and `SECURITY.md` (how to report a vulnerability privately). Every answer card has a "Report a problem with this position" link that opens a pre-filled issue.
 
 ## Licence
 

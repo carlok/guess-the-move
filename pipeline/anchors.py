@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Maia's move probabilities at a few fixed rating anchors, stored per position (`maia.by_elo`).
 
 The level estimator in the browser asks "how likely is this move for a player rated r?" for any r. Computing that

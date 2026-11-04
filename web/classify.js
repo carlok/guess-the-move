@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Move tiers, relative to the position: Brilliant, Great, Best, Excellent, Good, Inaccuracy, Mistake, Blunder.
  *
  * A move's tier comes from its cost (win-% points below the best move, GTM.cost), so the scale is relative by

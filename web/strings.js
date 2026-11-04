@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Every piece of user-facing text lives here (English). A translation replaces this one file (roadmap v4).
  * Functions take the values they need; none of them touch the DOM. Text is escaped by the caller. */
 (function (root, factory) {
@@ -130,6 +131,7 @@
       line: function (streak, today, goal) { return 'Streak ' + streak + ' · Today ' + today + (goal ? '/' + goal : ''); },
       reached: function (n) { return 'Daily goal reached: ' + n + ' guesses today.'; }
     },
+    issue: { link: 'Report a problem with this position' },
     openingLine: function (name, eco) { return 'Opening: ' + name + (eco ? ' (' + eco + ')' : ''); },
     srs: {
       chip: 'Retry', cardTitle: 'Mistakes to retry',

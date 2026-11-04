@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Export and import of the stats (the guess history and the played-position list). Pure functions: no DOM, no storage.
  * The file is plain JSON: {app, format, exported, dataset, history, seen}. An imported file is untrusted input, so every
  * entry is rebuilt from known fields with their types checked; anything else in it is dropped, never stored or shown. */

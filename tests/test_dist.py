@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """tools/build_dist.py: the deployable folder contains exactly what the page needs, nothing else, and stays within budget."""
 
 import hashlib
@@ -26,7 +27,7 @@ def built(tmp_path_factory):
 def test_dist_has_exactly_the_files_the_page_loads_and_the_two_it_fetches(built):
     out, _ = built
     html = (D.WEB / "index.html").read_text(encoding="utf-8")
-    expected = {"index.html", "version.json", "pieces.svg", "data/positions.json"} | set(D.local_assets(html))
+    expected = {"index.html", "version.json"} | set(D.EXTRAS) | set(D.local_assets(html))
     present = {str(p.relative_to(out)) for p in out.rglob("*") if p.is_file()}
     assert present == expected
     assert {"app.js", "classify.js", "tierview.js", "report.js", "srs.js", "level.js", "style.css"} <= present
@@ -56,6 +57,41 @@ def test_every_script_and_style_reference_carries_the_build_id_so_an_old_cache_c
     assert len(refs) >= 10
     assert all(q == f"?v={r['build']}" for _, q in refs), refs
     assert "pieces.svg" not in html, "the sprite is fetched by the scripts, not referenced here"
+
+
+def test_rebuilding_leaves_unchanged_files_and_the_folder_alone_and_removes_what_should_not_be_there(tmp_path):
+    out = tmp_path / "dist"
+    D.build(D.WEB, out)
+    stamp = {p: p.stat().st_mtime_ns for p in out.rglob("*") if p.is_file()}
+    inode = out.stat().st_ino
+    (out / "stale.js").write_text("old")
+    (out / "old-dir").mkdir()
+    (out / "old-dir" / "x.txt").write_text("old")
+    D.build(D.WEB, out)
+    assert out.stat().st_ino == inode, "the folder itself is not deleted and recreated"
+    assert {p: p.stat().st_mtime_ns for p in out.rglob("*") if p.is_file()} == stamp, "nothing unchanged was rewritten"
+    assert not (out / "stale.js").exists() and not (out / "old-dir").exists(), "stale files and folders are removed"
+
+
+def test_the_worker_is_stamped_with_this_build_and_precaches_exactly_the_urls_the_page_requests(built):
+    out, r = built
+    sw = (out / "sw.js").read_text(encoding="utf-8")
+    assert f"var BUILD = '{r['build']}';" in sw
+    assert "var BUILD = '__BUILD__';" not in sw and "var FILES = []; // @FILES@" not in sw, "the placeholders are replaced, not left beside the real values"
+    files = json.loads(re.search(r"var FILES = (\[.*?\]);", sw).group(1))
+    html = (out / "index.html").read_text(encoding="utf-8")
+    assert files[0] == "index.html"
+    for asset in D.local_assets(html):
+        assert f"{asset}?v={r['build']}" in files, f"{asset}: the page asks for the stamped URL, so that is what must be cached"
+    for f in files:
+        assert (out / f.split("?")[0]).is_file(), f"{f} is cached but not in dist"
+    assert "data/positions.json" in files and "sw.js" not in "".join(files)
+    assert set(re.findall(r"\?v=([0-9a-f]+)", html)) == {r["build"]}, "every stamp in the page is this build's"
+
+
+def test_the_source_tree_worker_keeps_its_placeholders_so_development_never_meets_a_cache():
+    src = (D.WEB / "sw.js").read_text(encoding="utf-8")
+    assert "var BUILD = '__BUILD__';" in src and "var FILES = []; // @FILES@" in src
 
 
 def test_the_build_is_deterministic_and_changes_with_the_content(tmp_path):

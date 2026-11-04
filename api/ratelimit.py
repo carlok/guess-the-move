@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Per-client token bucket, in process. Memory is bounded: the least recently seen client is forgotten first."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Engine and human-model backends, exercised without Stockfish or torch.
 
 The UCI stub (tests/fixtures/uci_stub.py) stands in for a real engine; a fake `maia2` module stands in for

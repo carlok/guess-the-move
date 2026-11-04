@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Measure Maia-2 on real positions (CONTINUE.md T3). Needs network and the Maia venv:
 
     .venv-maia/bin/python tools/maia_probe.py --pgn <url or file> --n 400 --engine /opt/homebrew/bin/stockfish

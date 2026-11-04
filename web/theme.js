@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Colour theme. Loaded in <head> so the theme is set before first paint (no flash). Follows the system unless the
  * user chose one; the choice is kept in localStorage (always inside try/catch, the app works without it). */
 (function (root, factory) {

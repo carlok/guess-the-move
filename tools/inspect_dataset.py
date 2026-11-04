@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Eyeball a built dataset: `python tools/inspect_dataset.py web/data/positions.json [--min-elo N --max-elo N]`.
 
 Prints what to check by eye before shipping: phase and tag distribution, rating spread (and whether any rating

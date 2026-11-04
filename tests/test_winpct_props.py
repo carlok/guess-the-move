@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Property tests for the scoring maths (hypothesis): invariants that must hold for every input."""
 
 import pytest

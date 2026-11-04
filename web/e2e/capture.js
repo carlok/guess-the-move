@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Evidence for the UI work: screenshots at the three viewports, a drag frame sequence, and colour-blindness simulations.
  * Run: node e2e/capture.js  (from web/). Writes to ../docs/screens. Uses the shipped demo data and the installed Chrome. */

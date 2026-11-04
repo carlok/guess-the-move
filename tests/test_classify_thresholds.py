@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """web/classify.js keeps the tier cut-offs in its own constants; the dataset's tags use the same numbers (pipeline/tags.py).
 Reading the JS source is crude but it is the only place the two can drift apart unnoticed."""
 

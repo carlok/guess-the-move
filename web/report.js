@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* The report for a training session: average move quality, how many best moves were found, time, the tiers of its
  * moves, and the weakest ones with a button to review each. Pure functions from the session's rows to numbers (`summarize`),
  * HTML (`html`) and a plain-text summary to copy (`text`). A row: {san, uci, tier, cost, score, dur}. */

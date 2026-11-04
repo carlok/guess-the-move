@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Pointer, keyboard, confirm, onboarding, theme and error-state wiring in jsdom.
  * jsdom has no layout, so these tests stub getBoundingClientRect (the board is 800x800 at the origin: client pixels equal
@@ -1552,4 +1553,73 @@ test('? opens the menu at the keyboard list, s skips the position, and typing in
   input.dispatchEvent(new field.KeyboardEvent('keydown', { key: '?', bubbles: true }));
   input.dispatchEvent(new field.KeyboardEvent('keydown', { key: 's', bubbles: true }));
   assert.equal($(field, 'menu').hidden, true); assert.equal(field.localStorage.getItem('gtm.v1.seen'), null);
+});
+
+/* ---------- offline / installable: the page side ---------- */
+
+function fakeSw({ waiting = null, controller = {}, fail = false } = {}) {
+  const swListeners = {}, regListeners = {}, posted = [];
+  const reg = { waiting, installing: null, addEventListener: (t, f) => { regListeners[t] = f; } };
+  const sw = { controller, registered: [], addEventListener: (t, f) => { swListeners[t] = f; },
+    register: async (u) => { sw.registered.push(u); if (fail) throw new Error('refused'); return reg; } };
+  return { sw, reg, swListeners, regListeners, posted, worker: (state) => ({ state, postMessage: (m) => posted.push(m), addEventListener(t, f) { this.fire = f; } }) };
+}
+
+test('the page registers sw.js only on https or localhost, with a stand-in for the browser API', async () => {
+  const w = await boot(dataOf(ROOK));
+  const insecure = { navigator: {}, location: { hostname: 'example.org', protocol: 'http:' }, document: w.document };
+  assert.equal(await w.GTM_PWA.setup(insecure, { sw: fakeSw().sw }), null, 'plain http on a real host: browsers refuse, so do not try');
+  assert.equal(await w.GTM_PWA.setup(w, {}), null, 'no serviceWorker in the browser: nothing to do');
+  for (const where of [{ hostname: 'localhost', protocol: 'http:' }, { hostname: '127.0.0.1', protocol: 'http:' }, { hostname: 'example.org', protocol: 'https:' }]) {
+    const f = fakeSw();
+    await w.GTM_PWA.setup({ navigator: {}, location: where, document: w.document }, { sw: f.sw });
+    assert.deepEqual(f.sw.registered, ['sw.js'], where.hostname);
+  }
+  assert.equal($(w, 'updateBar').hidden, true, 'no update waiting: no bar');
+  const refused = fakeSw({ fail: true });
+  assert.equal(await w.GTM_PWA.setup(w, { sw: refused.sw }), null, 'a refused registration is not an error for the page');
+});
+
+test('a waiting build shows the bar, and the page switches only after Reload is pressed', async () => {
+  const w = await boot(dataOf(ROOK));
+  const f = fakeSw(); const waiting = f.worker('installed'); f.reg.waiting = waiting;
+  let reloads = 0;
+  await w.GTM_PWA.setup(w, { sw: f.sw, reload: () => { reloads++; } });
+  assert.equal($(w, 'updateBar').hidden, false);
+  f.swListeners.controllerchange();
+  assert.equal(reloads, 0, 'a worker taking over on its own does not reload the page under the user');
+  click(w, 'updateBtn');
+  assert.deepEqual(f.posted, ['skip']);
+  f.swListeners.controllerchange();
+  assert.equal(reloads, 1);
+});
+
+test('an update found while the page is open is offered; the very first install is not an update', async () => {
+  const w = await boot(dataOf(ROOK));
+  const f = fakeSw(); f.reg.installing = f.worker('installing');
+  await w.GTM_PWA.setup(w, { sw: f.sw });
+  f.regListeners.updatefound();
+  f.reg.installing.state = 'installed';
+  f.reg.installing.fire();
+  assert.equal($(w, 'updateBar').hidden, false, 'a controlled page and a new worker: offer it');
+  const w2 = await boot(dataOf(ROOK));
+  const first = fakeSw({ controller: null }); first.reg.installing = first.worker('installing');
+  await w2.GTM_PWA.setup(w2, { sw: first.sw });
+  first.regListeners.updatefound(); first.reg.installing.state = 'installed'; first.reg.installing.fire();
+  assert.equal($(w2, 'updateBar').hidden, true, 'no controller yet: this is the first install, nothing to update');
+});
+
+/* ---------- report a problem with a position ---------- */
+
+test('the answer card links to a pre-filled issue for the position, built from the repository link, and carries nothing else', async () => {
+  const data = { schema: 1, meta: { demo: false, built: '2026-11-03T15:57:07+00:00' }, positions: [{ ...ROOK, id: 'aaaaaaaaaa' }] };
+  const w = await boot(data);
+  play(w, 'a1', 'a8');
+  const a = $(w, 'result').querySelector('#reportIssue');
+  assert.equal(a.textContent, 'Report a problem with this position');
+  assert.equal(a.getAttribute('href'), 'https://github.com/carlok/guess-the-move/issues/new?template=position.yml&title=Position%20aaaaaaaaaa&position=aaaaaaaaaa&dataset=2026-11-03');
+  assert.equal(a.getAttribute('target'), '_blank'); assert.match(a.getAttribute('rel'), /noopener/);
+  const plain = await boot(dataOf(ROOK));
+  play(plain, 'a1', 'a8');
+  assert.match($(plain, 'result').querySelector('#reportIssue').getAttribute('href'), /&dataset=$/, 'no build date in the data: an empty field');
 });
