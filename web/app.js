@@ -210,6 +210,8 @@
     $('back').hidden = trailIndex() === 0; // also offered when every position is answered and no live one is left
     $('tryAgain').hidden = !reviewing;
     $('reviewChip').hidden = !reviewing;
+    $('reviewChip').textContent = reviewing && S.trail[S.cur] && S.trail[S.cur].shared ? T.link.sharedChip : T.review.chip;
+    $('linkBtn').hidden = !S.pos || !!S.pos.custom;
     $('pickChip').hidden = reviewing || S.picked === null || !S.pos;
     if (!$('pickChip').hidden) $('pickChip').textContent = T.level.pickedBits(S.picked);
     $('skip').hidden = !S.pos || S.revealed;
@@ -284,6 +286,7 @@
     if (!hasMaia) html += '<p class="detail">' + T.noMaia + '</p>';
     var tags = (p.tags || []).filter(function (t) { return T.tags[t]; });
     if (tags.length) html += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(T.tags[t]) + '</span>'; }).join('') + '</div>';
+    if (!p.custom) html += '<p class="detail"><button type="button" class="link" id="copyAnswer">' + T.link.copyAnswer + '</button></p>';
     if (p.site) html += '<p class="detail"><a href="' + esc(gameLink(p)) + '" rel="noopener noreferrer" target="_blank">' + T.sourceGame + '</a></p>';
     box.innerHTML = html;
     box.hidden = false;
@@ -658,7 +661,8 @@
       $('skeleton').hidden = true;
       if (menuIsOpen()) renderAbout();
       if (statsIsOpen()) drawStats(); // opened at #stats before the data arrived: the level card needs it
-      renderStats(); nextPosition();
+      renderStats();
+      if (!consumeRoute()) nextPosition();
     }).catch(function (e) {
       $('skeleton').hidden = true;
       showLoadError(url, e);
@@ -753,6 +757,48 @@
     document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
     closeStatsView();
     loadPosition(s.pos, undefined, s.bits);
+  }
+
+  /* ---------- links: #stats, #p=<position id>, #p=<id>&m=<move> (a shared answer) ---------- */
+
+  function parseHash() {
+    var h = window.location.hash.replace(/^#/, '');
+    if (h === 'stats') return { view: 'stats' };
+    var m = /^p=([0-9a-f]{10})(?:&m=([a-h][1-8][a-h][1-8][qrbn]?))?$/.exec(h);
+    return m ? { view: 'position', id: m[1], move: m[2] || null } : null;
+  }
+
+  function cleanHash() { window.history.replaceState(null, '', window.location.pathname + window.location.search); }
+
+  function linkTo(uci) {
+    return window.location.origin + window.location.pathname + '#p=' + S.pos.id + (uci ? '&m=' + uci : '');
+  }
+
+  /* Open the position a link points at (needs the data). A shared answer opens as a review of that move, never written
+   * to the history. The address is cleaned afterwards so a reload does not repeat it. Returns false when there is no such route. */
+  function consumeRoute() {
+    var r = S.route || parseHash();
+    S.route = null;
+    if (!r || r.view !== 'position') return false;
+    cleanHash(); S.statsPushed = false;
+    if (statsIsOpen()) showStats(false);
+    var p = positionById()[r.id];
+    if (!p) { nextPosition(); $('prompt').hidden = false; $('prompt').textContent = T.link.missing + ' ' + $('prompt').textContent; return true; }
+    if (r.move && p.evals[r.move]) {
+      var entry = { pos: p, uci: r.move, mode: 'best', dur: 0, shared: true };
+      S.trail.push(entry);
+      if (S.trail.length > TRAIL_MAX) S.trail.shift();
+      loadPosition(p, entry);
+    } else loadPosition(p);
+    return true;
+  }
+
+  function copyLink(uci) {
+    if (!S.pos || S.pos.custom) return;
+    var url = linkTo(uci), say = function (t) { $('linkMsg').textContent = t; };
+    var done = function () { sfx('tick'); say(uci ? T.link.copiedAnswer : T.link.copied); };
+    if (window.navigator.clipboard && window.navigator.clipboard.writeText) window.navigator.clipboard.writeText(url).then(done, function () { say(T.link.manual(url)); });
+    else say(T.link.manual(url)); // no clipboard (an insecure page): show it to copy by hand
   }
 
   /* ---------- the full stats view (a page of its own, reachable at #stats) ---------- */
@@ -852,7 +898,8 @@
     $('timerToggle').checked = S.showTimer; $('timer').hidden = !S.showTimer;
     snd = window.GTM_SOUND ? window.GTM_SOUND.create(window.AudioContext || window.webkitAudioContext, store.get(SOUND_KEY, true) !== false) : null;
     updateSoundButton();
-    if (window.location.hash === '#stats') showStats(true);
+    S.route = parseHash();
+    if (S.route && S.route.view === 'stats') { S.route = null; showStats(true); }
     S.confirm = store.get(CONFIRM_KEY, null);
     if (S.confirm === null) S.confirm = media('(pointer: coarse)'); // a slip of the finger is likelier than a slip of the mouse
     $('confirmToggle').checked = S.confirm;
@@ -909,6 +956,7 @@
     });
     $('adaptiveToggle').addEventListener('change', function () { S.adaptive = $('adaptiveToggle').checked; store.set(ADAPTIVE_KEY, S.adaptive); });
     $('result').addEventListener('click', function (e) {
+      if (e.target && e.target.id === 'copyAnswer') { copyLink(S.result.you.uci); return; }
       var b = e.target.closest ? e.target.closest('.ml-row') : null;
       if (b) togglePreview(b.getAttribute('data-uci'));
     });
@@ -925,7 +973,11 @@
       $('importFile').value = ''; // the same file can be chosen again
     });
     window.addEventListener('resize', function () { if (statsIsOpen()) drawStats(); });
-    window.addEventListener('hashchange', function () { showStats(window.location.hash === '#stats'); });
+    window.addEventListener('hashchange', function () {
+      var r = parseHash();
+      if (r && r.view === 'position') { S.route = r; if (S.data) consumeRoute(); } else showStats(window.location.hash === '#stats');
+    });
+    $('linkBtn').addEventListener('click', function () { copyLink(null); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) timerPause(); else timerResume(); });
     window.setInterval(function () { if (timer.since !== null) renderTimer(); }, 250);
     $('analyseBtn').addEventListener('click', analyseCustom);

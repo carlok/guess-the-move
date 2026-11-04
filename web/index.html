@@ -110,7 +110,7 @@
 
   <main id="gameMain">
     <section class="stage" aria-label="Board">
-      <div class="posinfo"><span id="posInfo"></span><span id="reviewChip" class="review-chip" hidden>Review</span><span id="pickChip" class="review-chip" hidden></span><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
+      <div class="posinfo"><span id="posInfo"></span><span id="reviewChip" class="review-chip" hidden>Review</span><span id="pickChip" class="review-chip" hidden></span><button id="linkBtn" type="button" class="icon-btn link-btn" aria-label="Copy a link to this position" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
       <div id="boardWrap" class="boardwrap">
         <div id="skeleton" class="skeleton" aria-hidden="true"></div>
         <svg id="boardSvg" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Chess board" tabindex="0">
@@ -124,6 +124,7 @@
       </div>
       <div id="promo" class="promo" hidden></div>
       <div class="slot">
+        <p id="linkMsg" class="muted small" role="status" aria-live="polite"></p>
         <div id="prompt" class="prompt" aria-live="polite"></div>
         <p id="verdict" class="verdict" hidden></p>
         <div id="legend" class="legend" hidden></div>

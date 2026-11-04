@@ -206,6 +206,8 @@ html.menu-open { overflow: hidden; }
 .ch-area { fill: var(--c-real); fill-opacity: .35; stroke: var(--c-real); stroke-width: 2; }
 .ch-band { fill: var(--c-real); fill-opacity: .16; }
 .ch-mean { stroke: var(--fg); stroke-width: 2; }
+.link-btn { border: 0; background: none; }
+.link-btn svg { width: 18px; height: 18px; }
 .review-chip { align-self: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0 var(--s-3); font-size: var(--fs-sm); font-weight: 600; }
 .timer { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
 #soundToggle[data-state="on"] .icon-sound-off, #soundToggle[data-state="off"] .icon-sound-on { display: none; }

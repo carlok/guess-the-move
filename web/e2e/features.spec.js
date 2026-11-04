@@ -277,3 +277,31 @@ test('the tier badges are not colour-only: each carries a name, and the discs di
   const compact = await page.locator('tbody .tier.compact .sr-only').allTextContents();
   expect(compact.length).toBe(4);
 });
+
+/* ---------- links ---------- */
+
+const LINKED = { ...ROOK, id: 'aaaaaaaaaa' };
+
+test('a link to a position or to an answer opens it in a real browser, and the copy buttons put the right address on the clipboard', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await preset(page, { confirm: false });
+  await serveDataset(page, [LINKED]);
+  await page.goto('/#p=aaaaaaaaaa&m=a1a7');
+  await expect(page.locator('#reviewChip')).toHaveText('Shared answer');
+  await expect(page.locator('#result')).toBeVisible();
+  await expect(page).not.toHaveURL(/#p=/);
+  await page.goto('/#p=aaaaaaaaaa');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await expect(page.locator('#result')).toBeHidden();
+  const box = await page.locator('#linkBtn').boundingBox();
+  expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
+  await page.locator('#linkBtn').click();
+  await expect(page.locator('#linkMsg')).toHaveText('Link copied.');
+  const origin = new URL(page.url()).origin;
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/#p=aaaaaaaaaa`);
+  await clickMove(page, 'a1a8');
+  await page.locator('#copyAnswer').click();
+  await expect(page.locator('#linkMsg')).toHaveText('Link to your answer copied.');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/#p=aaaaaaaaaa&m=a1a8`);
+  expect(await noHScroll(page)).toBe(true);
+});

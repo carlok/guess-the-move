@@ -1119,3 +1119,81 @@ test('finding a great move in best-move mode plays the fanfare; predicting does 
   play(w, 'a1', 'a8');
   assert.ok(!pred.log.includes('f1319'));
 });
+
+/* ---------- links ---------- */
+
+const HA = { ...ROOK, id: 'aaaaaaaaaa' }, HB = { ...CAPTURE, id: 'bbbbbbbbbb' }, HC = { ...EP, id: 'cccccccccc' };
+const linkData = () => dataOf(HA, HB, HC);
+const pieceAt = (w, sqName) => w.document.querySelector(`[data-psq="${sqName}"]`);
+function clipboard(w, { fail = false } = {}) {
+  const copied = [];
+  Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: (t) => { copied.push(t); return fail ? Promise.reject(new Error('denied')) : Promise.resolve(); } }, configurable: true });
+  return copied;
+}
+
+test('a link to a position opens it, and the address is cleaned so a reload does not repeat it', async () => {
+  const w = await boot(linkData(), { hash: '#p=cccccccccc' });
+  assert.ok(pieceAt(w, 'd5') && pieceAt(w, 'e5'), 'the en passant position, not the first one in the data');
+  assert.equal($(w, 'result').hidden, true, 'live and unanswered');
+  assert.equal(w.location.hash, '');
+});
+
+test('a link to an answer opens a review of that move, labelled as shared, and records nothing', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa&m=a1a8' });
+  assert.equal($(w, 'reviewChip').hidden, false);
+  assert.equal($(w, 'reviewChip').textContent, 'Shared answer');
+  assert.equal($(w, 'result').hidden, false);
+  assert.ok(tierLineOf(w).querySelector('.tier-great'));
+  assert.equal(w.localStorage.getItem('gtm.v1.history'), null, 'someone else\'s answer is not your guess');
+  assert.equal($(w, 'back').hidden, true);
+  click(w, 'next');
+  assert.equal($(w, 'reviewChip').hidden, true, 'Next goes on to a new position');
+  assert.equal($(w, 'reviewChip').textContent, 'Review', 'and the label is back to normal for the next review');
+});
+
+test('a move that is not legal there is ignored, and an unknown position says so and shows another', async () => {
+  let w = await boot(linkData(), { hash: '#p=aaaaaaaaaa&m=h1h8' });
+  assert.equal($(w, 'result').hidden, true); assert.equal($(w, 'reviewChip').hidden, true);
+  assert.ok(pieceAt(w, 'a1'));
+  w = await boot(linkData(), { hash: '#p=dddddddddd' });
+  assert.match($(w, 'prompt').textContent, /That position is not in this dataset, so here is another one\./);
+  assert.equal(w.document.querySelectorAll('[data-sq]').length, 64);
+  w = await boot(linkData(), { hash: '#p=not-an-id' });
+  assert.doesNotMatch($(w, 'prompt').textContent, /not in this dataset/, 'a malformed link is just ignored');
+});
+
+test('changing the address while the page is open loads the position, and leaves the stats page', async () => {
+  const w = await boot(linkData());
+  click(w, 'statsBtn');
+  assert.equal($(w, 'statsView').hidden, false);
+  w.location.hash = '#p=cccccccccc';
+  await tick();
+  assert.equal($(w, 'statsView').hidden, true);
+  assert.ok(pieceAt(w, 'd5'));
+  assert.equal(w.location.hash, '');
+});
+
+test('the link buttons copy the right addresses, and say so; without a clipboard the link is shown to copy by hand', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  const copied = clipboard(w);
+  assert.equal($(w, 'linkBtn').hidden, false);
+  click(w, 'linkBtn'); await tick();
+  assert.deepEqual(copied, ['http://localhost/#p=aaaaaaaaaa']);
+  assert.equal($(w, 'linkMsg').textContent, 'Link copied.');
+  play(w, 'a1', 'a8');
+  click(w, 'copyAnswer'); await tick();
+  assert.equal(copied[1], 'http://localhost/#p=aaaaaaaaaa&m=a1a8');
+  assert.equal($(w, 'linkMsg').textContent, 'Link to your answer copied.');
+  const none = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  click(none, 'linkBtn');
+  assert.equal($(none, 'linkMsg').textContent, 'Copy this link: http://localhost/#p=aaaaaaaaaa');
+  const denied = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  clipboard(denied, { fail: true });
+  click(denied, 'linkBtn'); await tick();
+  assert.match($(denied, 'linkMsg').textContent, /^Copy this link: /);
+});
+
+test('every position of the shipped dataset has an id the link router accepts', () => {
+  const data = require('../data/positions.json');
+  assert.ok(data.positions.every((p) => /^[0-9a-f]{10}$/.test(p.id)));
+});

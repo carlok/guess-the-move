@@ -115,6 +115,12 @@
     },
     timer: { label: 'Time on this position', show: 'Show the timer', showHelp: 'Your time is still recorded for the stats when the timer is hidden.' },
     sound: { off: 'Turn sounds on', on: 'Mute sounds', setting: 'Sounds' },
+    link: {
+      copyPos: 'Copy a link to this position', copyAnswer: 'Copy a link to my answer', copied: 'Link copied.', copiedAnswer: 'Link to your answer copied.',
+      manual: function (url) { return 'Copy this link: ' + url; },
+      missing: 'That position is not in this dataset, so here is another one.',
+      sharedChip: 'Shared answer'
+    },
     tiers: {
       brilliant: { name: 'Brilliant', sym: '!!', desc: 'A best or nearly best move that gives up material.' },
       great: { name: 'Great', sym: '!', desc: 'The only move that holds the position: every alternative gives up at least 15 win-% points.' },
