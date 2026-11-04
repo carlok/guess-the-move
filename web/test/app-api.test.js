@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* The optional api: feature detection, analysing any position, and the level estimate. The api itself is stubbed with
  * hand-written JSON (SYNTHETIC); the real service is exercised by tests/test_api.py and the container run. */

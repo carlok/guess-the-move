@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Fail unless the Python coverage report meets the project thresholds (PROMPT.md 10.1).
 
 Usage: pytest --cov --cov-report=json:coverage.json && python tools/check_coverage.py coverage.json

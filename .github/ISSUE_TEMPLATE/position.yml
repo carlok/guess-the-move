@@ -1,0 +1,27 @@
+name: Report a position
+description: A position looks wrong - an evaluation, a tag, an opening name, a tier, or a broken board.
+title: "Position "
+labels: ["data"]
+body:
+  - type: input
+    id: position
+    attributes:
+      label: Position id
+      description: Filled in by the "Report a problem with this position" link on the answer card.
+      placeholder: "0123456789"
+    validations:
+      required: true
+  - type: input
+    id: dataset
+    attributes:
+      label: Dataset
+      description: The build date of the dataset (the menu, "The data").
+    validations:
+      required: false
+  - type: textarea
+    id: what
+    attributes:
+      label: What looks wrong?
+      description: For example "Stockfish's best move loses a piece", "the opening name is wrong", "the board shows the wrong side to move".
+    validations:
+      required: true

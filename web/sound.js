@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Sound effects, synthesised with the Web Audio API: no audio files, so nothing to license, download or cache.
  * `create(AudioContextConstructor, enabled)` returns {play, setEnabled, isEnabled}. The context is made on the first
  * play() (always inside a user gesture, which the browsers' autoplay rules require) and any failure silences the

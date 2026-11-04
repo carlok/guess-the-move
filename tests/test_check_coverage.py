@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The coverage gate itself needs tests: a gate that cannot fail is worth nothing."""
 
 import json

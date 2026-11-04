@@ -11,6 +11,8 @@ Chess pieces: "cburnett" set by Colin M.L. Burnett (Cburnett)
   Read 2026-11-03. Chosen because it is not non-commercial or share-alike-restricted (staunty, fresca, california
   and other lila sets are CC BY-NC-SA 4.0 and were rejected).
 
+App icon: web/icon.svg and the PNGs made from it (web/icon-192.png, icon-512.png, icon-maskable-512.png, by tools/make_icons.js) draw the cburnett white knight from web/pieces.svg on a 2x2 board pattern, so they carry that set's licence (GNU GPL version 2 or later, see the cburnett entry above).
+
 Icons: Lucide, https://github.com/lucide-icons/lucide
   Files: inline <svg> elements in web/index.html (moon, sun, menu, x, chart-column, volume-2, volume-x, star, thumbs-up, check; sun and moon are Feather-derived; geometry checked against lucide-static 1.67.0 on 2026-11-04)
   Sounds: none bundled; they are synthesised in the browser by web/sound.js (Web Audio), so there is no audio licence to carry.

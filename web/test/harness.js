@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Shared jsdom harness. Runs the page's own <script src> files, in page order, through vm.Script with the real
  * file name, so V8 attributes coverage to web/*.js. (window.eval inside jsdom hides the code from coverage.) */

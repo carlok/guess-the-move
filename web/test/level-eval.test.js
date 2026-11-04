@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* The evaluation tool's own helpers: a wrong sampler or a biased synthetic player would make its numbers meaningless. */
 const test = require('node:test');

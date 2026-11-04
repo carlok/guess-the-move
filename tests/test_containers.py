@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Static checks on the container packaging (no podman or network needed).
 
 What these cannot prove: that the images build and run. That needs a machine that can pull from
@@ -27,7 +28,7 @@ def test_containerfile_is_sane(name):
     froms = re.findall(r"^FROM\s+(\S+)", text, flags=re.M)
     assert froms and all(f.startswith("docker.io/") for f in froms), "use fully-qualified image names"
     for src in copy_sources(text):
-        assert (ROOT / src).exists(), f"COPY source missing: {src}"
+        assert (ROOT / src).exists() or src == "dist/", f"COPY source missing: {src}"  # dist/ is built by `make dist` before the image
     ignore = read(".containerignore")
     assert ignore == read(".dockerignore"), "keep the two ignore files identical"
     for src in copy_sources(text):
@@ -50,13 +51,17 @@ def test_nginx_csp_matches_what_the_app_needs():
 
 def local_assets(html: str) -> list[str]:
     """Every local script, stylesheet and sprite index.html loads, whatever the attribute order (`defer` or not)."""
-    found = re.findall(r'<script\b[^>]*\bsrc="([^"#:]+)"', html) + re.findall(r'<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"#:]+)"', html)
-    found += re.findall(r'<link\b[^>]*\bhref="([^"#:]+\.(?:css|js|svg))"', html)
+    found = re.findall(r'<script\b[^>]*\bsrc="([^"#:?]+)(?=[?"])', html) + re.findall(r'<link\b[^>]*\bhref="([^"#:?]+\.(?:css|js|svg|webmanifest|png))(?=[?"])', html)
     return sorted(set(found))
 
 
-def test_the_image_copies_what_the_page_loads_not_just_theme_js():
+def test_the_scanner_and_the_dist_builder_agree_on_what_the_page_loads():
+    import sys
+    sys.path.insert(0, str(ROOT / "tools"))
+    import build_dist
+
     html = read("web/index.html")
+    assert set(local_assets(html)) == set(build_dist.local_assets(html)), "two independent scans of index.html must agree"
     assert {"theme.js", "app.js", "sound.js", "stats.js", "backup.js", "level.js", "style.css"} <= set(local_assets(html))
     assert set(local_assets('<script defer src="a.js"></script><script src="b.js"></script><link rel="stylesheet" href="c.css">')) == {"a.js", "b.js", "c.css"}
 
@@ -68,8 +73,9 @@ def test_web_assets_are_csp_clean():
     for rel in ["web/index.html", "web/pieces.svg"] + [f"web/{a}" for a in local_assets(html) if a.endswith(".js")]:
         assert not re.search(r"""\bstyle\s*=\s*["'\\]""", read(rel)), f"inline style= attribute in {rel}"
     assert len(local_assets(html)) >= 10, "the asset scan found too little: the regex is wrong"
-    for src in local_assets(html):  # every script, stylesheet and sprite the page loads must be copied into the web image
-        assert f"web/{src}" in read("containers/web/Containerfile"), f"{src} is not copied into the image"
+    # the image is the built site: no hand-kept list that a new file can be missing from
+    assert "COPY dist/ /usr/share/nginx/html/" in read("containers/web/Containerfile")
+    assert re.search(r"^web-image:\s*dist\b", read("Makefile"), flags=re.M), "the image must be built from a fresh dist"
 
 
 def test_every_chip_class_has_a_colour():
@@ -167,3 +173,9 @@ def test_run_targets_replace_a_leftover_container_of_the_same_name():
     api = mk.split("\nrun-api:")[1].split("\nstop:")[0]
     assert "rm -f $(WEB_NAME)" in run and run.index("rm -f") < run.index("run --rm"), "after a restart the old container is still there"
     assert "rm -f $(API_NAME)" in api and api.index("rm -f") < api.index("run --rm")
+
+
+def test_nginx_serves_the_web_manifest_with_its_own_type_without_losing_the_standard_ones():
+    conf = read("containers/web/nginx.conf")
+    assert "include /etc/nginx/mime.types;" in conf and re.search(r"types\s*\{\s*application/manifest\+json\s+webmanifest;\s*\}", conf)
+    assert conf.index("include /etc/nginx/mime.types;") < conf.index("application/manifest+json"), "the include comes first, so the extra type is added to it"

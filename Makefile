@@ -66,10 +66,10 @@ mutation:
 # The static site and nothing else in dist/ (any web host can serve it; see docs/deploy.md). dist-check runs the page,
 # CSP and layout browser tests against that folder, so a file missing from it fails here and not in production.
 dist:
-	$(PYTHON) tools/build_dist.py --out dist
+	$(DISTPY) tools/build_dist.py --out dist
 
 dist-check: dist
-	cd web && GTM_ROOT=../dist npx playwright test smoke csp ui
+	cd web && GTM_ROOT=../dist npx playwright test smoke csp ui pwa
 
 e2e:
 	cd web && npx playwright test
@@ -81,7 +81,9 @@ lighthouse:
 	  --chrome-path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --chrome-flags="--headless=new" \
 	  --output=json --output=html --output-path=docs/lighthouse/mobile --quiet
 
-web-image:
+DISTPY ?= python3   # build_dist.py is standard-library only
+
+web-image: dist
 	$(PODMAN) build -t $(WEB_IMG) -f containers/web/Containerfile .
 
 builder-image:

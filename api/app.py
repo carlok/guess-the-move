@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The ASGI app. Stateless: the client sends everything it wants analysed, nothing is stored about a user.
 
 Endpoints: GET /healthz, POST /v1/analyse, POST /v1/posterior. Guards on every POST, in this order: same-origin check,

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Board geometry and the drag gesture state machine. Pure functions, no DOM: unit-tested in node.
  * Squares are named "a1".."h8". The board is drawn in an 800x800 viewBox, one square = 100 units.
  * `flipped` means Black is at the bottom. */

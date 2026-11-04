@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* HTML for the move tiers: a badge, the distribution bar, and the list of all legal moves. Pure functions from the
  * classification (GTM_CLASSIFY.summary) and the strings; no DOM. Colours come from classes (the CSP forbids style
  * attributes) and every tier has a distinct glyph and always a name, so colour is never the only cue.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Visual design, states and accessibility contracts, on all three viewports. Spec: PROMPT.md 2.2. */
 const { test, expect } = require('@playwright/test');

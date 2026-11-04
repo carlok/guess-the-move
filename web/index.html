@@ -9,6 +9,10 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
   <link rel="preload" href="data/positions.json" as="fetch" crossorigin="anonymous">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#f6f5f1">
   <script src="theme.js"></script>
 </head>
 <body>
@@ -266,6 +270,11 @@
        Free software; no data leaves your browser.</p>
   </footer>
 
+  <div id="updateBar" class="update-bar" role="status" hidden>
+    <span>A new version is ready.</span>
+    <button id="updateBtn" type="button" class="primary">Reload</button>
+  </div>
+
   <div id="live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script defer src="strings.js"></script>
@@ -279,6 +288,7 @@
   <script defer src="stats.js"></script>
   <script defer src="backup.js"></script>
   <script defer src="level.js"></script>
+  <script defer src="pwa.js"></script>
   <script defer src="app.js"></script>
 </body>
 </html>

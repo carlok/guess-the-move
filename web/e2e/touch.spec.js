@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Touch input on a phone-sized viewport with touch events and DPR 2 (phone project). Spec: PROMPT.md 2.1. */
 const { test, expect } = require('@playwright/test');

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Level estimator (roadmap v2): a posterior over a player's rating from the moves they chose.
 
     P(e | moves) is proportional to prior(e) * product over moves of p_maia(move | position, e)

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The dataset CLI end to end: PGN file in, schema-1 JSON out.
 
 The engine is the UCI stub (tests/fixtures/uci_stub.py) and Maia is a fake injected in place of Maia2Backend,

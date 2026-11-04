@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* The stats view: pure functions from the guess history to numbers (`summarize`) and to HTML with inline SVG charts
  * (`html`). No DOM, no dependencies, so they are unit-tested in node. Charts are drawn with classes only (no style
  * attributes: the CSP forbids them); colours and type sizes live in style.css. Every chart is a labelled figure with

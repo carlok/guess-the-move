@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The image-build helper that installs the official Stockfish: it must refuse anything it cannot verify."""
 
 import hashlib

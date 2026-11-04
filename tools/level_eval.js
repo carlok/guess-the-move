@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* How good is the in-browser level estimate (web/level.js)? Runs the shipped code, not a copy of it.
  *

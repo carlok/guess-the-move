@@ -26,6 +26,13 @@ A host that cannot set response headers (static page hosting, some object stores
 the policy is then written into `index.html` as a `<meta>` tag. Browsers ignore `frame-ancestors` in a meta tag, so clickjacking
 protection is the one thing that needs a real header.
 
+## Service worker and install
+
+`dist/sw.js` caches the build for offline use and `manifest.webmanifest` makes the page installable. Browsers only run service
+workers on https or localhost. The host must serve `sw.js` and `index.html` without long caching (`no-cache` is right: they are
+revalidated, not skipped), so that a new build is noticed; everything else is cached by the worker under the build id. Serve
+`.webmanifest` as `application/manifest+json`.
+
 ## The optional api
 
 The page asks `api/healthz`. Without an answer (a 404 is fine) it hides the "Analyse any position" panel and everything else

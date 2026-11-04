@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Mouse and keyboard input (desktop and tablet projects). Spec: PROMPT.md 2.1. */
 const { test, expect } = require('@playwright/test');

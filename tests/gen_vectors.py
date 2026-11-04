@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Generate tests/vectors.json, the numeric fixture shared by the Python and JS test suites.
 
 Deterministic (fixed seed). Run `python tests/gen_vectors.py` to rewrite the file; tests/test_vectors.py

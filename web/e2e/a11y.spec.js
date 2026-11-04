@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* axe-core on every state of the page, in both themes, on all three viewports. Gate: zero serious or critical
  * violations (PROMPT.md 2.2). Moderate and minor findings are printed so they are not invisible. */

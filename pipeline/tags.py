@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Game phase and "kind of position" tags.
 
 All thresholds live in TagConfig so they are recorded in the dataset meta and

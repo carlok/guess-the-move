@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* The optional api. Without it the page must show nothing of it (runs everywhere); with a real api behind the container's
  * nginx (GTM_BASE_URL=http://127.0.0.1:8080 GTM_API=1) the panel works end to end with real Stockfish and Maia. */

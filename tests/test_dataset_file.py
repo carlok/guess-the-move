@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Validates the dataset shipped in web/data against an independent legal-move generator."""
 import json
 import pathlib
