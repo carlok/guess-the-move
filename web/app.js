@@ -1040,7 +1040,7 @@
     S.coords = store.get(COORDS_KEY, true) !== false; $('coordsToggle').checked = S.coords; $('boardSvg').classList.toggle('no-coords', !S.coords);
     S.srs = SRS.sanitize(store.get(SRS_KEY, {})); S.plays = Math.max(0, Math.floor(Number(store.get(PLAYS_KEY, 0)) || 0));
     S.srsOn = store.get(SRS_ON_KEY, true) !== false; $('srsToggle').checked = S.srsOn;
-    S.adaptive = store.get(ADAPTIVE_KEY, false) === true;
+    S.adaptive = store.get(ADAPTIVE_KEY, true) !== false; // on unless the person turned it off
     $('adaptiveToggle').checked = S.adaptive;
     S.showTimer = store.get(TIMER_KEY, true) !== false;
     $('timerToggle').checked = S.showTimer; $('timer').hidden = !S.showTimer;

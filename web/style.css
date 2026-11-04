@@ -1,6 +1,7 @@
 /* Guess the Move. Design tokens first; light is the default, dark follows the system or the toggle (data-theme on <html>).
  * No inline styles anywhere: the Content-Security-Policy forbids them (tests/test_containers.py). */
 :root {
+--page-max: 1180px; --board-max: 680px; --panel-max: 1fr; /* page, board and panel limits; they grow on large screens (below) */
 --t-brilliant: #0e8f8f; --t-great: #5b4bd6; --t-best: #1f8a3d; --t-excellent: #4f8f2a; --t-good: #7b8a17; --t-inaccuracy: #b07d00; --t-mistake: #c9561a; --t-blunder: #c62828;
   --bg: #f6f5f1; --surface: #ffffff; --surface-2: #efeee8; --fg: #1d1d1b; --muted: #5f5f59; --line: #d8d6cc;
   --accent: #1d5fd1; --accent-fg: #ffffff; --focus: #1d5fd1; --warn-bg: #fff4d6; --warn-fg: #5a4300; --warn-line: #ecd48a;
@@ -49,7 +50,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
 .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 :root[data-theme="dark"] .icon-moon, :root:not([data-theme="dark"]) .icon-sun { display: none; }
 
-.topbar { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); max-width: 1180px; margin: 0 auto; padding: var(--s-3) var(--s-4); }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); max-width: var(--page-max); margin: 0 auto; padding: var(--s-3) var(--s-4); }
 .brand h1 { margin: 0; font-size: var(--fs-xl); white-space: nowrap; }
 .sub { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .brand { min-width: 0; }
@@ -69,7 +70,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
 
 /* Layout. Phone first: one column, board edge to edge, sticky action bar. */
 #gameMain {
-  display: grid; gap: var(--s-4); max-width: 1180px; margin: 0 auto; grid-template-columns: minmax(0, 1fr);
+  display: grid; gap: var(--s-4); max-width: var(--page-max); margin: 0 auto; grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "stage" "panel" "bar";
 }
 .stage { grid-area: stage; } .panel { grid-area: panel; padding: 0 var(--s-4); } .actionbar { grid-area: bar; }
@@ -100,7 +101,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
 }
 @media (min-width: 900px) {
   #gameMain {
-    grid-template-columns: clamp(320px, calc(100vh - 190px), 680px) minmax(300px, 1fr); align-items: start; padding: 0 var(--s-4); gap: var(--s-2) var(--s-5);
+    grid-template-columns: clamp(320px, calc(100vh - 190px), var(--board-max)) minmax(300px, var(--panel-max)); justify-content: center; align-items: start; padding: 0 var(--s-4); gap: var(--s-2) var(--s-5);
     grid-template-areas: "stage bar" "stage panel"; grid-template-rows: auto 1fr; /* the extra height of the tall board column goes to the panel row, not between the Skip bar and the panel */
   }
   .panel { padding: 0; } .posinfo, .chips, .slot, .promo { padding-left: 0; padding-right: 0; }
@@ -166,7 +167,7 @@ a { color: var(--accent); }
 .field { display: block; margin: var(--s-2) 0 var(--s-1); font-size: var(--fs-sm); color: var(--muted); }
 textarea, input[type="number"] { width: 100%; font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s-2); min-height: var(--tap); }
 #apiPanel button { margin: var(--s-3) 0 var(--s-1); }
-footer { max-width: 1180px; margin: var(--s-5) auto var(--s-6); padding: 0 var(--s-4); color: var(--muted); font-size: var(--fs-sm); }
+footer { max-width: var(--page-max); margin: var(--s-5) auto var(--s-6); padding: 0 var(--s-4); color: var(--muted); font-size: var(--fs-sm); }
 
 @media (max-width: 480px) {
   .topbar { padding: var(--s-2) var(--s-4); } .brand h1 { font-size: var(--fs-lg); white-space: normal; line-height: 1.15; } .sub { display: none; }
@@ -215,7 +216,7 @@ html.menu-open { overflow: hidden; }
 #gameMain[hidden], footer[hidden], .statsview[hidden] { display: none; }
 
 /* The stats view: a page of its own, KPI tiles and SVG charts. Colours are the arrow colours, so a colour means the same thing everywhere. */
-.statsview { max-width: 1180px; margin: 0 auto; padding: 0 var(--s-4) var(--s-6); }
+.statsview { max-width: var(--page-max); margin: 0 auto; padding: 0 var(--s-4) var(--s-6); }
 .statsview-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); margin: var(--s-3) 0; }
 .statsview-head h2 { margin: 0; font-size: var(--fs-xl); }
 .statsview-head h2:focus { outline: none; }
@@ -297,3 +298,16 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4p
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: 0 var(--s-4) var(--s-2); }
 .chips .link { min-height: 32px; }
 .review-chip { white-space: nowrap; }
+
+/* Large screens: the board follows the window height (100vh minus what sits above and below it: header, position line, opening
+ * line, chips, prompt) and the page container is exactly as wide as board + gap + panel + padding, so the header, the content and
+ * the footer line up with no empty bands. The panel keeps a readable width. */
+@media (min-width: 1500px) {
+  :root {
+    --board-max: 960px; --panel-max: 720px;
+    --board-size: clamp(420px, calc(100vh - 262px), var(--board-max));
+    --page-max: calc(var(--board-size) + 24px + var(--panel-max) + 32px); /* 24 = the column gap, 32 = the side padding */
+  }
+  #gameMain { grid-template-columns: var(--board-size) minmax(300px, var(--panel-max)); }
+}
+@media (min-width: 2000px) { :root { --board-max: 1260px; --panel-max: 800px; } }
