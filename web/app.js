@@ -12,7 +12,7 @@
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
-  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, GOAL_KEY = 'gtm.v1.goal', GOALDAY_KEY = 'gtm.v1.goalday', ORIENT_KEY = 'gtm.v1.orientation', COORDS_KEY = 'gtm.v1.coords', SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
+  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, GOAL_KEY = 'gtm.v1.goal', GOALDAY_KEY = 'gtm.v1.goalday', ORIENT_KEY = 'gtm.v1.orientation', COORDS_KEY = 'gtm.v1.coords', SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', PICKER_KEY = 'gtm.v1.picker', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
@@ -23,7 +23,7 @@
     seen: new Set(), history: [], showTimer: true, pagePushed: false,
     session: null, goal: 10, orientation: 'auto', coords: true,
     srs: {}, plays: 0, srsOn: true, sinceRetry: RETRY_GAP, retrying: false,
-    adaptive: false, hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
+    picker: 'sharpen', hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
     trail: [], cur: null // positions answered in this visit, and the one being reviewed (null: a live position)
   };
   var snd = null; // sound effects, made in init()
@@ -211,7 +211,7 @@
     if (ses) $('sessionChip').textContent = T.session.chip(ses.done ? ses.n : Math.min(ses.n, ses.rows.length + (S.revealed ? 0 : 1)), ses.n);
     $('next').textContent = ses && ses.done && S.revealed && !reviewing ? T.session.seeReport : T.next;
     $('pickChip').hidden = reviewing || S.picked === null || !S.pos;
-    if (!$('pickChip').hidden) $('pickChip').textContent = T.level.pickedBits(S.picked);
+    if (!$('pickChip').hidden) $('pickChip').textContent = typeof S.picked === 'number' ? T.level.pickedBits(S.picked) : T.level.pickedMatch(S.picked.mode, S.picked.p);
     $('skip').hidden = !S.pos || S.revealed;
     $('confirm').hidden = !S.pending || S.revealed;
     $('next').hidden = !S.revealed;
@@ -456,8 +456,12 @@
       $('prompt').textContent = $('unseen').checked ? T.prompt.noneUnseen : T.prompt.none;
       return;
     }
-    var pick = S.adaptive && S.mode === 'best' && S.hasAnchors ? sharpest(list) : null;
-    if (pick) loadPosition(pick.pos, undefined, pick.bits);
+    var pick = null;
+    if (S.mode === 'best' && S.hasAnchors) {
+      if (S.picker === 'sharpen') pick = sharpest(list);
+      else if (S.picker === 'match' || S.picker === 'harder') pick = matched(list, S.picker);
+    }
+    if (pick) loadPosition(pick.pos, undefined, pick.mode ? pick : pick.bits); // what the chip says: the chance of the best move, or bits
     else loadPosition(list[Math.floor(Math.random() * list.length)]);
   }
 
@@ -794,6 +798,18 @@
     return window.GTM_LEVEL.suggest(list, window.GTM_LEVEL.posterior(levelObservations()), Math.random, 5);
   }
 
+  /* The estimated level now (the mean of the posterior), or null before LEVEL_MIN counted guesses. */
+  function levelMean() {
+    var obs = levelObservations();
+    return obs.length < LEVEL_MIN ? null : window.GTM_LEVEL.summary(window.GTM_LEVEL.posterior(obs)).mean;
+  }
+
+  /* A position of the right difficulty for the estimated level (see GTM_LEVEL.matchPick); null until there is an estimate. */
+  function matched(list, mode) {
+    var r = levelMean();
+    return r === null ? null : window.GTM_LEVEL.matchPick(list, r, mode, Math.random);
+  }
+
   function suggestAndGo() {
     if (!S.data) return;
     var list = applyFilters(), s = sharpest(list.length ? list : S.data.positions);
@@ -1066,8 +1082,10 @@
     S.coords = store.get(COORDS_KEY, true) !== false; $('coordsToggle').checked = S.coords; $('boardSvg').classList.toggle('no-coords', !S.coords);
     S.srs = SRS.sanitize(store.get(SRS_KEY, {})); S.plays = Math.max(0, Math.floor(Number(store.get(PLAYS_KEY, 0)) || 0));
     S.srsOn = store.get(SRS_ON_KEY, true) !== false; $('srsToggle').checked = S.srsOn;
-    S.adaptive = store.get(ADAPTIVE_KEY, true) !== false; // on unless the person turned it off
-    $('adaptiveToggle').checked = S.adaptive;
+    /* How positions are picked: 'sharpen' (the default), 'random', 'match' or 'harder'. The first version stored a yes/no under another key. */
+    S.picker = store.get(PICKER_KEY, null);
+    if (['sharpen', 'random', 'match', 'harder'].indexOf(S.picker) < 0) S.picker = store.get(ADAPTIVE_KEY, true) === false ? 'random' : 'sharpen';
+    $('picker').value = S.picker;
     S.showTimer = store.get(TIMER_KEY, true) !== false;
     $('timerToggle').checked = S.showTimer; $('timer').hidden = !S.showTimer;
     snd = window.GTM_SOUND ? window.GTM_SOUND.create(window.AudioContext || window.webkitAudioContext, store.get(SOUND_KEY, true) !== false) : null;
@@ -1144,7 +1162,7 @@
       if (b) reviewFromReport(Number(b.getAttribute('data-index')));
     });
     $('srsToggle').addEventListener('change', function () { S.srsOn = $('srsToggle').checked; store.set(SRS_ON_KEY, S.srsOn); });
-    $('adaptiveToggle').addEventListener('change', function () { S.adaptive = $('adaptiveToggle').checked; store.set(ADAPTIVE_KEY, S.adaptive); });
+    $('picker').addEventListener('change', function () { S.picker = $('picker').value; store.set(PICKER_KEY, S.picker); });
     $('result').addEventListener('click', function (e) {
       if (e.target && e.target.id === 'copyAnswer') { copyLink(S.result.you.uci); return; }
       if (e.target && e.target.id === 'saveImage') { saveImage(); return; }

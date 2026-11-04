@@ -122,3 +122,53 @@ test('suggest: the most informative position (or one of the best few), nothing w
   const afterSure = L.posterior(Array.from({ length: 60 }, () => ({ pos: HARD, uci: 'best' })));
   assert.ok(L.information(HARD, afterSure) < L.information(HARD, post), 'what a position can still teach shrinks as the estimate firms up');
 });
+
+/* ---- difficulty that follows the level ---- */
+
+const withEvals = (by, evals) => ({ ...pos(by), evals });
+/* Chance of playing the best move (a1a8) rises with rating: 0.2 at 1000, 0.5 at 1600, 0.9 at 2200. */
+const RISING = withEvals({ 1000: { a1a8: 0.2, g1g2: 0.7 }, 1600: { a1a8: 0.5, g1g2: 0.4 }, 2200: { a1a8: 0.9, g1g2: 0.05 } }, { a1a8: 300, g1g2: 0, g1f1: -50 });
+const EASY = withEvals({ 1000: { a1a8: 0.8 }, 1600: { a1a8: 0.9 }, 2200: { a1a8: 0.95 } }, { a1a8: 300, g1g2: 0 });
+const TOUGH = withEvals({ 1000: { a1a8: 0.02 }, 1600: { a1a8: 0.05 }, 2200: { a1a8: 0.1 } }, { a1a8: 300, g1g2: 0 });
+
+test('bestProb: the chance a player of that rating plays the best move, and null when it cannot be told', () => {
+  close(L.bestProb(RISING, 1000), 0.2); close(L.bestProb(RISING, 1600), 0.5); close(L.bestProb(RISING, 2200), 0.9);
+  close(L.bestProb(RISING, 1300), Math.sqrt(0.2 * 0.5));
+  assert.equal(L.bestProb(withEvals({ 1000: { a: 1 }, 1600: { a: 1 } }, {}), 1500), null, 'no evals');
+  assert.equal(L.bestProb({ evals: { a: 1 } }, 1500), null, 'no anchors');
+  assert.equal(L.bestProb(null, 1500), null);
+});
+
+test('bestProb adds up moves that tie for best, so a position with two equally good moves is not made to look hard', () => {
+  const tie = withEvals({ 1000: { a1a8: 0.3, a1a7: 0.3 }, 1600: { a1a8: 0.3, a1a7: 0.3 } }, { a1a8: 100, a1a7: 100, g1g2: -20 });
+  close(L.bestProb(tie, 1300), 0.6);
+});
+
+test('matchPick takes a position whose chance of the best move is in the band, and reports that chance', () => {
+  const pick = L.matchPick([EASY, RISING, TOUGH], 1600, 'match', () => 0);     // chances at 1600: 0.9, 0.5, 0.05; the band is 0.4 to 0.7
+  assert.equal(pick.pos, RISING); close(pick.p, 0.5); assert.equal(pick.mode, 'match');
+  assert.equal(L.matchPick([EASY, RISING, TOUGH], 1600, 'harder', () => 0).pos, RISING, '0.5 is the top of the harder band, 0.25 to 0.5');
+  assert.deepEqual(L.BANDS, { match: [0.4, 0.7], harder: [0.25, 0.5] });
+});
+
+test('matchPick chooses at random among everything in the band', () => {
+  const A = { ...RISING, id: 'a' }, B = { ...RISING, id: 'b' }, C = { ...RISING, id: 'c' };
+  assert.equal(L.matchPick([EASY, A, B, TOUGH, C], 1600, 'match', () => 0).pos, A);
+  assert.equal(L.matchPick([EASY, A, B, TOUGH, C], 1600, 'match', () => 0.5).pos, B);
+  assert.equal(L.matchPick([EASY, A, B, TOUGH, C], 1600, 'match', () => 0.99).pos, C);
+});
+
+test('matchPick: with nothing in the band the closest to the middle of it is used; the rating decides what is in the band', () => {
+  assert.equal(L.matchPick([EASY, TOUGH], 1600, 'match', () => 0).pos, EASY, '0.9 is 0.35 from 0.55, 0.05 is 0.5 away');
+  assert.equal(L.matchPick([EASY, RISING, TOUGH], 2200, 'harder', () => 0).pos, TOUGH, 'at 2200 the chances are 0.95, 0.9, 0.1: only the last is near 0.25 to 0.5');
+  assert.equal(L.matchPick([EASY, RISING, TOUGH], 1000, 'match', () => 0).pos, EASY, 'at 1000 the chances are 0.8, 0.2, 0.02');
+  const tie = L.matchPick([{ ...TOUGH, id: 't1' }, { ...TOUGH, id: 't2' }], 1600, 'match', () => 0.99);
+  assert.equal(tie.pos.id, 't2', 'equally close: a random one');
+});
+
+test('matchPick skips positions it cannot score, and gives null when there is none', () => {
+  assert.equal(L.matchPick([], 1600, 'match', () => 0), null);
+  assert.equal(L.matchPick([{ id: 'x' }, { ...RISING, evals: {} }, { evals: { a: 1 } }], 1600, 'match', () => 0), null);
+  assert.equal(L.matchPick([RISING], 1600, 'nonsense', () => 0).mode, 'match', 'an unknown mode is the default one');
+  assert.ok(L.matchPick([RISING], 1600, 'match').pos === RISING, 'works without an rng');
+});

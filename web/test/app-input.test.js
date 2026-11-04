@@ -986,19 +986,25 @@ test('Suggest does nothing when no position carries rating data or has anything 
   assert.equal($(flat, 'statsView').hidden, false, 'stays on the stats page: nothing to suggest');
 });
 
-test('picking positions that sharpen the level estimate is on by default; switching it off is remembered; it does nothing in predict mode or without rating data', async () => {
+const setPicker = (w, v) => { $(w, 'picker').value = v; $(w, 'picker').dispatchEvent(new w.Event('change', { bubbles: true })); };
+
+test('sharpening the level estimate is the default way of picking; the choice is remembered, an old "off" means random, and it does nothing in predict mode or without rating data', async () => {
   const data = dataOf(ANCHORED('same', ALIKE), ANCHORED('hard', STRONG_AT_HIGH));
   const on = await boot(data);
-  assert.equal($(on, 'adaptiveToggle').checked, true, 'on by default');
+  assert.equal($(on, 'picker').value, 'sharpen', 'the default');
   assert.equal($(on, 'pickChip').hidden, false, 'the first position is already the informative one (the other teaches nothing)');
   assert.equal($(on, 'chips').hidden, false, 'and the row that holds the chip is shown');
   assert.match($(on, 'pickChip').textContent, /bits/);
-  $(on, 'adaptiveToggle').checked = false; $(on, 'adaptiveToggle').dispatchEvent(new on.Event('change', { bubbles: true }));
-  assert.equal(JSON.parse(on.localStorage.getItem('gtm.v1.adaptive')), false);
-  const off = await boot(data, { ls: { adaptive: false } });
-  assert.equal($(off, 'adaptiveToggle').checked, false);
+  setPicker(on, 'random');
+  assert.equal(JSON.parse(on.localStorage.getItem('gtm.v1.picker')), 'random');
+  const off = await boot(data, { ls: { picker: 'random' } });
+  assert.equal($(off, 'picker').value, 'random');
   assert.equal($(off, 'pickChip').hidden, true);
   assert.equal($(off, 'chips').hidden, true, 'no chip, no row');
+  const old = await boot(data, { ls: { adaptive: false } });
+  assert.equal($(old, 'picker').value, 'random', 'the first version stored a yes/no');
+  const junk = await boot(data, { ls: { picker: 'bogus' } });
+  assert.equal($(junk, 'picker').value, 'sharpen', 'an unknown value is the default');
   const predict = await boot(data);
   predict.document.querySelector('input[value=predict]').click();
   click(predict, 'skip');
@@ -1008,6 +1014,40 @@ test('picking positions that sharpen the level estimate is on by default; switch
   click(plain, 'skip');
   assert.equal($(plain, 'pickChip').hidden, true);
 });
+
+/* Five counted guesses give an estimate (STRONG_AT_HIGH played with the weak move: a low level). The candidates are then
+ * the positions that were not played. a1a8 is the best move in all of them; `chance` is how often it is chosen at every rating. */
+const byChance = (id, chance) => ANCHORED(id, { 1000: { a1a8: chance, g1g2: 0.1 }, 1600: { a1a8: chance, g1g2: 0.1 }, 2200: { a1a8: chance, g1g2: 0.1 } });
+const playedFive = () => Array.from({ length: 5 }, (_, i) => ANCHORED('g' + i, STRONG_AT_HIGH));
+const withEstimate = (...candidates) => ({ data: dataOf(...playedFive(), ...candidates), ls: { history: playedFive().map((p) => entryFor(p.id, 'g1g2')), seen: playedFive().map((p) => p.id) } });
+
+test('"To match my level" picks a position about half the players at your level solve, and the chip says how many', async () => {
+  const { data, ls } = withEstimate(byChance('easy', 0.95), byChance('half', 0.5), byChance('tough', 0.05));
+  const w = await boot(data, { ls: { ...ls, picker: 'match' } });
+  assert.equal($(w, 'pickChip').hidden, false);
+  assert.equal($(w, 'pickChip').textContent, 'Matched to your level (about 50% find the best move)');
+});
+
+test('"A bit harder" goes for positions fewer players solve, and with nothing in the band takes the nearest', async () => {
+  const { data, ls } = withEstimate(byChance('easy', 0.95), byChance('tough', 0.05));
+  const w = await boot(data, { ls: { ...ls, picker: 'harder' } });
+  assert.equal($(w, 'pickChip').textContent, 'A bit above your level (about 5% find the best move)');
+  const m = await boot(data, { ls: { ...ls, picker: 'match' } });
+  assert.equal($(m, 'pickChip').textContent, 'Matched to your level (about 95% find the best move)', 'nothing in 40-70%: the nearer one');
+});
+
+test('before five counted guesses matching has no level to go by: the position is random and there is no chip; predict mode is left alone', async () => {
+  const data = dataOf(byChance('a', 0.5), byChance('b', 0.5));
+  const w = await boot(data, { ls: { picker: 'match' } });
+  assert.equal($(w, 'pickChip').hidden, true);
+  assert.ok($(w, 'posInfo').textContent.length > 0, 'a position is shown all the same');
+  const { data: d2, ls } = withEstimate(byChance('half', 0.5));
+  const p = await boot(d2, { ls: { ...ls, picker: 'match' } });
+  p.document.querySelector('input[value=predict]').click();
+  click(p, 'skip');
+  assert.equal($(p, 'pickChip').hidden, true);
+});
+
 test('opening the page at #stats before the data has loaded fills in the level card once it arrives', async () => {
   let release;
   const gate = new Promise((r) => { release = r; });
@@ -1451,7 +1491,7 @@ const rectOf = (w, sqName) => { const r = sq(w, sqName); return [Number(r.getAtt
 test('the settings are a page of their own, with the controls that used to be in the panel', async () => {
   const w = await boot(dataOf(ROOK));
   const section = $(w, 'settingsBody');
-  for (const id of ['confirmToggle', 'timerToggle', 'srsToggle', 'adaptiveToggle', 'orientation', 'coordsToggle']) assert.ok(section.querySelector('#' + id), id);
+  for (const id of ['confirmToggle', 'timerToggle', 'srsToggle', 'picker', 'orientation', 'coordsToggle']) assert.ok(section.querySelector('#' + id), id);
   assert.equal($(w, 'panel').querySelector('#confirmToggle'), null, 'no longer in the panel');
   assert.ok($(w, 'settingsView').contains(section));
 });
