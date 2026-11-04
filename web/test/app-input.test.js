@@ -1986,9 +1986,115 @@ test('a lazy part is requested under the address the build stamped, not the bare
   loadApp(dom, { lazy: true }); await tick();
   w.localStorage.setItem('gtm.v1.onboarded', 'true');
   play(w, 'a1', 'a8');
+  spySave(w);
   const seen = [];
   const append = w.document.head.appendChild;
   w.document.head.appendChild = function (el) { seen.push(el.getAttribute('src')); return append.call(this, el); };
   click(w, 'saveFen'); await tick();
   assert.deepEqual(seen, ['share.js?v=abc123']);
+});
+
+/* ---------- focus mode: only the board and the timer until you move ---------- */
+
+const rootOf = (w) => w.document.documentElement;
+const inFocus = (w) => rootOf(w).classList.contains('focus-mode');
+function fakeFullscreen(w, { reject = false } = {}) {
+  const calls = { enter: 0, exit: 0 };
+  let el = null;
+  Object.defineProperty(w.document, 'fullscreenElement', { get: () => el, configurable: true });
+  rootOf(w).requestFullscreen = () => { calls.enter++; if (reject) return Promise.reject(new Error('denied')); el = rootOf(w); return Promise.resolve(); };
+  w.document.exitFullscreen = () => { calls.exit++; el = null; return Promise.resolve(); };
+  calls.end = () => { el = null; w.document.dispatchEvent(new w.Event('fullscreenchange')); }; // the browser's own Esc
+  return calls;
+}
+
+test('the focus button is on the board, labelled, and toggles the mode, its label and its pressed state', async () => {
+  const w = await boot(dataOf(ROOK));
+  const b = $(w, 'focusBtn');
+  assert.equal(b.classList.contains('off'), false); assert.equal(b.getAttribute('aria-label'), 'Focus on the board'); assert.equal(b.getAttribute('aria-pressed'), 'false');
+  click(w, 'focusBtn');
+  assert.equal(inFocus(w), true);
+  assert.equal(b.getAttribute('aria-label'), 'Back to the full page'); assert.equal(b.getAttribute('aria-pressed'), 'true');
+  assert.equal($(w, 'timer').hidden, false, 'the timer stays');
+  click(w, 'focusBtn');
+  assert.equal(inFocus(w), false); assert.equal(b.getAttribute('aria-label'), 'Focus on the board');
+});
+
+test('it asks the browser for full screen too, and leaves it again; a refusal keeps the page-level mode', async () => {
+  const w = await boot(dataOf(ROOK)), fs = fakeFullscreen(w);
+  click(w, 'focusBtn'); await tick();
+  assert.equal(fs.enter, 1); assert.equal(inFocus(w), true);
+  click(w, 'focusBtn'); await tick();
+  assert.equal(fs.exit, 1); assert.equal(inFocus(w), false);
+  const denied = await boot(dataOf(ROOK)); fakeFullscreen(denied, { reject: true });
+  click(denied, 'focusBtn'); await tick();
+  assert.equal(inFocus(denied), true, 'refused: still focused on the page');
+  const plain = await boot(dataOf(ROOK));
+  click(plain, 'focusBtn');
+  assert.equal(inFocus(plain), true, 'no full screen API: still works');
+  click(plain, 'focusBtn');
+  assert.equal(inFocus(plain), false);
+});
+
+test('Esc in the browser\'s full screen ends the focus mode too', async () => {
+  const w = await boot(dataOf(ROOK)), fs = fakeFullscreen(w);
+  click(w, 'focusBtn'); await tick();
+  w.document.dispatchEvent(new w.Event('fullscreenchange'));
+  assert.equal(inFocus(w), true, 'entering full screen is not a reason to leave');
+  fs.end();
+  assert.equal(inFocus(w), false);
+  fs.end();
+  assert.equal(inFocus(w), false, 'a full screen change with no focus mode does nothing');
+});
+
+test('f toggles it, Cmd/Ctrl+F is left to the browser, and Escape leaves it', async () => {
+  const w = await boot(dataOf(ROOK));
+  docKey(w, 'f'); assert.equal(inFocus(w), true);
+  docKey(w, 'Escape'); assert.equal(inFocus(w), false);
+  docKey(w, 'F'); assert.equal(inFocus(w), true);
+  docKey(w, 'f'); assert.equal(inFocus(w), false);
+  w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true }));
+  w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true }));
+  assert.equal(inFocus(w), false);
+  const field = await boot(dataOf(ROOK));
+  const input = field.document.getElementById('fenInput');
+  input.dispatchEvent(new field.KeyboardEvent('keydown', { key: 'f', bubbles: true }));
+  assert.equal(inFocus(field), false, 'typing in a field does not toggle it');
+});
+
+test('selecting a piece keeps the focus mode; making the move leaves it, whether it is revealed at once or waits for a confirm', async () => {
+  const w = await boot(dataOf(ROOK), { confirm: false });
+  click(w, 'focusBtn');
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal(inFocus(w), true, 'a selected piece is not a move');
+  sq(w, 'a8').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal(inFocus(w), false); assert.equal($(w, 'result').hidden, false);
+  const c = await boot(dataOf(ROOK), { confirm: true });
+  click(c, 'focusBtn'); play(c, 'a1', 'a8');
+  assert.equal(inFocus(c), false, 'with confirmation the move is proposed first: already back, so the Confirm button can be seen');
+  assert.equal($(c, 'confirm').hidden, false);
+  const d = await boot(dataOf(ROOK), { confirm: false });
+  click(d, 'focusBtn');
+  drag(d, 'a1', 'a8');
+  assert.equal(inFocus(d), false, 'a drag counts too');
+});
+
+test('a promotion leaves it as soon as the piece is chosen to be asked, so the chooser can be seen', async () => {
+  const w = await boot(dataOf(PROMO), { confirm: false });
+  click(w, 'focusBtn'); play(w, 'a7', 'a8');
+  assert.equal(inFocus(w), false); assert.equal($(w, 'promo').hidden, false);
+});
+
+test('a new position, a page, or having answered all leave it; the button is not offered after the answer or in a review', async () => {
+  const w = await boot(dataOf(ROOK, CAPTURE));
+  click(w, 'focusBtn'); click(w, 'skip');
+  assert.equal(inFocus(w), false, 'a new position is shown in the normal layout');
+  click(w, 'focusBtn'); click(w, 'settingsBtn');
+  assert.equal(inFocus(w), false, 'a page needs the whole page');
+  click(w, 'settingsBack'); await tick();
+  play(w, 'a1', 'a8');
+  assert.equal($(w, 'focusBtn').classList.contains('off'), true, 'nothing to focus on once the answer is shown (it keeps its place, invisible)');
+  docKey(w, 'f'); assert.equal(inFocus(w), false, 'and f does nothing then');
+  click(w, 'next'); click(w, 'back');
+  assert.equal($(w, 'focusBtn').classList.contains('off'), true, 'not in a review either');
 });

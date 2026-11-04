@@ -233,6 +233,7 @@
     $('next').textContent = ses && ses.done && S.revealed && !reviewing ? T.session.seeReport : T.next;
     $('pickChip').hidden = reviewing || S.picked === null || !S.pos;
     if (!$('pickChip').hidden) $('pickChip').textContent = typeof S.picked === 'number' ? T.level.pickedBits(S.picked) : T.level.pickedMatch(S.picked.mode, S.picked.p);
+    $('focusBtn').classList.toggle('off', !S.pos || S.revealed || S.cur !== null);
     $('skip').hidden = !S.pos || S.revealed || !!(ses && ses.queue); // a challenge is the same positions for everyone: none to skip
     $('confirm').hidden = !S.pending || S.revealed;
     $('next').hidden = !S.revealed;
@@ -416,6 +417,7 @@
   /* `review` (a trail entry) reopens a position already answered in this visit: the answer is shown, the timer stays
    * stopped at the time taken and nothing is written to the history. Without it the position is a fresh attempt. */
   function loadPosition(p, review, bits, retrying) {
+    setFocus(false);
     S.cur = review ? S.trail.indexOf(review) : null;
     S.retrying = !!retrying;
     S.picked = bits === undefined ? null : bits;
@@ -525,6 +527,23 @@
   }
 
   /* A move was chosen (clicked, dragged or typed): reveal it, or hold it as pending when confirmation is on. */
+  /* ---------- focus mode: just the board and the timer, as large as the screen allows, until you move ---------- */
+
+  function focusOn() { return document.documentElement.classList.contains('focus-mode'); }
+
+  function setFocus(on) {
+    var root = document.documentElement, was = focusOn();
+    if (on === was) return;
+    root.classList.toggle('focus-mode', on);
+    $('focusBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('focusBtn').setAttribute('aria-label', on ? T.focus.off : T.focus.on);
+    // The browser's own full screen too, where there is one (not on an iPhone): it hides the address bar and makes the board larger still.
+    // It is optional: a refusal leaves the page-level focus mode as it is.
+    if (on && root.requestFullscreen) { var r = root.requestFullscreen(); if (r && r.catch) r.catch(function () {}); }
+    if (!on && document.fullscreenElement && document.exitFullscreen) { var x = document.exitFullscreen(); if (x && x.catch) x.catch(function () {}); }
+    if (on) { window.scrollTo(0, 0); announce(T.focus.on); }
+  }
+
   function propose(uci) {
     if (!S.confirm) return commit(uci);
     S.pending = uci; S.promo = null;
@@ -536,6 +555,7 @@
   function tryMove(from, to) {
     var ucis = (S.legalFrom[from] || []).filter(function (u) { return u.slice(2, 4) === to; });
     if (!ucis.length) return false;
+    setFocus(false); // you moved: back to the full page
     S.selected = from;
     if (ucis.length > 1) { S.promo = ucis; S.pending = null; sfx('tick'); refresh(); announce(T.live.promo); return true; }
     propose(ucis[0]);
@@ -659,12 +679,14 @@
   }
 
   function onDocKey(e) {
+    if (e.key === 'Escape' && focusOn()) { setFocus(false); return; }
     if (reportOpen()) { if (e.key === 'Escape') closeReport(true); return; }
     if (pageIsOpen()) { if (e.key === 'Escape') closePage(); return; }
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     if ((e.key === 'n' || e.key === 'N') && S.revealed) goNext();
     if ((e.key === 'p' || e.key === 'P') && !$('back').hidden) goBack();
     if ((e.key === 's' || e.key === 'S') && !$('skip').hidden) skipPosition();
+    if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey && !$('focusBtn').classList.contains('off')) setFocus(!focusOn());
     if (e.key === '?') { openPage('help'); if ($('helpKeys').scrollIntoView) $('helpKeys').scrollIntoView(); }
     if (e.key === 'Escape') {
       if (gest.active()) cancelGesture();
@@ -1002,6 +1024,7 @@
   function showPage(name) {
     var cur = pageName();
     if (name === cur) return;
+    if (name) setFocus(false);
     PAGES.forEach(function (n) { $(n + 'View').hidden = n !== name; });
     $('gameMain').hidden = name !== null;
     document.querySelector('footer').hidden = name !== null;
@@ -1204,6 +1227,8 @@
     $('tryAgain').addEventListener('click', tryAgain);
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
     $('skip').addEventListener('click', skipPosition);
+    $('focusBtn').addEventListener('click', function () { setFocus(!focusOn()); });
+    document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && focusOn()) setFocus(false); }); // Esc in the browser's full screen ends this too
     $('resetStats').addEventListener('click', function () {
       S.history = []; S.seen = new Set(); S.srs = {}; S.plays = 0; store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); store.set(SRS_KEY, {}); store.set(PLAYS_KEY, 0); store.set(LAST_KEY, null); S.challenges = {}; store.set(CHALLENGES_KEY, {}); updateActions(); renderStats(); updateEstimate(); if (S.data) applyFilters();
     });

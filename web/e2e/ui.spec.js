@@ -40,7 +40,7 @@ test('first-run onboarding is at most 3 steps, dismissible and remembered', asyn
 test('a loading skeleton shows while the data loads, then the board replaces it', async ({ page }) => {
   await preset(page);
   await page.route('**/data/positions.json', async (route) => {
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 2500)); // long enough that a busy machine still sees the skeleton before the data arrives
     await route.fulfill({ json: { schema: 1, meta: { demo: false }, positions: [ROOK] } });
   });
   await page.goto('/');
