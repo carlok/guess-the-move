@@ -89,6 +89,10 @@
       </fieldset>
 
       <button id="sessionBtn" type="button" class="session-btn">Start a 10-position session</button>
+      <div id="challengeRow" class="challenge-row">
+        <button id="dailyBtn" type="button">Daily challenge</button>
+        <button id="friendBtn" type="button">Challenge a friend</button>
+      </div>
 
       <details id="filters" class="filters" open>
         <summary>Filters <span id="matchCount" class="muted"></span></summary>
@@ -271,6 +275,7 @@
     <div id="reportBody"></div>
     <div class="backup">
       <button id="reportCopy" type="button">Copy summary</button>
+      <button id="reportLink" type="button" hidden>Copy challenge link</button>
       <button id="reportAgain" type="button" class="primary">New session</button>
       <p id="reportMsg" class="muted small" role="status" aria-live="polite"></p>
     </div>
@@ -298,6 +303,7 @@
   <script defer src="srs.js"></script>
   <script defer src="tierview.js"></script>
   <script type="text/lazy" src="share.js"></script>
+  <script defer src="seed.js"></script>
   <script defer src="report.js"></script>
   <script defer src="sound.js"></script>
   <script defer src="stats.js"></script>

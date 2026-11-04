@@ -7,12 +7,12 @@
 (function () {
   'use strict';
 
-  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SRS = window.GTM_SRS, RP = window.GTM_REPORT;
+  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SD = window.GTM_SEED, SRS = window.GTM_SRS, RP = window.GTM_REPORT;
   var SPRITE = 'pieces.svg#';
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
-  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, GOAL_KEY = 'gtm.v1.goal', GOALDAY_KEY = 'gtm.v1.goalday', ORIENT_KEY = 'gtm.v1.orientation', COORDS_KEY = 'gtm.v1.coords', SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', PICKER_KEY = 'gtm.v1.picker', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
+  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, CHALLENGE_LEN = 5, CHALLENGES_KEY = 'gtm.v1.challenges', CHALLENGES_MAX = 60, GOAL_KEY = 'gtm.v1.goal', GOALDAY_KEY = 'gtm.v1.goalday', ORIENT_KEY = 'gtm.v1.orientation', COORDS_KEY = 'gtm.v1.coords', SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', PICKER_KEY = 'gtm.v1.picker', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
@@ -225,12 +225,15 @@
     $('retryChip').hidden = reviewing || !S.retrying || !S.pos;
     var ses = S.session;
     $('sessionBtn').hidden = !!ses;
+    $('challengeRow').hidden = !!ses;
+    var doneToday = S.challenges[SD.todayToken(nowMs())];
+    $('dailyBtn').textContent = doneToday ? T.challenge.dailyDone(doneToday.score) : T.challenge.daily;
     $('sessionChip').hidden = $('sessionEnd').hidden = !ses;
-    if (ses) $('sessionChip').textContent = T.session.chip(ses.done ? ses.n : Math.min(ses.n, ses.rows.length + (S.revealed ? 0 : 1)), ses.n);
+    if (ses) { var at = ses.done ? ses.n : Math.min(ses.n, ses.rows.length + (S.revealed ? 0 : 1)); $('sessionChip').textContent = ses.challenge ? T.challenge.chip(SD.isDaily(ses.challenge.token), at, ses.n) : T.session.chip(at, ses.n); }
     $('next').textContent = ses && ses.done && S.revealed && !reviewing ? T.session.seeReport : T.next;
     $('pickChip').hidden = reviewing || S.picked === null || !S.pos;
     if (!$('pickChip').hidden) $('pickChip').textContent = typeof S.picked === 'number' ? T.level.pickedBits(S.picked) : T.level.pickedMatch(S.picked.mode, S.picked.p);
-    $('skip').hidden = !S.pos || S.revealed;
+    $('skip').hidden = !S.pos || S.revealed || !!(ses && ses.queue); // a challenge is the same positions for everyone: none to skip
     $('confirm').hidden = !S.pending || S.revealed;
     $('next').hidden = !S.revealed;
     $('chips').hidden = !['reviewChip', 'pickChip', 'retryChip', 'sessionChip', 'sessionEnd'].some(function (id) { return !$(id).hidden; });
@@ -465,6 +468,8 @@
   }
 
   function nextPosition() {
+    var queued = S.session && S.session.queue ? S.session.queue[S.session.rows.length] : null;
+    if (queued) { loadPosition(queued); return; } // a challenge: the next of its fixed positions, whatever the filters say
     var list = applyFilters();
     var retry = S.srsOn && S.mode === 'best' && S.sinceRetry >= RETRY_GAP ? pickRetry(false) : null;
     if (retry) { S.sinceRetry = 0; loadPosition(retry, undefined, undefined, true); return; }
@@ -846,12 +851,38 @@
     if (S.data) nextPosition(); else updateActions();
   }
 
+  /* A challenge: the positions come from the token alone (see web/seed.js), so everyone who opens the same one gets the same ones.
+   * `wantTag` is the dataset tag the link was made with; a different dataset would pick different positions. */
+  function startChallenge(token, wantTag) {
+    if (!S.data) return;
+    var tag = SD.tagOf(S.data.meta, S.data.positions.length), why = null;
+    var queue = wantTag && wantTag !== tag ? [] : SD.select(S.data.positions, token, CHALLENGE_LEN);
+    if (!queue.length) { why = wantTag && wantTag !== tag ? T.challenge.otherData : T.challenge.none; }
+    if (why) { nextPosition(); $('prompt').hidden = false; $('prompt').textContent = why + ' ' + $('prompt').textContent; return; }
+    S.session = { n: queue.length, rows: [], done: false, queue: queue, challenge: { token: token, tag: tag } };
+    document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
+    sfx('next');
+    nextPosition();
+  }
+
+  function challengeLink(ch) { return window.location.origin + window.location.pathname + '#c=' + SD.code(ch.token, ch.tag); }
+  function challengeTitle(ch) { return T.challenge.label(SD.isDaily(ch.token) ? SD.label(ch.token) : ch.token, SD.isDaily(ch.token)); }
+
   function reportOpen() { return !$('reportView').hidden; }
 
   function openReport(partial) {
     var rows = S.session.rows;
     var sum = RP.summarize(rows);
     store.set(LAST_KEY, { t: nowMs(), n: sum.n, quality: Math.round(sum.quality), found: sum.found });
+    var ch = S.session.challenge;
+    $('reportTitle').textContent = ch ? challengeTitle(ch) : T.session.title;
+    $('reportCopy').textContent = ch ? T.challenge.copy : T.session.copy;
+    $('reportLink').hidden = !ch;
+    if (ch && !partial && !S.challenges[ch.token]) { // the first full attempt is the one that counts; later ones are for practice
+      S.challenges[ch.token] = { score: Math.round(sum.quality), found: sum.found, n: sum.n, t: nowMs() };
+      Object.keys(S.challenges).sort(function (a, b) { return S.challenges[b].t - S.challenges[a].t; }).slice(CHALLENGES_MAX).forEach(function (k) { delete S.challenges[k]; });
+      store.set(CHALLENGES_KEY, S.challenges);
+    }
     $('reportBody').innerHTML = RP.html(rows, T, partial);
     $('reportMsg').textContent = '';
     timerPause();
@@ -892,6 +923,8 @@
   function parseHash() {
     var h = window.location.hash.replace(/^#/, '');
     if (PAGES.indexOf(h) >= 0) return { view: h };
+    var c = /^c=(.+)$/.exec(h), code = c && SD.parseCode(c[1]);
+    if (code) return { view: 'challenge', token: code.token, tag: code.tag };
     var m = /^p=([0-9a-f]{10})(?:&m=([a-h][1-8][a-h][1-8][qrbn]?))?$/.exec(h);
     return m ? { view: 'position', id: m[1], move: m[2] || null } : null;
   }
@@ -914,9 +947,10 @@
   function consumeRoute() {
     var r = S.route || parseHash();
     S.route = null;
-    if (!r || r.view !== 'position') return false;
+    if (!r || (r.view !== 'position' && r.view !== 'challenge')) return false;
     cleanHash(); S.pagePushed = false;
     if (pageIsOpen()) showPage(null);
+    if (r.view === 'challenge') { startChallenge(r.token, r.tag); return true; }
     var p = positionById()[r.id];
     if (!p) { nextPosition(); $('prompt').hidden = false; $('prompt').textContent = T.link.missing + ' ' + $('prompt').textContent; return true; }
     if (r.move && p.evals[r.move]) {
@@ -1092,7 +1126,7 @@
 
   /* The scripts this one needs. If one did not load (a 404 from a stale image or a bad deploy, a blocked request) say so
    * plainly instead of failing on the first move with a console error. GTM_SOUND is optional (the page works without it). */
-  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SRS', 'GTM_REPORT', 'GTM_STATS', 'GTM_LEVEL'];
+  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SEED', 'GTM_SRS', 'GTM_REPORT', 'GTM_STATS', 'GTM_LEVEL'];
 
   function missingScripts() { return REQUIRED.filter(function (k) { return !window[k]; }); }
 
@@ -1106,6 +1140,12 @@
     }
     svg = $('boardSvg');
     S.seen = new Set(store.get(SEEN_KEY, []));
+    S.challenges = {};  // {token: {score, found, n, t}}: the first full attempt at each challenge; the saved value is untrusted
+    var savedCh = store.get(CHALLENGES_KEY, {});
+    if (savedCh && typeof savedCh === 'object' && !Array.isArray(savedCh)) Object.keys(savedCh).slice(0, CHALLENGES_MAX).forEach(function (k) {
+      var v = savedCh[k];
+      if (/^[0-9a-z]{3,16}$/.test(k) && v && isFinite(v.score) && isFinite(v.t)) S.challenges[k] = { score: Math.round(v.score), found: Math.max(0, Math.floor(Number(v.found)) || 0), n: Math.max(0, Math.floor(Number(v.n)) || 0), t: Number(v.t) };
+    });
     S.history = store.get(HISTORY_KEY, []);
     var goal = Number(store.get(GOAL_KEY, 10)); S.goal = [0, 5, 10, 20, 50].indexOf(goal) >= 0 ? goal : 10; $('goalSelect').value = String(S.goal);
     S.orientation = ['auto', 'white', 'black'].indexOf(store.get(ORIENT_KEY, 'auto')) >= 0 ? store.get(ORIENT_KEY, 'auto') : 'auto'; $('orientation').value = S.orientation;
@@ -1165,7 +1205,7 @@
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
     $('skip').addEventListener('click', skipPosition);
     $('resetStats').addEventListener('click', function () {
-      S.history = []; S.seen = new Set(); S.srs = {}; S.plays = 0; store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); store.set(SRS_KEY, {}); store.set(PLAYS_KEY, 0); store.set(LAST_KEY, null); renderStats(); updateEstimate(); if (S.data) applyFilters();
+      S.history = []; S.seen = new Set(); S.srs = {}; S.plays = 0; store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); store.set(SRS_KEY, {}); store.set(PLAYS_KEY, 0); store.set(LAST_KEY, null); S.challenges = {}; store.set(CHALLENGES_KEY, {}); updateActions(); renderStats(); updateEstimate(); if (S.data) applyFilters();
     });
     $('confirmToggle').addEventListener('change', function () {
       S.confirm = $('confirmToggle').checked; store.set(CONFIRM_KEY, S.confirm);
@@ -1186,7 +1226,15 @@
     $('sessionEnd').addEventListener('click', endSession);
     $('reportBack').addEventListener('click', function () { closeReport(true); });
     $('reportAgain').addEventListener('click', function () { closeReport(false); startSession(); });
-    $('reportCopy').addEventListener('click', function () { if (S.session) copyText(RP.text(S.session.rows, T, window.location.origin + window.location.pathname), $('reportMsg'), T.session.copied); });
+    $('reportCopy').addEventListener('click', function () {
+      if (!S.session) return;
+      var ch = S.session.challenge;
+      if (ch) copyText(RP.challengeText(S.session.rows, T, challengeTitle(ch), challengeLink(ch)), $('reportMsg'), T.challenge.copied);
+      else copyText(RP.text(S.session.rows, T, window.location.origin + window.location.pathname), $('reportMsg'), T.session.copied);
+    });
+    $('reportLink').addEventListener('click', function () { if (S.session && S.session.challenge) copyText(challengeLink(S.session.challenge), $('reportMsg'), T.challenge.linkCopied); });
+    $('dailyBtn').addEventListener('click', function () { startChallenge(SD.todayToken(nowMs())); });
+    $('friendBtn').addEventListener('click', function () { startChallenge(SD.newToken()); });
     $('reportBody').addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('.session-row') : null;
       if (b) reviewFromReport(Number(b.getAttribute('data-index')));
@@ -1226,7 +1274,7 @@
     window.addEventListener('resize', function () { if (pageName() === 'stats') drawStats(); });
     window.addEventListener('hashchange', function () {
       var r = parseHash();
-      if (r && r.view === 'position') { S.route = r; if (S.data) consumeRoute(); } else showPage(PAGES.indexOf(window.location.hash.slice(1)) >= 0 ? window.location.hash.slice(1) : null);
+      if (r && (r.view === 'position' || r.view === 'challenge')) { S.route = r; if (S.data) consumeRoute(); } else showPage(PAGES.indexOf(window.location.hash.slice(1)) >= 0 ? window.location.hash.slice(1) : null);
     });
     $('linkBtn').addEventListener('click', function () { copyLink(null); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) timerPause(); else timerResume(); });

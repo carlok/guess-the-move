@@ -128,6 +128,15 @@
       lastTitle: 'Last session',
       lastLine: function (n, quality, found) { return n + ' positions, average move quality ' + quality + ', best move found ' + found + ' times.'; }
     },
+    challenge: {
+      daily: 'Daily challenge', dailyDone: function (score) { return 'Daily challenge · done (' + score + ')'; },
+      friend: 'Challenge a friend', chip: function (daily, i, n) { return (daily ? 'Daily ' : 'Challenge ') + i + '/' + n; }, label: function (token, daily) { return daily ? 'Daily ' + token : 'Challenge ' + token; },
+      copy: 'Copy result', copied: 'Result copied.', copyLink: 'Copy challenge link', linkCopied: 'Challenge link copied.',
+      title: function (label) { return 'Guess the Move · ' + label; }, numbers: function (quality, found, n) { return 'Move quality ' + quality + ' · best move found ' + found + '/' + n; },
+      otherData: 'This challenge was made with a different set of positions than this page has, so it cannot be reproduced here. A normal position is shown instead.',
+      none: 'There are not enough positions for a challenge.',
+      square: { brilliant: '🟦', great: '🟦', best: '🟩', excellent: '🟩', good: '🟨', inaccuracy: '🟧', mistake: '🟥', blunder: '⬛' }
+    },
     progress: {
       line: function (streak, today, goal) { return 'Streak ' + streak + ' · Today ' + today + (goal ? '/' + goal : ''); },
       reached: function (n) { return 'Daily goal reached: ' + n + ' guesses today.'; }
