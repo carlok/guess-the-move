@@ -689,7 +689,7 @@ test('Escape leaves the stats view; board keys do nothing there; the browser Bac
 test('#stats opens the view straight away, and closing it then leaves the URL clean', async () => {
   const w = await boot(dataOf(ROOK), { hash: '#stats', ls: { history: many(3) } });
   assert.equal($(w, 'statsView').hidden, false);
-  assert.equal($(w, 'statsBody').querySelectorAll('.kpi').length, 7);
+  assert.equal($(w, 'statsBody').querySelectorAll('.kpi').length, 10, 'with today');
   click(w, 'statsBack');
   assert.equal($(w, 'statsView').hidden, true);
   assert.equal(w.location.hash, '');
@@ -1393,4 +1393,163 @@ test('the timer rests while the report is open, and the stats page remembers the
   assert.match($(w, 'statsBody').textContent, /Last session2 positions, average move quality 100, best move found 2 times\./);
   click(w, 'statsBack'); await tick(); click(w, 'resetStats');
   assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.lastSession')), null);
+});
+
+/* ---------- openings ---------- */
+
+const withOpening = (id, opening, eco) => ({ ...ROOK, id, game: { opening, eco } });
+const openings = () => dataOf(
+  ...Array.from({ length: 6 }, (_, i) => withOpening('o1' + String(i).repeat(8), 'Sicilian Defense: Najdorf Variation', 'B90')),
+  ...Array.from({ length: 5 }, (_, i) => withOpening('o2' + String(i).repeat(8), 'Italian Game', 'C50')),
+  withOpening('o3000000000', 'Rare <b>Opening</b>: Line', 'A00'),
+  { ...ROOK, id: 'o4000000000' });
+
+test('the opening and its ECO code are shown on the position line, and escaped', async () => {
+  const w = await boot(openings());
+  assert.equal($(w, 'openingLine').hidden, false);
+  assert.equal($(w, 'openingLine').textContent, 'Opening: Sicilian Defense: Najdorf Variation (B90)');
+  const rare = await boot(dataOf(withOpening('o3000000000', 'Rare <b>Opening</b>: Line', 'A00')));
+  assert.equal($(rare, 'openingLine').textContent, 'Opening: Rare <b>Opening</b>: Line (A00)');
+  assert.equal(rare.document.querySelectorAll('#openingLine b').length, 0, 'text, not markup');
+  const none = await boot(dataOf(ROOK));
+  assert.equal($(none, 'openingLine').hidden, true, 'no game data (the demo set): no line');
+  assert.equal($(none, 'openingLabel').hidden, true, 'and no filter');
+});
+
+test('the opening filter lists families with at least five positions, by size, and narrows the positions', async () => {
+  const w = await boot(openings());
+  const opts = [...$(w, 'opening').options].map((o) => o.textContent);
+  assert.deepEqual(opts, ['Any', 'Sicilian Defense (6)', 'Italian Game (5)'], 'the rare one and the one without data are not offered');
+  assert.equal($(w, 'openingLabel').hidden, false);
+  $(w, 'opening').value = 'Italian Game'; $(w, 'opening').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.match($(w, 'matchCount').textContent, /^5 positions match/);
+  assert.match($(w, 'openingLine').textContent, /Italian Game \(C50\)/);
+  $(w, 'opening').value = 'any'; $(w, 'opening').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.match($(w, 'matchCount').textContent, /^13 positions match/);
+});
+
+test('retries respect the opening filter too: a due Sicilian retry stays away while Italian is chosen, and returns when the filter is cleared', async () => {
+  const w = await boot(openings(), { ls: { srs: { o100000000: { box: 1, due: 0, ok: 0 } }, plays: 5 } });
+  assert.equal($(w, 'retryChip').hidden, false, 'due, no filter: it comes first');
+  const choose = (v) => { $(w, 'opening').value = v; $(w, 'opening').dispatchEvent(new w.Event('change', { bubbles: true })); };
+  choose('Italian Game');
+  click(w, 'skip'); click(w, 'skip');
+  assert.equal($(w, 'retryChip').hidden, true);
+  assert.match($(w, 'openingLine').textContent, /Italian Game/);
+  choose('any');
+  assert.equal($(w, 'retryChip').hidden, false, 'the filter no longer excludes it');
+  assert.match($(w, 'openingLine').textContent, /Sicilian Defense/);
+});
+
+/* ---------- settings in the menu ---------- */
+
+const rectOf = (w, sqName) => { const r = sq(w, sqName); return [Number(r.getAttribute('x')), Number(r.getAttribute('y'))]; };
+
+test('the settings live in the menu, with the controls that used to be in the panel', async () => {
+  const w = await boot(dataOf(ROOK));
+  const section = $(w, 'menuSettings');
+  for (const id of ['confirmToggle', 'timerToggle', 'srsToggle', 'adaptiveToggle', 'orientation', 'coordsToggle']) assert.ok(section.querySelector('#' + id), id);
+  assert.equal($(w, 'panel').querySelector('#confirmToggle'), null, 'no longer in the panel');
+  assert.ok($(w, 'menu').querySelector('nav a[href="#menuSettings"]'));
+});
+
+test('board orientation: automatic follows the side to move, White and Black are fixed, and the choice is remembered', async () => {
+  const w = await boot(dataOf(ROOK));                         // White to move
+  assert.deepEqual(rectOf(w, 'a1'), [0, 700], 'automatic, White to move: a1 bottom left');
+  const choose = (win, v) => { $(win, 'orientation').value = v; $(win, 'orientation').dispatchEvent(new win.Event('change', { bubbles: true })); };
+  choose(w, 'black');
+  assert.deepEqual(rectOf(w, 'a1'), [700, 0], 'Black at the bottom: a1 top right, redrawn at once');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.orientation')), 'black');
+  const kept = await boot(dataOf(ROOK), { ls: { orientation: 'black' } });
+  assert.deepEqual(rectOf(kept, 'a1'), [700, 0]); assert.equal($(kept, 'orientation').value, 'black');
+  const blackToMove = await boot(dataOf(BLACK), { ls: { orientation: 'white' } });
+  assert.deepEqual(rectOf(blackToMove, 'a1'), [0, 700], 'White at the bottom even though Black is to move');
+  const auto = await boot(dataOf(BLACK));
+  assert.deepEqual(rectOf(auto, 'a1'), [700, 0], 'automatic, Black to move');
+  const junk = await boot(dataOf(ROOK), { ls: { orientation: 'sideways' } });
+  assert.equal($(junk, 'orientation').value, 'auto', 'an unknown stored value is ignored');
+});
+
+test('a move still works after the board is turned, and the coordinates can be hidden', async () => {
+  const w = await boot(dataOf(ROOK));
+  $(w, 'orientation').value = 'black'; $(w, 'orientation').dispatchEvent(new w.Event('change', { bubbles: true }));
+  play(w, 'a1', 'a8');
+  assert.equal($(w, 'result').hidden, false);
+  const c = await boot(dataOf(ROOK));
+  assert.equal($(c, 'boardSvg').classList.contains('no-coords'), false);
+  $(c, 'coordsToggle').checked = false; $(c, 'coordsToggle').dispatchEvent(new c.Event('change', { bubbles: true }));
+  assert.equal($(c, 'boardSvg').classList.contains('no-coords'), true);
+  assert.equal(JSON.parse(c.localStorage.getItem('gtm.v1.coords')), false);
+  const kept = await boot(dataOf(ROOK), { ls: { coords: false } });
+  assert.equal($(kept, 'boardSvg').classList.contains('no-coords'), true); assert.equal($(kept, 'coordsToggle').checked, false);
+  const nothing = await boot({ schema: 1, meta: { demo: false }, positions: [] });
+  $(nothing, 'orientation').value = 'black'; $(nothing, 'orientation').dispatchEvent(new nothing.Event('change', { bubbles: true }));
+  assert.equal($(nothing, 'orientation').value, 'black', 'with no position on screen it only remembers the choice');
+});
+
+
+/* ---------- streaks and the daily goal ---------- */
+
+test('the progress line shows the streak and today against the goal, and moves with every guess', async () => {
+  const clock = { t: new Date(2026, 10, 4, 10).getTime() };
+  const w = await boot(twelve(), { clock });
+  assert.equal($(w, 'progress').textContent, 'Streak 0 · Today 0/10');
+  bestThenNext(w); bestThenNext(w);
+  assert.equal($(w, 'progress').textContent, 'Streak 2 · Today 2/10');
+  blunderThenNext(w);
+  assert.equal($(w, 'progress').textContent, 'Streak 0 · Today 3/10');
+  clock.t += 24 * 3600 * 1000;
+  w.document.getElementById('resetStats').click();
+  assert.equal($(w, 'progress').textContent, 'Streak 0 · Today 0/10');
+});
+
+test('the goal is chosen in the settings and remembered; no goal shows just the count; an unknown stored goal falls back to 10', async () => {
+  const w = await boot(twelve());
+  $(w, 'goalSelect').value = '5'; $(w, 'goalSelect').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.equal($(w, 'progress').textContent, 'Streak 0 · Today 0/5');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.goal')), 5);
+  $(w, 'goalSelect').value = '0'; $(w, 'goalSelect').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.equal($(w, 'progress').textContent, 'Streak 0 · Today 0');
+  assert.equal((await boot(twelve(), { ls: { goal: 20 } })).document.getElementById('goalSelect').value, '20');
+  assert.equal((await boot(twelve(), { ls: { goal: 7 } })).document.getElementById('goalSelect').value, '10');
+});
+
+test('reaching the daily goal is announced once that day, with a sound', async () => {
+  const clock = { t: new Date(2026, 10, 4, 10).getTime() };
+  const { Ctx, log } = fakeAudio();
+  const w = await boot(twelve(), { clock, audio: Ctx, ls: { goal: 5 } });
+  for (let i = 0; i < 4; i++) bestThenNext(w);
+  assert.doesNotMatch(live(w), /Daily goal/);
+  play(w, 'a1', 'a8');
+  assert.match($(w, 'live').textContent, /Daily goal reached: 5 guesses today\./);
+  assert.ok(log.includes('f784'), 'a chime');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.goalday')), '2026-11-4');
+  click(w, 'next');
+  $(w, 'live').textContent = '';
+  play(w, 'a1', 'a8');
+  assert.doesNotMatch($(w, 'live').textContent, /Daily goal/, 'not again on the sixth');
+});
+
+/* ---------- keyboard ---------- */
+
+test('? opens the menu at the keyboard list, s skips the position, and typing in a field does neither', async () => {
+  const w = await boot(twelve());
+  assert.ok($(w, 'menuKeys').querySelectorAll('tbody tr').length >= 9);
+  assert.ok($(w, 'menu').querySelector('nav a[href="#menuKeys"]'));
+  docKey(w, 's');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.seen')).length, 1, 'skipped: counted as seen');
+  assert.equal(chipText(w), '');
+  docKey(w, '?');
+  assert.equal($(w, 'menu').hidden, false);
+  docKey(w, 's');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.seen')).length, 1, 'the open menu is modal: no skipping behind it');
+  docKey(w, 'Escape');
+  play(w, 'a1', 'a8');
+  docKey(w, 's');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.seen')).length, 2, 'after the answer there is nothing to skip (the answered position is only marked seen)');
+  const field = await boot(twelve());
+  const input = field.document.getElementById('fenInput');
+  input.dispatchEvent(new field.KeyboardEvent('keydown', { key: '?', bubbles: true }));
+  input.dispatchEvent(new field.KeyboardEvent('keydown', { key: 's', bubbles: true }));
+  assert.equal($(field, 'menu').hidden, true); assert.equal(field.localStorage.getItem('gtm.v1.seen'), null);
 });

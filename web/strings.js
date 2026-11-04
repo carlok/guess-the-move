@@ -126,6 +126,11 @@
       lastTitle: 'Last session',
       lastLine: function (n, quality, found) { return n + ' positions, average move quality ' + quality + ', best move found ' + found + ' times.'; }
     },
+    progress: {
+      line: function (streak, today, goal) { return 'Streak ' + streak + ' · Today ' + today + (goal ? '/' + goal : ''); },
+      reached: function (n) { return 'Daily goal reached: ' + n + ' guesses today.'; }
+    },
+    openingLine: function (name, eco) { return 'Opening: ' + name + (eco ? ' (' + eco + ')' : ''); },
     srs: {
       chip: 'Retry', cardTitle: 'Mistakes to retry',
       cardNone: 'Nothing to retry. A position where you give up 10 or more win-% points in "Find the best move" mode comes back here.',
@@ -177,7 +182,7 @@
       empty: 'Play a few positions and your charts appear here. Everything stays in this browser.',
       need: function (n, mode) { return 'Needs at least ' + n + ' guesses in "' + mode + '" mode.'; },
       modes: { best: 'Find the best move', predict: 'Predict the real move' },
-      kpi: { guesses: 'Guesses', quality: 'Mean move quality', closeness: 'Mean closeness', found: 'Found a best move', real: 'Matched the real move', maia: 'Matched Maia', time: 'Median time' },
+      kpi: { streak: 'Streak', bestStreak: 'Best streak', today: 'Today', guesses: 'Guesses', quality: 'Mean move quality', closeness: 'Mean closeness', found: 'Found a best move', real: 'Matched the real move', maia: 'Matched Maia', time: 'Median time' },
       quality: {
         title: 'Move quality over time',
         caption: function (n, k, a, b) { return n + ' guesses. Your first ' + k + ' averaged ' + a + ', your last ' + k + ' averaged ' + b + '. The line is a 10-guess moving average.'; },

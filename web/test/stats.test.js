@@ -49,7 +49,7 @@ test('html: empty history says so; a rich history draws tiles and every chart; t
   for (let i = 0; i < 4; i++) h.push(g(30 + i, { mode: 'predict', score: 60 + i, mr: i === 0, dur: 20 }));
   const html = ST.html(h, T);
   assert.equal((html.match(/<svg class="chart"/g) || []).length, 6, 'quality, closeness, cost, phase, agreement, time');
-  assert.equal((html.match(/<div class="kpi">/g) || []).length, 7);
+  assert.equal((html.match(/<div class="kpi">/g) || []).length, 9, 'seven numbers, the streak and the best streak');
   assert.match(html, /Move quality over time/); assert.match(html, /Closeness to the real move over time/);
   assert.match(html, /Your first 5 averaged 4[0-9], your last 5 averaged/);
   assert.match(html, /Guesses taking \d+:\d\d or less averaged/);
@@ -96,4 +96,30 @@ test('the tier order in stats.js is the classifier\'s, and the tier card counts 
   assert.match(html, /Your moves by tier/); assert.match(html, /75% of your 4 best-move guesses were Excellent or better/);
   assert.match(html, /class="ch-bar t-best"/);
   assert.doesNotMatch(ST.html([g(1)], T), /Your moves by tier/, 'no tiers recorded: no card');
+});
+
+test('streaks: the current run of Excellent-or-better best-mode guesses and the longest one; predict mode is ignored; old guesses use their cost', () => {
+  const ok = (over = {}) => g(1, { tier: 'excellent', ...over }), bad = () => g(2, { tier: 'mistake' });
+  assert.deepEqual(ST.streaks([]), { current: 0, best: 0 }); assert.deepEqual(ST.streaks(undefined), { current: 0, best: 0 });
+  assert.deepEqual(ST.streaks([ok(), ok(), ok(), bad(), ok(), ok()]), { current: 2, best: 3 });
+  assert.deepEqual(ST.streaks([ok(), bad()]), { current: 0, best: 1 });
+  assert.deepEqual(ST.streaks([ok(), ok({ mode: 'predict', tier: 'blunder' }), ok()]), { current: 2, best: 2 }, 'predict guesses neither extend nor break it');
+  assert.deepEqual(ST.streaks([g(1, { tier: undefined, cost: 1.9 }), g(2, { tier: undefined, cost: 2.5 })]), { current: 0, best: 1 }, 'no tier: cost <= 2 is good');
+  assert.deepEqual(ST.streaks([g(1, { tier: 'good' })]), { current: 0, best: 0 }, 'Good is not enough');
+  assert.equal(ST.summarize([ok(), ok()]).streak, 2); assert.equal(ST.summarize([ok(), bad(), ok()]).bestStreak, 1);
+});
+
+test('todayCount counts the guesses made on the same local calendar day', () => {
+  const at = (y, m, d, h) => new Date(y, m, d, h).getTime();
+  const h = [g(1, { t: at(2026, 10, 3, 23) }), g(2, { t: at(2026, 10, 4, 0) }), g(3, { t: at(2026, 10, 4, 12) }), g(4, { t: at(2026, 10, 4, 23) }), g(5, { t: at(2026, 10, 5, 0) })];
+  assert.equal(ST.todayCount(h, at(2026, 10, 4, 15)), 3);
+  assert.equal(ST.todayCount([], Date.now()), 0); assert.equal(ST.todayCount(undefined, 0), 0);
+});
+
+test('the stats page adds today (with the goal) when it is told the time, and not otherwise', () => {
+  const t = at => new Date(2026, 10, 4, at).getTime();
+  const h = [g(1, { t: t(9) }), g(2, { t: t(10) })];
+  assert.match(ST.html(h, T, { now: t(12), goal: 10 }), /<dt>Today<\/dt><dd>2\/10<\/dd>/);
+  assert.match(ST.html(h, T, { now: t(12), goal: 0 }), /<dt>Today<\/dt><dd>2<\/dd>/);
+  assert.doesNotMatch(ST.html(h, T), /<dt>Today/);
 });

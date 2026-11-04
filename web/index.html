@@ -46,7 +46,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
       </button>
     </div>
-    <nav class="menu-nav" aria-label="In this menu"><a href="#menuHow">How it works</a><a href="#menuData">The data</a><a href="#menuCredits">Credits</a></nav>
+    <nav class="menu-nav" aria-label="In this menu"><a href="#menuHow">How it works</a><a href="#menuSettings">Settings</a><a href="#menuKeys">Keyboard</a><a href="#menuData">The data</a><a href="#menuCredits">Credits</a></nav>
 
     <section id="menuHow" aria-labelledby="howTitle">
       <h3 id="howTitle">How it works</h3>
@@ -76,6 +76,42 @@
         <li>Move by tapping a piece and then its square, by dragging it, or with the keyboard (arrow keys, Enter, Escape). On touch screens you confirm before the answer is revealed; you can change that in the settings.</li>
       </ul>
       <button id="tourBtn" type="button">Show the quick tour</button>
+    </section>
+
+    <section id="menuSettings" aria-labelledby="settingsTitle">
+      <h3 id="settingsTitle">Settings</h3>
+      <div class="settings">
+        <label class="check"><input type="checkbox" id="srsToggle"> Bring back positions I got wrong</label>
+        <p class="muted small">Positions where you gave up 10 or more win-% points come back after 5, then 15, then 40 positions, until you get them right four times. At most one position in three is a retry.</p>
+        <label class="check"><input type="checkbox" id="adaptiveToggle"> Pick positions that sharpen my level estimate</label>
+        <p class="muted small">Chooses positions where players of different ratings disagree most, so fewer guesses are needed. It makes your set of positions less random.</p>
+        <label class="check"><input type="checkbox" id="timerToggle"> Show the timer</label>
+        <label class="check"><input type="checkbox" id="confirmToggle"> Confirm moves before revealing</label>
+        <p class="muted small">Useful on touch screens, where a slip of the finger would reveal the answer.</p>
+        <label class="field" for="goalSelect">Daily goal (guesses per day)</label>
+        <select id="goalSelect"><option value="0">No goal</option><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option></select>
+        <label class="field" for="orientation">Board orientation</label>
+        <select id="orientation"><option value="auto">Side to move at the bottom</option><option value="white">White at the bottom</option><option value="black">Black at the bottom</option></select>
+        <label class="check"><input type="checkbox" id="coordsToggle"> Show file and rank letters on the board</label>
+      </div>
+    </section>
+
+    <section id="menuKeys" aria-labelledby="keysTitle">
+      <h3 id="keysTitle">Keyboard</h3>
+      <table class="keys">
+        <caption class="sr-only">Keyboard shortcuts</caption>
+        <tbody>
+          <tr><th scope="row"><kbd>Tab</kbd></th><td>Move to the board</td></tr>
+          <tr><th scope="row"><kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd></th><td>Move the cursor on the board</td></tr>
+          <tr><th scope="row"><kbd>Home</kbd></th><td>Jump the cursor to the corner nearest you</td></tr>
+          <tr><th scope="row"><kbd>Enter</kbd> or <kbd>Space</kbd></th><td>Pick up a piece, then drop it on a square</td></tr>
+          <tr><th scope="row"><kbd>Esc</kbd></th><td>Cancel a selection or close a view</td></tr>
+          <tr><th scope="row"><kbd>n</kbd></th><td>Next position, after the answer</td></tr>
+          <tr><th scope="row"><kbd>p</kbd></th><td>Previous position, to study it again</td></tr>
+          <tr><th scope="row"><kbd>s</kbd></th><td>Skip this position</td></tr>
+          <tr><th scope="row"><kbd>?</kbd></th><td>Show this list</td></tr>
+        </tbody>
+      </table>
     </section>
 
     <section id="menuData" aria-labelledby="dataTitle">
@@ -111,6 +147,7 @@
   <main id="gameMain">
     <section class="stage" aria-label="Board">
       <div class="posinfo"><span id="posInfo"></span><button id="linkBtn" type="button" class="icon-btn link-btn" aria-label="Copy a link to this position" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
+      <p id="openingLine" class="openingline muted small" hidden></p>
       <div id="chips" class="chips" hidden><span id="reviewChip" class="review-chip" hidden>Review</span><span id="pickChip" class="review-chip" hidden></span><span id="retryChip" class="review-chip" hidden>Retry</span><span id="sessionChip" class="review-chip" hidden></span><button id="sessionEnd" type="button" class="link" hidden>End</button></div>
       <div id="boardWrap" class="boardwrap">
         <div id="skeleton" class="skeleton" aria-hidden="true"></div>
@@ -133,6 +170,7 @@
     </section>
 
     <section id="panel" class="panel" aria-label="Controls and results">
+      <p id="progress" class="progress muted small"></p>
       <fieldset class="modes">
         <legend>Mode</legend>
         <label><input type="radio" name="mode" value="best" checked> Find the best move</label>
@@ -154,6 +192,9 @@
           </label>
           <label>Kind
             <select id="tag"><option value="any">Any</option></select>
+          </label>
+          <label id="openingLabel" hidden>Opening
+            <select id="opening"><option value="any">Any</option></select>
           </label>
           <label class="check"><input type="checkbox" id="unseen" checked> Unseen only</label>
         </div>
@@ -180,15 +221,6 @@
         <p id="apiMsg" class="muted small" aria-live="polite"></p>
       </details>
 
-      <div class="settings">
-        <label class="check"><input type="checkbox" id="srsToggle"> Bring back positions I got wrong</label>
-        <p class="muted small">Positions where you gave up 10 or more win-% points come back after 5, then 15, then 40 positions, until you get them right four times. At most one position in three is a retry.</p>
-        <label class="check"><input type="checkbox" id="adaptiveToggle"> Pick positions that sharpen my level estimate</label>
-        <p class="muted small">Chooses positions where players of different ratings disagree most, so fewer guesses are needed. It makes your set of positions less random.</p>
-        <label class="check"><input type="checkbox" id="timerToggle"> Show the timer</label>
-        <label class="check"><input type="checkbox" id="confirmToggle"> Confirm moves before revealing</label>
-        <p class="muted small">Useful on touch screens, where a slip of the finger would reveal the answer.</p>
-      </div>
     </section>
 
     <div id="actionBar" class="actionbar">

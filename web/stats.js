@@ -32,6 +32,29 @@
     var known = list.filter(function (e) { return e[key] !== null && e[key] !== undefined; });
     return known.length ? 100 * known.filter(function (e) { return e[key]; }).length / known.length : null;
   }
+  /* A guess counts for the streak when it was Excellent or better (older guesses without a tier: cost <= 2). */
+  var GOOD = { brilliant: 1, great: 1, best: 1, excellent: 1 };
+  function isGood(e) { return e.tier ? !!GOOD[e.tier] : typeof e.cost === 'number' && e.cost <= 2; }
+
+  /* The current run of good best-mode guesses, and the longest one in the history. */
+  function streaks(history) {
+    var run = 0, best = 0;
+    (history || []).forEach(function (e) {
+      if (e.mode !== 'best') return;
+      if (isGood(e)) { run++; if (run > best) best = run; } else run = 0;
+    });
+    return { current: run, best: best };
+  }
+
+  /* How many guesses were made on the same local calendar day as `now`. */
+  function todayCount(history, now) {
+    var d = new Date(now);
+    return (history || []).filter(function (e) {
+      var x = new Date(e.t);
+      return x.getFullYear() === d.getFullYear() && x.getMonth() === d.getMonth() && x.getDate() === d.getDate();
+    }).length;
+  }
+
   function movingAverage(values, w) {
     return values.map(function (_, i) { return mean(values.slice(Math.max(0, i - w + 1), i + 1)); });
   }
@@ -59,6 +82,7 @@
     var medT = median(timedBest.map(function (e) { return e.dur; }));
     var fast = timedBest.filter(function (e) { return e.dur <= medT; }), slow = timedBest.filter(function (e) { return e.dur > medT; });
     return {
+      streak: streaks(h).current, bestStreak: streaks(h).best,
       n: h.length, nBest: best.length, nPredict: pred.length,
       meanBest: mean(scoresOf(best)), meanPredict: mean(scoresOf(pred)),
       found: pctOf(h, 'mb'), real: pctOf(h, 'mr'), maia: pctOf(h, 'mm'),
@@ -208,7 +232,9 @@
     var pc = function (v) { return v === null ? '—' : round(v) + '%'; };
     var tiles = [[V.kpi.guesses, String(S.n)], [V.kpi.quality, dash(S.meanBest)], [V.kpi.closeness, dash(S.meanPredict)],
       [V.kpi.found, pc(S.found)], [V.kpi.real, pc(S.real)], [V.kpi.maia, pc(S.maia)],
-      [V.kpi.time, S.medianTime === null ? '—' : clock(S.medianTime)]];
+      [V.kpi.time, S.medianTime === null ? '—' : clock(S.medianTime)],
+      [V.kpi.streak, String(S.streak)], [V.kpi.bestStreak, String(S.bestStreak)]];
+    if (opts && opts.now !== undefined) tiles.push([V.kpi.today, todayCount(history, opts.now) + (opts.goal ? '/' + opts.goal : '')]);
     out += '<dl class="kpis">' + tiles.map(function (t) { return '<div class="kpi"><dt>' + esc(t[0]) + '</dt><dd>' + esc(t[1]) + '</dd></div>'; }).join('') + '</dl>';
 
     out += '<div class="charts">';
@@ -264,5 +290,5 @@
     return out + '</div>';
   }
 
-  return { TIER_ORDER: TIER_ORDER, summarize: summarize, html: html, clock: clock, median: median, movingAverage: movingAverage };
+  return { streaks: streaks, todayCount: todayCount, TIER_ORDER: TIER_ORDER, summarize: summarize, html: html, clock: clock, median: median, movingAverage: movingAverage };
 }));

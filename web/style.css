@@ -272,11 +272,23 @@ html.menu-open { overflow: hidden; }
 .ch-bar.t-brilliant { fill: var(--t-brilliant); } .ch-bar.t-great { fill: var(--t-great); } .ch-bar.t-best { fill: var(--t-best); } .ch-bar.t-excellent { fill: var(--t-excellent); }
 .ch-bar.t-good { fill: var(--t-good); } .ch-bar.t-inaccuracy { fill: var(--t-inaccuracy); } .ch-bar.t-mistake { fill: var(--t-mistake); } .ch-bar.t-blunder { fill: var(--t-blunder); }
 
+/* Keyboard list in the menu */
+.keys { width: 100%; border-collapse: collapse; }
+.keys th, .keys td { text-align: left; padding: var(--s-1) var(--s-2) var(--s-1) 0; vertical-align: top; font-weight: 400; }
+.keys th { white-space: nowrap; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface-2); font: inherit; font-size: .85em; }
+
+/* Settings in the menu */
+.no-coords .coord { display: none; }
+.menu .settings { background: none; border: 0; padding: 0; }
+.menu .settings .field { display: block; margin-top: var(--s-3); }
+
 /* Training session */
 .session-btn { width: 100%; margin: 0 0 var(--s-3); }
 .session-moves { list-style: none; margin: 0 0 var(--s-3); padding: 0; }
 #reportView h3 { margin: var(--s-4) 0 var(--s-2); }
 
+.progress { margin: 0 0 var(--s-2); font-variant-numeric: tabular-nums; }
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: 0 var(--s-4) var(--s-2); }
 .chips .link { min-height: 32px; }
 .review-chip { white-space: nowrap; }

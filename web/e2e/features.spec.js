@@ -63,7 +63,9 @@ test('the timer runs while a position is open, freezes at the reveal and starts 
 
 test('the timer can be hidden and stays hidden after a reload', async ({ page }) => {
   await open(page);
+  await page.locator('#menuBtn').click();
   await page.locator('#timerToggle').uncheck();
+  await page.locator('#menuClose').click();
   await expect(page.locator('#timer')).toBeHidden();
   await page.reload();
   await expect(page.locator('#timer')).toBeHidden();
@@ -111,7 +113,7 @@ test('the stats view is its own page: charts, no horizontal scroll, Back returns
   await expect(page.locator('#gameMain')).toBeHidden();
   await expect(page).toHaveURL(/#stats$/);
   await expect(page.locator('#statsBody svg.chart')).toHaveCount(6);
-  await expect(page.locator('#statsBody .kpi')).toHaveCount(7);
+  await expect(page.locator('#statsBody .kpi')).toHaveCount(10); // seven numbers, two streaks, today
   for (const c of await page.locator('#statsBody svg.chart').all()) {
     await c.scrollIntoViewIfNeeded();
     const b = await c.boundingBox();
@@ -242,9 +244,13 @@ test('the adaptive setting is remembered across a reload and shows the chip on t
   await openLevel(page, '', { history: [] });
   await expect(page.locator('[data-sq]')).toHaveCount(64);
   await expect(page.locator('#pickChip')).toBeHidden();
+  await page.locator('#menuBtn').click();
   await page.locator('#adaptiveToggle').check();
+  await page.locator('#menuClose').click();
   await page.reload();
+  await page.locator('#menuBtn').click();
   await expect(page.locator('#adaptiveToggle')).toBeChecked();
+  await page.locator('#menuClose').click();
   await expect(page.locator('#pickChip')).toBeVisible();
 });
 
@@ -353,4 +359,29 @@ test('a session shows its progress, ends in a report that lists every move, and 
   await expect(page.locator('#reportView')).toBeHidden();
   await expect(page.locator('#reviewChip')).toBeVisible();
   await expect(page.locator('.tier-line')).toContainText('Blunder');
+});
+
+/* ---------- settings, keyboard, progress ---------- */
+
+test('turning the board with the setting keeps moves working through real pointer geometry', async ({ page }) => {
+  await open(page);
+  await page.locator('#menuBtn').click();
+  await page.locator('#orientation').selectOption('black');
+  await page.locator('#menuClose').click();
+  const a1 = await page.locator('[data-sq="a1"]').boundingBox(), h8 = await page.locator('[data-sq="h8"]').boundingBox();
+  expect(a1.x).toBeGreaterThan(h8.x); expect(a1.y).toBeLessThan(h8.y);
+  await clickMove(page, 'a1a8');
+  await expect(page.locator('#result')).toBeVisible();
+  await expect(page.locator('#progress')).toContainText('Today 1/10');
+});
+
+test('? opens the keyboard list and s skips, from the keyboard alone', async ({ page }) => {
+  await open(page);
+  await page.keyboard.press('?');
+  await expect(page.locator('#menu')).toBeVisible();
+  await expect(page.locator('#menuKeys')).toBeInViewport();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menu')).toBeHidden();
+  await page.keyboard.press('s');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('gtm.v1.seen') || '[]').length), 'the skipped position is marked seen').toBe(1);
 });

@@ -11,7 +11,7 @@
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
-  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
+  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, GOAL_KEY = 'gtm.v1.goal', GOALDAY_KEY = 'gtm.v1.goalday', ORIENT_KEY = 'gtm.v1.orientation', COORDS_KEY = 'gtm.v1.coords', SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
@@ -20,7 +20,7 @@
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
     seen: new Set(), history: [], showTimer: true, statsPushed: false,
-    session: null,
+    session: null, goal: 10, orientation: 'auto', coords: true,
     srs: {}, plays: 0, srsOn: true, sinceRetry: RETRY_GAP, retrying: false,
     adaptive: false, hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
     trail: [], cur: null // positions answered in this visit, and the one being reviewed (null: a live position)
@@ -315,7 +315,15 @@
     renderArrows();
   }
 
+  function dayKey(ms) { var d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+
+  /* "Streak 3 · Today 4/10" above the controls. */
+  function renderProgress() {
+    $('progress').textContent = T.progress.line(window.GTM_STATS.streaks(S.history).current, window.GTM_STATS.todayCount(S.history, nowMs()), S.goal);
+  }
+
   function renderStats() {
+    renderProgress();
     var h = S.history, el = $('stats');
     if (!h.length) { el.innerHTML = '<p class="muted">' + T.stats.none + '</p>'; return; }
     function avg(list) { return list.length ? list.reduce(function (a, b) { return a + b; }, 0) / list.length : null; }
@@ -338,16 +346,26 @@
   function setPrompt() {
     var p = S.pos, el = $('prompt');
     el.hidden = false; $('verdict').hidden = true; $('legend').hidden = true;
-    if (!p) { el.textContent = ''; $('posInfo').textContent = ''; return; }
+    if (!p) { el.textContent = ''; $('posInfo').textContent = ''; $('openingLine').hidden = true; return; }
     $('posInfo').textContent = T.posInfo(p);
+    $('openingLine').hidden = !(p.game && p.game.opening);
+    if (!$('openingLine').hidden) $('openingLine').textContent = T.openingLine(p.game.opening, p.game.eco);
     el.textContent = S.mode === 'predict' ? T.prompt.predict : T.prompt.best(p.stm);
   }
 
   /* ---------- flow ---------- */
 
+  /* Which side is at the bottom: the side to move (automatic), or always White or Black. */
+  function wantFlipped(stm) { return S.orientation === 'auto' ? stm === 'b' : S.orientation === 'black'; }
+
+  function applyCoords() { $('boardSvg').classList.toggle('no-coords', !S.coords); }
+
+  /* The opening family of a position's game ("Sicilian Defense: Najdorf" -> "Sicilian Defense"), or null. */
+  function family(p) { var o = p.game && p.game.opening; return o ? String(o).split(':')[0].trim() : null; }
+
   function passesFilters(p) {
-    var phase = $('phase').value, tag = $('tag').value;
-    return (phase === 'any' || p.phase === phase) && (tag === 'any' || (p.tags || []).indexOf(tag) >= 0);
+    var phase = $('phase').value, tag = $('tag').value, opening = $('opening').value;
+    return (phase === 'any' || p.phase === phase) && (tag === 'any' || (p.tags || []).indexOf(tag) >= 0) && (opening === 'any' || family(p) === opening);
   }
 
   /* The queued position to retry: the one due first, or any queued one with `any`. It respects the phase and kind
@@ -376,11 +394,8 @@
   }
 
   function applyFilters() {
-    var phase = $('phase').value, tag = $('tag').value, unseen = $('unseen').checked;
-    var list = S.data.positions.filter(function (p) {
-      return (phase === 'any' || p.phase === phase) && (tag === 'any' || (p.tags || []).indexOf(tag) >= 0) &&
-        (!unseen || !S.seen.has(p.id));
-    });
+    var unseen = $('unseen').checked;
+    var list = S.data.positions.filter(function (p) { return passesFilters(p) && (!unseen || !S.seen.has(p.id)); });
     $('matchCount').textContent = T.matchCount(list.length);
     return list;
   }
@@ -391,7 +406,7 @@
     S.cur = review ? S.trail.indexOf(review) : null;
     S.retrying = !!retrying;
     S.picked = bits === undefined ? null : bits;
-    S.pos = p; S.parsed = B.parseFen(p.fen); S.flipped = S.parsed.stm === 'b';
+    S.pos = p; S.parsed = B.parseFen(p.fen); S.flipped = wantFlipped(S.parsed.stm);
     S.legalFrom = {};
     Object.keys(p.evals).forEach(function (u) { (S.legalFrom[u.slice(0, 2)] = S.legalFrom[u.slice(0, 2)] || []).push(u); });
     S.selected = null; S.promo = null; S.pending = null; S.revealed = false; S.result = null; S.cursor = null; S.preview = null; S.tiers = null;
@@ -412,6 +427,12 @@
 
   /* Previous: one step back through the positions answered in this visit. From a live position that is the latest one
    * (the unanswered live position is dropped: it never counted); from a review it is the one before. */
+  function skipPosition() {
+    if (S.pos) S.seen.add(S.pos.id);
+    store.set(SEEN_KEY, Array.from(S.seen));
+    goNext();
+  }
+
   function goBack() {
     var i = trailIndex() - 1;
     if (i < 0) return;
@@ -454,7 +475,7 @@
     timerStop();
     S.revealed = true; S.selected = null; S.promo = null; S.pending = null;
     S.result = G.analyse(S.pos, uci, S.pos.custom ? 'best' : S.mode); // an arbitrary position has no real move to predict
-    var tier = CL.classifyAll(S.pos)[uci].tier;
+    var tier = CL.classifyAll(S.pos)[uci].tier, goalMsg = '';
     if (!S.pos.custom) {  // the session stats are about the dataset, not about positions pasted in
       S.seen.add(S.pos.id);
       store.set(SEEN_KEY, Array.from(S.seen));
@@ -466,6 +487,9 @@
       });
       if (S.history.length > HISTORY_MAX) S.history = S.history.slice(-HISTORY_MAX);
       store.set(HISTORY_KEY, S.history);
+      if (S.goal && window.GTM_STATS.todayCount(S.history, nowMs()) === S.goal && store.get(GOALDAY_KEY, '') !== dayKey(nowMs())) {
+        store.set(GOALDAY_KEY, dayKey(nowMs())); sfx('good', 0.5); goalMsg = ' ' + T.progress.reached(S.goal);
+      }
       S.plays++; store.set(PLAYS_KEY, S.plays);
       if (S.mode === 'best') { S.srs = SRS.update(S.srs, S.plays, S.pos.id, S.result.you.cost); store.set(SRS_KEY, S.srs); }
       var entry = { pos: S.pos, uci: uci, mode: S.mode, dur: Math.round(elapsedMs() / 1000) };
@@ -478,7 +502,7 @@
     }
     sfx(isCapture(uci) ? 'capture' : 'move'); sfx(S.result.mode === 'best' && (tier === 'brilliant' || tier === 'great') ? 'brilliant' : outcomeSound(S.result), 0.16); // the fanfare is for finding it, not for predicting
     refresh(); renderResult(); renderStats(); applyFilters(); updateEstimate();
-    announce(T.live.played(uci.slice(0, 2), uci.slice(2, 4), verdictText(S.result, S.pos)));
+    announce(T.live.played(uci.slice(0, 2), uci.slice(2, 4), verdictText(S.result, S.pos)) + goalMsg);
   }
 
   /* A move was chosen (clicked, dragged or typed): reveal it, or hold it as pending when confirmation is on. */
@@ -623,6 +647,8 @@
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     if ((e.key === 'n' || e.key === 'N') && S.revealed) goNext();
     if ((e.key === 'p' || e.key === 'P') && !$('back').hidden) goBack();
+    if ((e.key === 's' || e.key === 'S') && !$('skip').hidden) skipPosition();
+    if (e.key === '?') { openMenu(); if ($('menuKeys').scrollIntoView) $('menuKeys').scrollIntoView(); }
     if (e.key === 'Escape') {
       if (gest.active()) cancelGesture();
       else if (!S.revealed && (S.selected || S.promo || S.pending)) { clearSelection(); sfx('deselect'); announce(T.live.cancelled); }
@@ -709,6 +735,11 @@
       d.positions.forEach(function (p) { (p.tags || []).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
       $('tag').innerHTML = '<option value="any">' + T.anyOption + '</option>' + Object.keys(T.tags).filter(function (t) { return counts[t]; })
         .map(function (t) { return '<option value="' + t + '">' + esc(T.tags[t]) + ' (' + counts[t] + ')</option>'; }).join('');
+      var fams = {};
+      d.positions.forEach(function (p) { var f = family(p); if (f) fams[f] = (fams[f] || 0) + 1; });
+      var top = Object.keys(fams).filter(function (f) { return fams[f] >= 5; }).sort(function (a, b) { return fams[b] - fams[a] || (a < b ? -1 : 1); }).slice(0, 30);
+      $('opening').innerHTML = '<option value="any">' + T.anyOption + '</option>' + top.map(function (f) { return '<option value="' + esc(f) + '">' + esc(f) + ' (' + fams[f] + ')</option>'; }).join('');
+      $('openingLabel').hidden = !top.length;
       if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; $('demoChip').hidden = false; }
       $('skeleton').hidden = true;
       if (menuIsOpen()) renderAbout();
@@ -918,7 +949,7 @@
     });
   }
 
-  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays), last: store.get(LAST_KEY, null) }); }
+  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, now: nowMs(), goal: S.goal, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays), last: store.get(LAST_KEY, null) }); }
 
   function showStats(on) {
     if (on === statsIsOpen()) return;
@@ -995,6 +1026,9 @@
     svg = $('boardSvg');
     S.seen = new Set(store.get(SEEN_KEY, []));
     S.history = store.get(HISTORY_KEY, []);
+    var goal = Number(store.get(GOAL_KEY, 10)); S.goal = [0, 5, 10, 20, 50].indexOf(goal) >= 0 ? goal : 10; $('goalSelect').value = String(S.goal);
+    S.orientation = ['auto', 'white', 'black'].indexOf(store.get(ORIENT_KEY, 'auto')) >= 0 ? store.get(ORIENT_KEY, 'auto') : 'auto'; $('orientation').value = S.orientation;
+    S.coords = store.get(COORDS_KEY, true) !== false; $('coordsToggle').checked = S.coords; $('boardSvg').classList.toggle('no-coords', !S.coords);
     S.srs = SRS.sanitize(store.get(SRS_KEY, {})); S.plays = Math.max(0, Math.floor(Number(store.get(PLAYS_KEY, 0)) || 0));
     S.srsOn = store.get(SRS_ON_KEY, true) !== false; $('srsToggle').checked = S.srsOn;
     S.adaptive = store.get(ADAPTIVE_KEY, false) === true;
@@ -1041,12 +1075,12 @@
     document.querySelectorAll('input[name=mode]').forEach(function (el) {
       el.addEventListener('change', function () { if (el.checked) { S.mode = el.value; if (!S.revealed) setPrompt(); } });
     });
-    ['phase', 'tag', 'unseen'].forEach(function (id) { $(id).addEventListener('change', function () { if (S.data) nextPosition(); }); });
+    ['phase', 'tag', 'opening', 'unseen'].forEach(function (id) { $(id).addEventListener('change', function () { if (S.data) nextPosition(); }); });
     $('next').addEventListener('click', goNext);
     $('back').addEventListener('click', goBack);
     $('tryAgain').addEventListener('click', tryAgain);
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
-    $('skip').addEventListener('click', function () { if (S.pos) S.seen.add(S.pos.id); store.set(SEEN_KEY, Array.from(S.seen)); goNext(); });
+    $('skip').addEventListener('click', skipPosition);
     $('resetStats').addEventListener('click', function () {
       S.history = []; S.seen = new Set(); S.srs = {}; S.plays = 0; store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); store.set(SRS_KEY, {}); store.set(PLAYS_KEY, 0); store.set(LAST_KEY, null); renderStats(); updateEstimate(); if (S.data) applyFilters();
     });
@@ -1059,6 +1093,12 @@
       if (snd) { snd.setEnabled(!snd.isEnabled()); store.set(SOUND_KEY, snd.isEnabled()); }
       updateSoundButton(); sfx('tick');
     });
+    $('goalSelect').addEventListener('change', function () { S.goal = Number($('goalSelect').value); store.set(GOAL_KEY, S.goal); renderProgress(); });
+    $('orientation').addEventListener('change', function () {
+      S.orientation = $('orientation').value; store.set(ORIENT_KEY, S.orientation);
+      if (S.pos) { S.flipped = wantFlipped(S.parsed.stm); renderSquares(); renderPieces(); refresh(); }
+    });
+    $('coordsToggle').addEventListener('change', function () { S.coords = $('coordsToggle').checked; store.set(COORDS_KEY, S.coords); applyCoords(); });
     $('sessionBtn').addEventListener('click', startSession);
     $('sessionEnd').addEventListener('click', endSession);
     $('reportBack').addEventListener('click', function () { closeReport(true); });
