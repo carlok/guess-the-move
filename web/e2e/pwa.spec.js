@@ -32,6 +32,32 @@ test('the worker caches the build, and the page then opens and plays with the ne
   await context.setOffline(false);
 });
 
+test('the lazy parts were precached: with the network off, Save FEN and the stats charts still load', async ({ page, context }) => {
+  await preset(page, { confirm: false });
+  await page.goto('/');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await expect.poll(() => page.evaluate(async () => { const k = (await caches.keys()).find((n) => n.startsWith('gtm-')); return k ? (await (await caches.open(k)).keys()).map((r) => new URL(r.url).pathname) : []; })).toEqual(expect.arrayContaining(['/share.js', '/backup.js', '/statscharts.js']));
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  const own = await page.evaluate(() => [...document.querySelectorAll('[data-psq]')].map((e) => e.getAttribute('data-psq')));
+  for (const sq of own) {
+    await page.locator(`[data-sq="${sq}"]`).click();
+    if (await page.locator('#boardSvg .dot, #boardSvg .ring').count()) { await page.locator('#boardSvg .dot, #boardSvg .ring').first().click({ force: true }); break; }
+    await page.locator(`[data-sq="${sq}"]`).click();
+  }
+  await expect(page.locator('#result')).toBeVisible();
+  await page.locator('#saveFen').click();
+  await expect(page.locator('#linkMsg')).toHaveText('FEN saved.');
+  await page.locator('#statsBtn').click();
+  await expect(page.locator('#statsBody')).not.toContainText('could not be loaded');
+  await expect(page.locator('#statsBody')).not.toHaveText('Loading…');
+  await context.setOffline(false);
+});
+
 test('the manifest and icons are served, and the update bar is hidden until a new build is waiting', async ({ page, request }) => {
   await page.goto('/');
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');

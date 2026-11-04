@@ -32,6 +32,8 @@ test('"Save image" downloads a 2400x1520 PNG that carries the position', async (
 
 test('the saved picture is not blank: the board, the pieces and the text are drawn', async ({ page }) => {
   await answered(page);
+  await page.locator('#saveFen').click(); // loads the image module (it is fetched on first use)
+  await expect(page.locator('#linkMsg')).toHaveText('FEN saved.');
   const stats = await page.evaluate(async () => {
     const S = window.GTM_SHARE, svg = document.getElementById('boardSvg');
     const sprite = await (await fetch('pieces.svg')).text();

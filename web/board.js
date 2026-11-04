@@ -72,6 +72,23 @@
   }
 
   /* Sprite id of a FEN piece letter: "N" -> "wN", "p" -> "bP". */
+  /* The 64 squares and the file/rank letters, as the live board draws them (the share card draws the same ones). */
+  function squares(flipped) {
+    var s = '', i, p, x, y, f, r, onLight;
+    for (i = 0; i < 64; i++) {
+      p = xy(i, flipped); f = i % 8; r = Math.floor(i / 8);
+      s += '<rect class="sq ' + ((f + r) % 2 === 1 ? 'light' : 'dark') + '" data-sq="' + sqName(i) + '" x="' + p[0] * 100 + '" y="' + p[1] * 100 + '" width="100" height="100"/>';
+    }
+    for (i = 0; i < 64; i++) {
+      p = xy(i, flipped); x = p[0] * 100; y = p[1] * 100; f = i % 8; r = Math.floor(i / 8);
+      onLight = (f + r) % 2 === 1;
+      var cls = 'coord ' + (onLight ? 'on-light' : 'on-dark');
+      if (p[1] === 7) s += '<text class="' + cls + '" aria-hidden="true" x="' + (x + 80) + '" y="' + (y + 92) + '">' + FILES[f] + '</text>';
+      if (p[0] === 0) s += '<text class="' + cls + '" aria-hidden="true" x="' + (x + 6) + '" y="' + (y + 24) + '">' + (r + 1) + '</text>';
+    }
+    return s;
+  }
+
   function spriteId(ch) { return (ch === ch.toUpperCase() ? 'w' : 'b') + ch.toUpperCase(); }
 
   /* Line for an arrow from one square to another. Returns the shaft (start and end short of the squares' centres), the
@@ -119,7 +136,7 @@
   }
 
   return {
-    FILES: FILES, DRAG_THRESHOLD: DRAG_THRESHOLD, parseFen: parseFen, sqName: sqName, sqIndex: sqIndex, xy: xy,
+    FILES: FILES, DRAG_THRESHOLD: DRAG_THRESHOLD, parseFen: parseFen, sqName: sqName, sqIndex: sqIndex, xy: xy, squares: squares,
     center: center, squareFromPoint: squareFromPoint, toViewBox: toViewBox, homeSquare: homeSquare, step: step,
     pieceName: pieceName, spriteId: spriteId, arrowGeometry: arrowGeometry, gesture: gesture
   };
