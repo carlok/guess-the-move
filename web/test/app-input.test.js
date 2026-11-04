@@ -6,7 +6,7 @@
  * behaviour is checked in a real browser by web/e2e. The fixtures are SYNTHETIC hand-written evals. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { newDom, loadApp, runScript, SCRIPTS } = require('./harness');
+const { newDom, loadApp, runScript, SCRIPTS, LAZY } = require('./harness');
 const B = require('../board.js');
 
 const ROOK = {
@@ -29,8 +29,8 @@ const BLACK = {
 const dataOf = (...positions) => ({ schema: 1, meta: { demo: false }, positions });
 const tick = () => new Promise((r) => setTimeout(r, 25));
 
-async function boot(data, { confirm, onboarded = true, theme, media = {}, fetchImpl, online, audio, clock, hash, ls = {} } = {}) {
-  const dom = newDom();
+async function boot(data, { confirm, onboarded = true, theme, media = {}, fetchImpl, online, audio, clock, hash, ls = {}, lazy } = {}) {
+  const dom = newDom({ lazy: !!lazy });
   const w = dom.window;
   Object.keys(ls).forEach((k) => w.localStorage.setItem('gtm.v1.' + k, JSON.stringify(ls[k])));
   if (audio) w.AudioContext = audio;
@@ -43,7 +43,7 @@ async function boot(data, { confirm, onboarded = true, theme, media = {}, fetchI
   if (online !== undefined) Object.defineProperty(w.navigator, 'onLine', { value: online, configurable: true });
   w.fetch = fetchImpl || (async () => ({ ok: true, json: async () => data }));
   w.Math.random = () => 0;
-  loadApp(dom);
+  loadApp(dom, lazy ? { lazy: true, ...lazy } : undefined);
   await tick();
   const svg = w.document.getElementById('boardSvg');
   svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 800 });
@@ -1060,14 +1060,14 @@ test('opening the page at #stats before the data has loaded fills in the level c
 });
 
 test('a script that failed to load is named on the page instead of breaking the first move', async () => {
-  for (const missing of ['stats.js', 'level.js', 'backup.js']) {
+  for (const missing of ['stats.js', 'level.js']) {
     const dom = newDom(), w = dom.window;
     w.fetch = async () => ({ ok: true, json: async () => dataOf(ROOK) });
-    SCRIPTS.filter((s) => s !== missing).forEach((s) => runScript(dom, s));
+    SCRIPTS.filter((s) => s !== missing && !LAZY.includes(s)).forEach((s) => runScript(dom, s)); // the lazy parts are not run at the start
     await tick();
     const text = $(w, 'prompt').textContent;
     assert.match(text, /Part of the page did not load/);
-    assert.ok(text.includes({ 'stats.js': 'GTM_STATS', 'level.js': 'GTM_LEVEL', 'backup.js': 'GTM_BACKUP' }[missing]), text);
+    assert.ok(text.includes({ 'stats.js': 'GTM_STATS', 'level.js': 'GTM_LEVEL' }[missing]), text);
     assert.equal($(w, 'skeleton').hidden, true);
     assert.equal(w.document.querySelectorAll('[data-sq]').length, 0, 'no half-working board');
   }
@@ -1750,4 +1750,103 @@ test('the buttons are there when a shared answer is reviewed, and the review is 
   click(w, 'saveFen');
   assert.deepEqual(got.files, ['guess-the-move-aaaaaaaaaa.fen']);
   assert.equal(w.localStorage.getItem('gtm.v1.history'), null);
+});
+
+
+/* ---------- parts of the page that load when first used ---------- */
+
+const lazyOn = (over = {}) => ({ lazy: { ...over } });
+
+test('at the start only what the first move needs is loaded: no image saving, no stats file, no charts', async () => {
+  const w = await boot(dataOf(ROOK), lazyOn());
+  assert.equal(w.GTM_SHARE, undefined); assert.equal(w.GTM_BACKUP, undefined); assert.equal(w.GTM_STATSCHARTS, undefined);
+  assert.equal(w.document.querySelectorAll('[data-sq]').length, 64, 'the board is drawn without them');
+  assert.equal($(w, 'timer').textContent, '0:00');
+  assert.match($(w, 'progress').textContent, /Streak 0/, 'the streak line works from the small stats module');
+  assert.deepEqual(w.__lazyLoads, []);
+  assert.equal(w.document.querySelectorAll('script[type="text/lazy"]').length, 3, 'the three lazy parts stay listed in the page');
+});
+
+test('the stats page loads its charts the first time, shows a loading line meanwhile, and draws at once afterwards', async () => {
+  const w = await boot(dataOf(ROOK), { ...lazyOn(), ls: { history: many(12) } });
+  click(w, 'statsBtn');
+  assert.equal($(w, 'statsBody').textContent, 'Loading…');
+  await tick();
+  assert.deepEqual(w.__lazyLoads, ['statscharts.js']);
+  assert.ok($(w, 'statsBody').querySelector('.chart-card'), 'the charts are there');
+  click(w, 'statsBack'); await tick();
+  click(w, 'statsBtn');
+  assert.ok($(w, 'statsBody').querySelector('.chart-card'), 'drawn straight away this time');
+  assert.deepEqual(w.__lazyLoads, ['statscharts.js'], 'not fetched twice');
+});
+
+test('saving the FEN loads the image module once even when asked twice, and the later save needs no loading', async () => {
+  const w = await boot(dataOf(ROOK), lazyOn()), got = spySave(w);
+  play(w, 'a1', 'a8');
+  click(w, 'saveFen'); click(w, 'saveFen');
+  assert.deepEqual(w.__lazyLoads, ['share.js'], 'one request for two clicks');
+  await tick();
+  assert.deepEqual(got.files, ['guess-the-move-rook.fen', 'guess-the-move-rook.fen'].slice(0, 2).map((n) => n.replace('rook', ROOK.id)));
+  click(w, 'saveFen');
+  assert.equal(got.files.length, 3, 'saved at once');
+  w.GTM_SHARE.rasterize = async () => pngStub();
+  click(w, 'saveImage'); await tick();
+  assert.equal(got.files.at(-1), `guess-the-move-${ROOK.id}.png`);
+  assert.deepEqual(w.__lazyLoads, ['share.js']);
+});
+
+test('the stats file is loaded on the first download or load, and both work through it', async () => {
+  const w = await boot(dataOf(ROOK), { ...lazyOn(), ls: { history: many(3), seen: ['p0'] } }), got = spyDownload(w);
+  click(w, 'statsBtn'); await tick();
+  click(w, 'exportBtn'); await tick();
+  assert.deepEqual(w.__lazyLoads, ['statscharts.js', 'backup.js']);
+  assert.equal(got.files.length, 1);
+  const text = got.text;
+  const fresh = await boot(dataOf(ROOK), lazyOn());
+  click(fresh, 'statsBtn'); await tick();
+  await loadFile(fresh, text);
+  assert.ok(fresh.__lazyLoads.includes('backup.js'));
+  assert.match($(fresh, 'backupMsg').textContent, /^Loaded 3 new guesses/);
+  assert.equal(JSON.parse(fresh.localStorage.getItem('gtm.v1.history')).length, 3);
+});
+
+test('when a part cannot be loaded the place that needed it says so, and nothing else breaks', async () => {
+  const w = await boot(dataOf(ROOK), lazyOn({ fail: ['share.js', 'backup.js', 'statscharts.js'] }));
+  const msg = 'That part of the page could not be loaded. Check your connection and try again.';
+  play(w, 'a1', 'a8');
+  click(w, 'saveFen'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, msg);
+  click(w, 'saveImage'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, msg);
+  click(w, 'statsBtn'); await tick();
+  assert.equal($(w, 'statsBody').textContent, msg);
+  click(w, 'exportBtn'); await tick();
+  assert.equal($(w, 'backupMsg').textContent, msg);
+  await loadFile(w, '{}');
+  assert.equal($(w, 'backupMsg').textContent, msg);
+  assert.equal($(w, 'reportView').hidden, true); assert.equal($(w, 'result').hidden, false, 'the answer is still shown');
+});
+
+test('a part that loads but defines nothing counts as a failure, and a second try can still succeed', async () => {
+  const w = await boot(dataOf(ROOK), lazyOn({ empty: ['share.js'] }));
+  play(w, 'a1', 'a8');
+  click(w, 'saveFen'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, 'That part of the page could not be loaded. Check your connection and try again.');
+  click(w, 'saveFen'); await tick();
+  assert.deepEqual(w.__lazyLoads, ['share.js', 'share.js'], 'asked again after the failure');
+});
+
+test('a lazy part is requested under the address the build stamped, not the bare name', async () => {
+  const dom = newDom({ lazy: true }), w = dom.window;
+  const tag = w.document.querySelector('script[type="text/lazy"][src^="share.js"]');
+  tag.setAttribute('src', 'share.js?v=abc123');
+  w.fetch = async () => ({ ok: true, json: async () => dataOf(ROOK) });
+  loadApp(dom, { lazy: true }); await tick();
+  w.localStorage.setItem('gtm.v1.onboarded', 'true');
+  play(w, 'a1', 'a8');
+  const seen = [];
+  const append = w.document.head.appendChild;
+  w.document.head.appendChild = function (el) { seen.push(el.getAttribute('src')); return append.call(this, el); };
+  click(w, 'saveFen'); await tick();
+  assert.deepEqual(seen, ['share.js?v=abc123']);
 });

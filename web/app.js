@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SH = window.GTM_SHARE, SRS = window.GTM_SRS, RP = window.GTM_REPORT;
+  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SRS = window.GTM_SRS, RP = window.GTM_REPORT;
   var SPRITE = 'pieces.svg#';
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
@@ -56,6 +56,24 @@
   var timer = { acc: 0, since: null };
   function nowMs() { return window.Date.now(); }
   function elapsedMs() { return timer.acc + (timer.since === null ? 0 : nowMs() - timer.since); }
+  /* Parts of the page that are loaded when first used (index.html lists them as type="text/lazy": the browser neither fetches nor runs
+   * those, the build still stamps and precaches them, so they also work offline). `then` gets the module, at once if it is already
+   * here; `failed` runs if it cannot be loaded. */
+  var lazyQueue = {};
+  function lazy(file, global, then, failed) {
+    if (window[global]) { then(window[global]); return; }
+    var q = lazyQueue[file];
+    if (!q) {
+      q = lazyQueue[file] = { ok: [], bad: [] };
+      var tag = document.querySelector('script[type="text/lazy"][src^="' + file + '"]'), s = document.createElement('script');
+      s.src = tag ? tag.getAttribute('src') : file;
+      s.onload = function () { delete lazyQueue[file]; (window[global] ? q.ok : q.bad).forEach(function (f) { f(window[global]); }); };
+      s.onerror = function () { delete lazyQueue[file]; q.bad.forEach(function (f) { f(); }); };
+      document.head.appendChild(s);
+    }
+    q.ok.push(then); q.bad.push(failed || function () {});
+  }
+
   function clockText(ms) { return window.GTM_STATS.clock(ms / 1000); }
   function renderTimer() { $('timer').textContent = clockText(elapsedMs()); }
   function timerStart() { timer.acc = 0; timer.since = nowMs(); renderTimer(); }
@@ -87,7 +105,7 @@
 
   function layer(id, html) { $(id).innerHTML = html; }
 
-  function renderSquares() { layer('gSquares', SH.squares(S.flipped)); } // the card the answer can be saved as draws the same squares
+  function renderSquares() { layer('gSquares', B.squares(S.flipped)); }
 
   function renderPieces() {
     var s = '';
@@ -940,7 +958,11 @@
     });
   }
 
-  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, now: nowMs(), goal: S.goal, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays), last: store.get(LAST_KEY, null) }); }
+  function drawStats() {
+    if (!window.GTM_STATSCHARTS) $('statsBody').textContent = T.about.loading;
+    lazy('statscharts.js', 'GTM_STATSCHARTS', function (CH) { $('statsBody').innerHTML = CH.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, now: nowMs(), goal: S.goal, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays), last: store.get(LAST_KEY, null) }); },
+      function () { $('statsBody').textContent = T.lazyFailed; });
+  }
 
   /* Show a page (or, with null, the board). Opening the first page pauses the timer, leaving the last one resumes it. */
   function showPage(name) {
@@ -1016,41 +1038,49 @@
     if (!S.pos || !S.revealed || !S.result) return;
     var say = function (t) { $('linkMsg').textContent = t; };
     say(T.share.working);
-    spriteText().then(function (text) {
-      var card = SH.card(cardModel(SH.symbolsOf(text)), T);
-      return SH.rasterize(window, card.svg, card.width, card.height, 2);
-    }).then(function (png) {
-      saveBlob(new window.Blob([SH.addPngText(png, { FEN: S.pos.fen, Software: 'Guess the Move' })], { type: 'image/png' }), SH.fileName('png', S.pos.id));
-      sfx('tick'); say(T.share.imageSaved);
-    }).catch(function (e) { say(T.share.failed(e && e.message ? e.message : String(e))); });
+    lazy('share.js', 'GTM_SHARE', function (SH) {
+      spriteText().then(function (text) {
+        var card = SH.card(cardModel(SH.symbolsOf(text)), T);
+        return SH.rasterize(window, card.svg, card.width, card.height, 2);
+      }).then(function (png) {
+        saveBlob(new window.Blob([SH.addPngText(png, { FEN: S.pos.fen, Software: 'Guess the Move' })], { type: 'image/png' }), SH.fileName('png', S.pos.id));
+        sfx('tick'); say(T.share.imageSaved);
+      }).catch(function (e) { say(T.share.failed(e && e.message ? e.message : String(e))); });
+    }, function () { say(T.lazyFailed); });
   }
 
   function saveFen() {
     if (!S.pos) return;
-    saveBlob(new window.Blob([S.pos.fen + '\n'], { type: 'text/plain' }), SH.fileName('fen', S.pos.id));
-    sfx('tick'); $('linkMsg').textContent = T.share.fenSaved;
+    lazy('share.js', 'GTM_SHARE', function (SH) {
+      saveBlob(new window.Blob([S.pos.fen + '\n'], { type: 'text/plain' }), SH.fileName('fen', S.pos.id));
+      sfx('tick'); $('linkMsg').textContent = T.share.fenSaved;
+    }, function () { $('linkMsg').textContent = T.lazyFailed; });
   }
 
   function exportStats() {
-    var now = nowMs(), body = window.GTM_BACKUP.build(S.history, S.seen, S.data && S.data.meta, now, { srs: S.srs, plays: S.plays });
-    saveBlob(new window.Blob([JSON.stringify(body, null, 2) + '\n'], { type: 'application/json' }), window.GTM_BACKUP.fileName(now));
-    sfx('tick'); backupMsg(T.backup.exported(S.history.length));
+    lazy('backup.js', 'GTM_BACKUP', function (BK) {
+      var now = nowMs(), body = BK.build(S.history, S.seen, S.data && S.data.meta, now, { srs: S.srs, plays: S.plays });
+      saveBlob(new window.Blob([JSON.stringify(body, null, 2) + '\n'], { type: 'application/json' }), BK.fileName(now));
+      sfx('tick'); backupMsg(T.backup.exported(S.history.length));
+    }, function () { backupMsg(T.lazyFailed); });
   }
 
   function importStats(file) {
     var reader = new window.FileReader();
     reader.onerror = function () { backupMsg(T.backup.errors.read); };
     reader.onload = function () {
-      var r = window.GTM_BACKUP.parse(String(reader.result));
-      if (!r.ok) { backupMsg(T.backup.errors[r.error]); return; }
-      var m = window.GTM_BACKUP.merge(S.history, r.history, HISTORY_MAX);
-      S.history = m.history;
-      r.seen.forEach(function (id) { S.seen.add(id); });
-      S.srs = SRS.merge(S.srs, SRS.sanitize(r.srs)); S.plays = Math.max(S.plays, r.plays);
-      store.set(HISTORY_KEY, S.history); store.set(SEEN_KEY, Array.from(S.seen)); store.set(SRS_KEY, S.srs); store.set(PLAYS_KEY, S.plays);
-      renderStats(); updateEstimate(); if (S.data) applyFilters();
-      drawStats();
-      sfx('good'); backupMsg(T.backup.imported(m.added, m.duplicates, r.skipped));
+      lazy('backup.js', 'GTM_BACKUP', function (BK) {
+        var r = BK.parse(String(reader.result));
+        if (!r.ok) { backupMsg(T.backup.errors[r.error]); return; }
+        var m = BK.merge(S.history, r.history, HISTORY_MAX);
+        S.history = m.history;
+        r.seen.forEach(function (id) { S.seen.add(id); });
+        S.srs = SRS.merge(S.srs, SRS.sanitize(r.srs)); S.plays = Math.max(S.plays, r.plays);
+        store.set(HISTORY_KEY, S.history); store.set(SEEN_KEY, Array.from(S.seen)); store.set(SRS_KEY, S.srs); store.set(PLAYS_KEY, S.plays);
+        renderStats(); updateEstimate(); if (S.data) applyFilters();
+        drawStats();
+        sfx('good'); backupMsg(T.backup.imported(m.added, m.duplicates, r.skipped));
+      }, function () { backupMsg(T.lazyFailed); });
     };
     reader.readAsText(file);
   }
@@ -1062,7 +1092,7 @@
 
   /* The scripts this one needs. If one did not load (a 404 from a stale image or a bad deploy, a blocked request) say so
    * plainly instead of failing on the first move with a console error. GTM_SOUND is optional (the page works without it). */
-  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SHARE', 'GTM_SRS', 'GTM_REPORT', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
+  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SRS', 'GTM_REPORT', 'GTM_STATS', 'GTM_LEVEL'];
 
   function missingScripts() { return REQUIRED.filter(function (k) { return !window[k]; }); }
 

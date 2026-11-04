@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ST = require('../stats.js');
+const CH = require('../statscharts.js');
 const T = require('../strings.js');
 
 const g = (i, over = {}) => ({ id: 'p' + i, mode: 'best', phase: 'opening', cost: 1, score: 80, mb: false, mr: false, mm: false, t: i, dur: 10 + i, ...over });
@@ -44,11 +45,11 @@ test('summarize copes with nothing, with old entries without time, and with a si
 });
 
 test('html: empty history says so; a rich history draws tiles and every chart; text is escaped', () => {
-  assert.match(ST.html([], T), /class="empty"/);
+  assert.match(CH.html([], T), /class="empty"/);
   const h = [];
   for (let i = 0; i < 12; i++) h.push(g(i, { score: 40 + i * 4, cost: i, phase: ['opening', 'middlegame', 'endgame'][i % 3], mb: i % 3 === 0, mr: i % 4 === 0, mm: i % 2 === 0, dur: 8 + i * 3 }));
   for (let i = 0; i < 4; i++) h.push(g(30 + i, { mode: 'predict', score: 60 + i, mr: i === 0, dur: 20 }));
-  const html = ST.html(h, T);
+  const html = CH.html(h, T);
   assert.equal((html.match(/<svg class="chart"/g) || []).length, 6, 'quality, closeness, cost, phase, agreement, time');
   assert.equal((html.match(/<div class="kpi">/g) || []).length, 9, 'seven numbers, the streak and the best streak');
   assert.match(html, /Move quality over time/); assert.match(html, /Closeness to the real move over time/);
@@ -60,19 +61,19 @@ test('html: empty history says so; a rich history draws tiles and every chart; t
 });
 
 test('html: too little data shows what is needed instead of a chart; one phase asks for more variety; one dot is centred', () => {
-  const one = ST.html([g(1)], T);
+  const one = CH.html([g(1)], T);
   assert.match(one, /Needs at least 3 guesses in &quot;Find the best move&quot; mode/);
   assert.match(one, /Play positions from other phases/);
   assert.equal((one.match(/<svg class="chart"/g) || []).length, 3, 'cost, phase and agreement need only one guess');
-  const three = ST.html([g(1), g(2, { phase: 'endgame' }), g(3, { mode: 'predict' })], T);
+  const three = CH.html([g(1), g(2, { phase: 'endgame' }), g(3, { mode: 'predict' })], T);
   assert.match(three, /Closeness to the real move over time/);
   assert.match(three, /Needs at least 3 guesses in &quot;Predict the real move&quot; mode/);
-  const line = ST.html([g(1), g(2), g(3)], T);
+  const line = CH.html([g(1), g(2), g(3)], T);
   assert.match(line, /<polyline class="ch-line c-best"/);
 });
 
 test('html: a history with no matches known leaves the agreement chart out and shows dashes', () => {
-  const html = ST.html([g(1, { mb: null, mr: null, mm: null, mode: 'predict', dur: undefined })], T);
+  const html = CH.html([g(1, { mb: null, mr: null, mm: null, mode: 'predict', dur: undefined })], T);
   assert.doesNotMatch(html, /Who you agree with/);
   assert.match(html, /<dd>—<\/dd>/);
 });
@@ -80,12 +81,12 @@ test('html: a history with no matches known leaves the agreement chart out and s
 test('html draws charts at the requested width, within 300 to 640, and uses a narrower label column on a phone', () => {
   const h = Array.from({ length: 12 }, (_, i) => g(i, { score: 40 + i * 4, cost: i }));
   const widths = (html) => (html.match(/<svg class="chart" viewBox="0 0 (\d+) /g) || []).map((m) => Number(m.match(/0 0 (\d+)/)[1]));
-  assert.ok(widths(ST.html(h, T)).every((w) => w === 640), 'default width');
-  assert.ok(widths(ST.html(h, T, { width: 350 })).every((w) => w === 350));
-  assert.ok(widths(ST.html(h, T, { width: 100 })).every((w) => w === 300), 'floor');
-  assert.ok(widths(ST.html(h, T, { width: 2000 })).every((w) => w === 640), 'ceiling');
-  assert.match(ST.html(h, T, { width: 350 }), /class="ch-track" x="112"/);
-  assert.match(ST.html(h, T, { width: 600 }), /class="ch-track" x="150"/);
+  assert.ok(widths(CH.html(h, T)).every((w) => w === 640), 'default width');
+  assert.ok(widths(CH.html(h, T, { width: 350 })).every((w) => w === 350));
+  assert.ok(widths(CH.html(h, T, { width: 100 })).every((w) => w === 300), 'floor');
+  assert.ok(widths(CH.html(h, T, { width: 2000 })).every((w) => w === 640), 'ceiling');
+  assert.match(CH.html(h, T, { width: 350 }), /class="ch-track" x="112"/);
+  assert.match(CH.html(h, T, { width: 600 }), /class="ch-track" x="150"/);
 });
 
 test('the tier order in stats.js is the classifier\'s, and the tier card counts best-move guesses only', () => {
@@ -93,10 +94,10 @@ test('the tier order in stats.js is the classifier\'s, and the tier card counts 
   const h = [g(1, { tier: 'best' }), g(2, { tier: 'best' }), g(3, { tier: 'blunder' }), g(4, { tier: 'excellent' }), g(5, { tier: 'best', mode: 'predict' }), g(6)];
   const s = ST.summarize(h);
   assert.equal(s.tiered, 4); assert.deepEqual(s.tiers.map((t) => t.n), [0, 0, 2, 1, 0, 0, 0, 1]);
-  const html = ST.html(h, T);
+  const html = CH.html(h, T);
   assert.match(html, /Your moves by tier/); assert.match(html, /75% of your 4 best-move guesses were Excellent or better/);
   assert.match(html, /class="ch-bar t-best"/);
-  assert.doesNotMatch(ST.html([g(1)], T), /Your moves by tier/, 'no tiers recorded: no card');
+  assert.doesNotMatch(CH.html([g(1)], T), /Your moves by tier/, 'no tiers recorded: no card');
 });
 
 test('streaks: the current run of Excellent-or-better best-mode guesses and the longest one; predict mode is ignored; old guesses use their cost', () => {
@@ -120,7 +121,7 @@ test('todayCount counts the guesses made on the same local calendar day', () => 
 test('the stats page adds today (with the goal) when it is told the time, and not otherwise', () => {
   const t = at => new Date(2026, 10, 4, at).getTime();
   const h = [g(1, { t: t(9) }), g(2, { t: t(10) })];
-  assert.match(ST.html(h, T, { now: t(12), goal: 10 }), /<dt>Today<\/dt><dd>2\/10<\/dd>/);
-  assert.match(ST.html(h, T, { now: t(12), goal: 0 }), /<dt>Today<\/dt><dd>2<\/dd>/);
-  assert.doesNotMatch(ST.html(h, T), /<dt>Today/);
+  assert.match(CH.html(h, T, { now: t(12), goal: 10 }), /<dt>Today<\/dt><dd>2\/10<\/dd>/);
+  assert.match(CH.html(h, T, { now: t(12), goal: 0 }), /<dt>Today<\/dt><dd>2<\/dd>/);
+  assert.doesNotMatch(CH.html(h, T), /<dt>Today/);
 });

@@ -103,6 +103,7 @@
       }
     },
     settings: { confirm: 'Confirm moves before revealing', confirmHelp: 'Useful on touch screens, where a slip of the finger would reveal the answer.' },
+    lazyFailed: 'That part of the page could not be loaded. Check your connection and try again.',
     backup: {
       exported: function (n) { return 'Downloaded ' + n + ' guesses. Keep the file; "Load stats from a file" brings them back, here or in another browser.'; },
       imported: function (added, dups, skipped) {

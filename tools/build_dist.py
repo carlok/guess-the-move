@@ -39,6 +39,20 @@ def local_assets(html: str) -> list[str]:
     return seen
 
 
+SCRIPT_TAG = re.compile(r"<script\b[^>]*>")
+
+
+def lazy_assets(html: str) -> list[str]:
+    """The scripts index.html lists as type="text/lazy": the browser does not fetch or run them, the page loads each when first used.
+    They are still built, stamped and precached, so they work offline, but they are not part of the first load."""
+    out = []
+    for tag in SCRIPT_TAG.findall(html):
+        src = re.search(r'\bsrc="([^"#:?]+\.js)', tag)
+        if src and re.search(r'\btype="text/lazy"', tag):
+            out.append(src.group(1))
+    return out
+
+
 def csp_from_nginx() -> str:
     m = re.search(r'Content-Security-Policy "([^"]+)"', NGINX.read_text(encoding="utf-8"))
     if not m:
@@ -109,8 +123,10 @@ def build(src: Path = WEB, out: Path = ROOT / "dist", with_meta_csp: bool = Fals
         return sum(len(gzip.compress(blobs[n], 9, mtime=0)) for n in names)
 
     code = [a for a in wanted if a.endswith((".js", ".css"))]
+    lazy = [a for a in lazy_assets(html) if a in code]
     return {"build": build_id, "files": len(blobs), "bytes": sum(len(d) for d in blobs.values()),
-            "code_gzip": gz(code), "data_gzip": gz(["data/positions.json"]), "out": str(out)}
+            "code_gzip": gz(code), "first_load_gzip": gz([a for a in code if a not in lazy]), "lazy": lazy,
+            "data_gzip": gz(["data/positions.json"]), "out": str(out)}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -119,7 +135,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--meta-csp", action="store_true", help="add the content security policy as a <meta> tag")
     args = ap.parse_args(argv)
     r = build(WEB, args.out, args.meta_csp)
-    print(f"dist {r['build']}: {r['files']} files, {r['bytes'] / 1024:.0f} KB; scripts and styles {r['code_gzip'] / 1024:.0f} KB gzipped, "
+    print(f"dist {r['build']}: {r['files']} files, {r['bytes'] / 1024:.0f} KB; scripts and styles {r['code_gzip'] / 1024:.0f} KB gzipped "
+          f"({r['first_load_gzip'] / 1024:.0f} KB at the first load, {len(r['lazy'])} parts loaded on use), "
           f"dataset {r['data_gzip'] / 1024:.0f} KB gzipped -> {r['out']}", file=sys.stderr)
     return 0
 
