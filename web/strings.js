@@ -131,6 +131,16 @@
       line: function (streak, today, goal) { return 'Streak ' + streak + ' · Today ' + today + (goal ? '/' + goal : ''); },
       reached: function (n) { return 'Daily goal reached: ' + n + ' guesses today.'; }
     },
+    share: {
+      saveImage: 'Save image', saveFen: 'Save FEN', copyFen: 'Copy FEN',
+      working: 'Drawing the image…', imageSaved: 'Image saved. The FEN is also stored inside the PNG.', fenSaved: 'FEN saved.', fenCopied: 'FEN copied.',
+      failed: function (m) { return 'Could not save the image: ' + m; },
+      card: {
+        title: 'Guess the Move', yourMove: 'Your move', fen: 'FEN', footer: 'Free software, AGPL-3.0-or-later',
+        quality: function (n) { return 'Move quality ' + n + '/100'; }, closeness: function (n) { return 'Closeness to the real move ' + n + '/100'; },
+        exact: 'You played the real move.', gave: function (c) { return 'gave up ' + c + ' win-% points'; }
+      }
+    },
     issue: { link: 'Report a problem with this position' },
     openingLine: function (name, eco) { return 'Opening: ' + name + (eco ? ' (' + eco + ')' : ''); },
     srs: {
