@@ -20,7 +20,7 @@
     data: null, pos: null, parsed: null, legalFrom: {}, flipped: false,
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
-    seen: new Set(), history: [], showTimer: true, statsPushed: false,
+    seen: new Set(), history: [], showTimer: true, pagePushed: false,
     session: null, goal: 10, orientation: 'auto', coords: true,
     srs: {}, plays: 0, srsOn: true, sinceRetry: RETRY_GAP, retrying: false,
     adaptive: false, hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
@@ -62,7 +62,7 @@
   function timerPause() { if (timer.since !== null) { timer.acc += nowMs() - timer.since; timer.since = null; } }
   function timerStop() { timerPause(); renderTimer(); }
   function timerReset() { timer.acc = 0; timer.since = null; renderTimer(); }
-  function overlayOpen() { return !$('menu').hidden || !$('statsView').hidden || !$('reportView').hidden || document.hidden === true; }
+  function overlayOpen() { return pageIsOpen() || !$('reportView').hidden || document.hidden === true; }
   function timerResume() { if (S.pos && !S.revealed && timer.since === null && !overlayOpen()) timer.since = nowMs(); }
 
   /* ---------- sound ---------- */
@@ -380,7 +380,7 @@
     var p = S.data && pickRetry(true);
     if (!p) return;
     document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
-    closeStatsView();
+    closePage();
     S.sinceRetry = 0;
     loadPosition(p, undefined, undefined, true);
   }
@@ -632,15 +632,13 @@
   }
 
   function onDocKey(e) {
-    if (e.key === 'Escape' && menuIsOpen()) { closeMenu(); return; }
-    if (menuIsOpen()) return; // the menu is modal: board shortcuts stay off while it is open
     if (reportOpen()) { if (e.key === 'Escape') closeReport(true); return; }
-    if (statsIsOpen()) { if (e.key === 'Escape') closeStatsView(); return; }
+    if (pageIsOpen()) { if (e.key === 'Escape') closePage(); return; }
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     if ((e.key === 'n' || e.key === 'N') && S.revealed) goNext();
     if ((e.key === 'p' || e.key === 'P') && !$('back').hidden) goBack();
     if ((e.key === 's' || e.key === 'S') && !$('skip').hidden) skipPosition();
-    if (e.key === '?') { openMenu(); if ($('menuKeys').scrollIntoView) $('menuKeys').scrollIntoView(); }
+    if (e.key === '?') { openPage('help'); if ($('helpKeys').scrollIntoView) $('helpKeys').scrollIntoView(); }
     if (e.key === 'Escape') {
       if (gest.active()) cancelGesture();
       else if (!S.revealed && (S.selected || S.promo || S.pending)) { clearSelection(); sfx('deselect'); announce(T.live.cancelled); }
@@ -734,8 +732,8 @@
       $('openingLabel').hidden = !top.length;
       if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; $('demoChip').hidden = false; }
       $('skeleton').hidden = true;
-      if (menuIsOpen()) renderAbout();
-      if (statsIsOpen()) drawStats(); // opened at #stats before the data arrived: the level card needs it
+      if (pageName() === 'about') renderAbout(); // opened by its link before the data arrived
+      if (pageName() === 'stats') drawStats(); // opened at #stats before the data arrived: the level card needs it
       renderStats();
       if (!consumeRoute()) nextPosition();
     }).catch(function (e) {
@@ -744,12 +742,10 @@
     });
   }
 
-  /* ---------- menu: how it works, the data, credits ---------- */
-
-  function menuIsOpen() { return !$('menu').hidden; }
+  /* ---------- the data, in the About page ---------- */
 
   function renderAbout() {
-    var el = $('aboutData'), d = S.data;
+    var el = $('aboutList'), d = S.data;
     if (!d) { el.innerHTML = '<li>' + T.about.loading + '</li>'; return; }
     var m = d.meta || {}, prov = m.provenance || {}, eng = prov.engine || {}, maia = prov.maia, items = [];
     var dates = d.positions.map(function (p) { return p.game && p.game.date; }).filter(Boolean).sort();
@@ -761,33 +757,6 @@
     if (prov.players_stored === true) items.push(T.about.namesStored);
     else if (prov.players_stored === false) items.push(T.about.names);
     el.innerHTML = items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('');
-  }
-
-  function openMenu() {
-    S.menuReturn = document.activeElement;
-    renderAbout();
-    $('menu').hidden = false; $('menuBackdrop').hidden = false;
-    $('menuBtn').setAttribute('aria-expanded', 'true');
-    document.documentElement.classList.add('menu-open');
-    timerPause(); sfx('tick');
-    $('menuClose').focus();
-  }
-
-  function closeMenu() {
-    $('menu').hidden = true; $('menuBackdrop').hidden = true;
-    $('menuBtn').setAttribute('aria-expanded', 'false');
-    document.documentElement.classList.remove('menu-open');
-    timerResume(); sfx('tick');
-    $('menuBtn').focus();
-  }
-
-  /* Keep Tab inside the open menu (it is modal). */
-  function trapTab(e) {
-    if (e.key !== 'Tab') return;
-    var f = Array.prototype.filter.call($('menu').querySelectorAll('a[href], button:not([disabled])'), function (el) { return !el.hidden; });
-    var first = f[0], last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
   /* ---------- level estimate (web/level.js): from first-time best-move guesses, using the anchors stored in the data ---------- */
@@ -830,7 +799,7 @@
     var list = applyFilters(), s = sharpest(list.length ? list : S.data.positions);
     if (!s) return;
     document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
-    closeStatsView();
+    closePage();
     loadPosition(s.pos, undefined, s.bits);
   }
 
@@ -888,7 +857,7 @@
 
   function parseHash() {
     var h = window.location.hash.replace(/^#/, '');
-    if (h === 'stats') return { view: 'stats' };
+    if (PAGES.indexOf(h) >= 0) return { view: h };
     var m = /^p=([0-9a-f]{10})(?:&m=([a-h][1-8][a-h][1-8][qrbn]?))?$/.exec(h);
     return m ? { view: 'position', id: m[1], move: m[2] || null } : null;
   }
@@ -912,8 +881,8 @@
     var r = S.route || parseHash();
     S.route = null;
     if (!r || r.view !== 'position') return false;
-    cleanHash(); S.statsPushed = false;
-    if (statsIsOpen()) showStats(false);
+    cleanHash(); S.pagePushed = false;
+    if (pageIsOpen()) showPage(null);
     var p = positionById()[r.id];
     if (!p) { nextPosition(); $('prompt').hidden = false; $('prompt').textContent = T.link.missing + ' ' + $('prompt').textContent; return true; }
     if (r.move && p.evals[r.move]) {
@@ -933,9 +902,16 @@
     else say(T.link.manual(url)); // no clipboard (an insecure page): show it to copy by hand
   }
 
-  /* ---------- the full stats view (a page of its own, reachable at #stats) ---------- */
+  /* ---------- pages: stats, settings, how it works, about (each reachable at #<name>) ---------- */
 
-  function statsIsOpen() { return !$('statsView').hidden; }
+  var PAGES = ['stats', 'settings', 'help', 'about'];
+
+  /* The name of the page on screen, or null when the board is. */
+  function pageName() {
+    for (var i = 0; i < PAGES.length; i++) if (!$(PAGES[i] + 'View').hidden) return PAGES[i];
+    return null;
+  }
+  function pageIsOpen() { return pageName() !== null; }
 
   /* Charts are drawn at the width of the page, so they are redrawn when the window is resized (or the phone turned). */
   /* History entries from before tiers existed get theirs from the dataset (not saved back). */
@@ -950,25 +926,40 @@
 
   function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, now: nowMs(), goal: S.goal, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays), last: store.get(LAST_KEY, null) }); }
 
-  function showStats(on) {
-    if (on === statsIsOpen()) return;
-    $('statsView').hidden = !on;
-    $('gameMain').hidden = on;
-    document.querySelector('footer').hidden = on;
-    if (on) { drawStats(); timerPause(); $('statsTitle').focus(); }
-    else { timerResume(); $('statsBtn').focus(); }
+  /* Show a page (or, with null, the board). Opening the first page pauses the timer, leaving the last one resumes it. */
+  function showPage(name) {
+    var cur = pageName();
+    if (name === cur) return;
+    PAGES.forEach(function (n) { $(n + 'View').hidden = n !== name; });
+    $('gameMain').hidden = name !== null;
+    document.querySelector('footer').hidden = name !== null;
+    Array.prototype.forEach.call(document.querySelectorAll('.pagenav a'), function (a) {
+      if (a.getAttribute('href') === '#' + name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    if (name) {
+      if (name === 'stats') drawStats();
+      if (name === 'about') renderAbout();
+      if (!cur) timerPause();
+      $(name + 'Title').focus();
+      window.scrollTo(0, 0);
+    } else {
+      timerResume();
+      ($(cur + 'Btn') || $('helpBtn')).focus();
+    }
   }
 
-  function openStatsView() {
+  /* From the board a page is a new history entry, so the browser's Back button leaves it; between pages the entry is replaced. */
+  function openPage(name) {
     sfx('tick');
-    if (window.location.hash !== '#stats') { S.statsPushed = true; window.location.hash = 'stats'; }
-    showStats(true);
+    if (pageIsOpen()) { window.history.replaceState(null, '', '#' + name); showPage(name); return; }
+    if (window.location.hash !== '#' + name) { S.pagePushed = true; window.location.hash = name; }
+    showPage(name);
   }
 
-  function closeStatsView() {
+  function closePage() {
     sfx('tick');
-    if (S.statsPushed) { S.statsPushed = false; window.history.back(); } // the hashchange below hides the view
-    else { window.history.replaceState(null, '', window.location.pathname + window.location.search); showStats(false); }
+    if (S.pagePushed) { S.pagePushed = false; window.history.back(); } // the hashchange below hides the view
+    else { window.history.replaceState(null, '', window.location.pathname + window.location.search); showPage(null); }
   }
 
   /* ---------- stats backup: download and load ---------- */
@@ -1082,7 +1073,7 @@
     snd = window.GTM_SOUND ? window.GTM_SOUND.create(window.AudioContext || window.webkitAudioContext, store.get(SOUND_KEY, true) !== false) : null;
     updateSoundButton();
     S.route = parseHash();
-    if (S.route && S.route.view === 'stats') { S.route = null; showStats(true); }
+    if (S.route && PAGES.indexOf(S.route.view) >= 0) { var first = S.route.view; S.route = null; showPage(first); }
     S.confirm = store.get(CONFIRM_KEY, null);
     if (S.confirm === null) S.confirm = media('(pointer: coarse)'); // a slip of the finger is likelier than a slip of the mouse
     $('confirmToggle').checked = S.confirm;
@@ -1164,9 +1155,19 @@
     });
     $('statsBody').addEventListener('click', function (e) { if (e.target && e.target.id === 'suggestBtn') suggestAndGo(); if (e.target && e.target.id === 'retryNowBtn') retryNow(); });
     $('timerToggle').addEventListener('change', function () { S.showTimer = $('timerToggle').checked; store.set(TIMER_KEY, S.showTimer); $('timer').hidden = !S.showTimer; });
-    $('statsBtn').addEventListener('click', openStatsView);
-    $('openStats').addEventListener('click', openStatsView);
-    $('statsBack').addEventListener('click', closeStatsView);
+    PAGES.forEach(function (n) {
+      $(n + 'Back').addEventListener('click', closePage);
+      if ($(n + 'Btn')) $(n + 'Btn').addEventListener('click', function () { if (pageName() === n) closePage(); else openPage(n); });
+    });
+    $('openStats').addEventListener('click', function () { openPage('stats'); });
+    Array.prototype.forEach.call(document.querySelectorAll('.pagenav'), function (nav) {
+      nav.addEventListener('click', function (e) {
+        var a = e.target.closest ? e.target.closest('a[href^="#"]') : null;
+        if (!a) return;
+        e.preventDefault();
+        if (a.getAttribute('href').slice(1) !== pageName()) openPage(a.getAttribute('href').slice(1));
+      });
+    });
     $('exportBtn').addEventListener('click', exportStats);
     $('importBtn').addEventListener('click', function () { $('importFile').click(); });
     $('importFile').addEventListener('change', function () {
@@ -1174,21 +1175,17 @@
       if (f) importStats(f);
       $('importFile').value = ''; // the same file can be chosen again
     });
-    window.addEventListener('resize', function () { if (statsIsOpen()) drawStats(); });
+    window.addEventListener('resize', function () { if (pageName() === 'stats') drawStats(); });
     window.addEventListener('hashchange', function () {
       var r = parseHash();
-      if (r && r.view === 'position') { S.route = r; if (S.data) consumeRoute(); } else showStats(window.location.hash === '#stats');
+      if (r && r.view === 'position') { S.route = r; if (S.data) consumeRoute(); } else showPage(PAGES.indexOf(window.location.hash.slice(1)) >= 0 ? window.location.hash.slice(1) : null);
     });
     $('linkBtn').addEventListener('click', function () { copyLink(null); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) timerPause(); else timerResume(); });
     window.setInterval(function () { if (timer.since !== null) renderTimer(); }, 250);
     $('analyseBtn').addEventListener('click', analyseCustom);
     $('estimateBtn').addEventListener('click', estimateLevel);
-    $('menuBtn').addEventListener('click', function () { if (menuIsOpen()) closeMenu(); else openMenu(); });
-    $('menuClose').addEventListener('click', closeMenu);
-    $('menuBackdrop').addEventListener('click', closeMenu);
-    $('menu').addEventListener('keydown', trapTab);
-    $('tourBtn').addEventListener('click', function () { closeMenu(); $('onboarding').hidden = false; });
+    $('tourBtn').addEventListener('click', function () { closePage(); $('onboarding').hidden = false; });
     $('onboardingClose').addEventListener('click', function () { $('onboarding').hidden = true; store.set(ONBOARD_KEY, true); });
     document.addEventListener('keydown', onDocKey);
   }
