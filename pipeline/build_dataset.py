@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Build web/data/positions.json from a PGN file.
 
 Example (real run, on a machine that can reach the Lichess database):

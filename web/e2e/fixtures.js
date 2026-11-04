@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* SYNTHETIC positions (hand-written evals) for exercising the UI. Not chess data, never shipped.
  * Only the listed moves are "legal" as far as the app is concerned (it takes them from `evals`). */

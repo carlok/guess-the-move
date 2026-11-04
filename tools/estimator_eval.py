@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Evaluate the level estimator on held-out REAL games (CONTINUE.md T5). Needs network and the Maia venv:
 
     .venv-maia/bin/python tools/estimator_eval.py --pgn <url or file> --skip-games 200000 --players 150

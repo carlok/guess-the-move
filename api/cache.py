@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Analysis cache. Always an in-process LRU; Valkey is an optional second level shared between processes.
 
 Nothing here is needed for correctness: a miss, a Valkey outage or no Valkey at all just means recomputing."""

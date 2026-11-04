@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Spaced repetition for the positions you got wrong (a Leitner box system counted in positions played, not in days).
  *
  * A guess that gives up MISTAKE_DROP or more win-% points puts the position in box 1; it comes back after INTERVALS[0]

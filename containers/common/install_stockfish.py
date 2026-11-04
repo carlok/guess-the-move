@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Install the official Stockfish release into /usr/local/bin/stockfish, verifying its SHA-256.
 
 Run during an image build (python is already there, curl and wget are not):

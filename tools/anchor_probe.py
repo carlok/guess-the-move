@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Raw material for checking the interpolation between rating anchors (see tools/level_eval.js --interp).
 
 For a seeded sample of dataset positions this asks Maia for its distribution at the anchor ratings AND at ratings

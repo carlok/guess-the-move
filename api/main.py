@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Entry point: `uvicorn --factory api.main:build_app`. Everything is configured by environment variables so the same
 image runs anywhere:
 

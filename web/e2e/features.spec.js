@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 /* Timer, sounds, the stats view and the stats download/load, in a real browser on all three viewports. */
 const fs = require('node:fs');

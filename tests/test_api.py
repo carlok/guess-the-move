@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The `api` service, against fake engine and fake Maia (no Stockfish, no torch). Real-engine and real-Maia runs are
 reported separately (CONTINUE.md T6). Endpoint tests go through the ASGI app directly with httpx."""
 

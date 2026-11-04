@@ -272,6 +272,10 @@ html.menu-open { overflow: hidden; }
 .ch-bar.t-brilliant { fill: var(--t-brilliant); } .ch-bar.t-great { fill: var(--t-great); } .ch-bar.t-best { fill: var(--t-best); } .ch-bar.t-excellent { fill: var(--t-excellent); }
 .ch-bar.t-good { fill: var(--t-good); } .ch-bar.t-inaccuracy { fill: var(--t-inaccuracy); } .ch-bar.t-mistake { fill: var(--t-mistake); } .ch-bar.t-blunder { fill: var(--t-blunder); }
 
+/* "A new version is ready": a fixed bar, so showing it never moves the page */
+.update-bar { position: fixed; z-index: 25; left: var(--s-4); right: var(--s-4); bottom: calc(var(--s-4) + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--s-2) var(--s-3); max-width: 480px; margin: 0 auto; }
+
 /* Keyboard list in the menu */
 .keys { width: 100%; border-collapse: collapse; }
 .keys th, .keys td { text-align: left; padding: var(--s-1) var(--s-2) var(--s-1) 0; vertical-align: top; font-weight: 400; }

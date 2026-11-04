@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 const { test, expect } = require('@playwright/test');
 const { serveSubset, watchProblems, bestMove, clickMove, preset } = require('./helpers');

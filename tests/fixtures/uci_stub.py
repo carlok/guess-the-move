@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """A tiny UCI engine for tests: no search, the score of a move is the material balance after it.
 
 It speaks just enough UCI for python-chess's `analyse` (uci, isready, setoption, position, go, quit).

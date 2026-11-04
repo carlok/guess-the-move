@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Build the three images and probe them the way a user would: web + api on a private network, started by the same
 # `make run` / `make run-api` targets as in daily use. Needs podman. Uses its own image tags (:ci), container names and port,
 # so it does not disturb a stack you are running. Prints one line per check and exits non-zero on the first failure.
@@ -45,11 +46,11 @@ dh=$(curl -fsSI -H 'Accept-Encoding: gzip' "$BASE/data/positions.json")
 grep -qi 'content-encoding: gzip' <<<"$dh" && grep -qi 'cache-control: no-cache' <<<"$dh" && ok "dataset is gzip-compressed and revalidated" || fail "dataset headers"
 # Every script, style sheet and sprite the page loads must be served with the right type: a 404 here is a blank board
 # (the page then runs without its scripts), which no header check notices.
-assets=$(grep -oE '(src|href)="[^"#:]+\.(js|css|svg)"' web/index.html | cut -d'"' -f2 | sort -u)
+assets=$(grep -oE '(src|href)="[^"#:]+\.(js|css|svg|webmanifest|png)"' web/index.html | cut -d'"' -f2 | sort -u)
 [ -n "$assets" ] || fail "no assets found in web/index.html"
 for f in $assets; do
   ct=$( { curl -fsSI "$BASE/$f" 2>/dev/null || true; } | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type"{print $2}')  # a 404 must reach fail below, not abort here
-  case "$f|$ct" in *.js\|*javascript*|*.css\|*text/css*|*.svg\|*svg*) ;; *) fail "asset $f is not served as expected (content-type: ${ct:-none, 404?})";; esac
+  case "$f|$ct" in *.js\|*javascript*|*.css\|*text/css*|*.svg\|*svg*|*.webmanifest\|*manifest*|*.png\|*image/png*) ;; *) fail "asset $f is not served as expected (content-type: ${ct:-none, 404?})";; esac
 done
 ok "every script, style sheet and sprite index.html references is served with the right type ($(echo "$assets" | wc -l | tr -d ' ') files)"
 [ "$(curl -fsS "$BASE/api/healthz")" = '{"status":"unavailable"}' ] && ok "no api yet: /api/healthz answers 200 unavailable (the page stays silent)" || fail "api absent answer"

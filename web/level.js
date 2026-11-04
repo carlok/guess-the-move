@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* Level estimate from your guesses, computed in the page from data the dataset carries (no server, no model).
  *
  * Each position stores Maia's move probabilities at a few rating anchors (maia.by_elo). For any rating r in between,

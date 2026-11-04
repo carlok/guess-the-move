@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Sample candidate positions from PGN files (plain or .zst, e.g. Lichess monthly dumps).
 
 Streaming and memory-bounded: games are read one at a time and a reservoir keeps at
