@@ -87,7 +87,7 @@
       <div class="settings">
         <label class="check"><input type="checkbox" id="srsToggle"> Bring back positions I got wrong</label>
         <p class="muted small">Positions where you gave up 10 or more win-% points come back after 5, then 15, then 40 positions, until you get them right four times. At most one position in three is a retry.</p>
-        <label class="check"><input type="checkbox" id="adaptiveToggle"> Pick positions that sharpen my level estimate</label>
+        <label class="check"><input type="checkbox" id="adaptiveToggle" checked> Pick positions that sharpen my level estimate</label>
         <p class="muted small">Chooses positions where players of different ratings disagree most, so fewer guesses are needed. It makes your set of positions less random.</p>
         <label class="check"><input type="checkbox" id="timerToggle"> Show the timer</label>
         <label class="check"><input type="checkbox" id="confirmToggle"> Confirm moves before revealing</label>
@@ -283,6 +283,7 @@
   <script defer src="classify.js"></script>
   <script defer src="srs.js"></script>
   <script defer src="tierview.js"></script>
+  <script defer src="share.js"></script>
   <script defer src="report.js"></script>
   <script defer src="sound.js"></script>
   <script defer src="stats.js"></script>

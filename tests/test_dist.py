@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import build_dist as D  # noqa: E402
 
-CODE_GZIP_BUDGET = 60 * 1024          # scripts and styles, gzipped (the budget the Lighthouse run was held to)
+CODE_GZIP_BUDGET = 66 * 1024          # scripts and styles, gzipped; was 60 KB until the save-image module (5 KB) was added, measured 63.9 KB
 DATA_GZIP_BUDGET = 1600 * 1024        # the shipped dataset, gzipped
 
 
@@ -30,7 +30,7 @@ def test_dist_has_exactly_the_files_the_page_loads_and_the_two_it_fetches(built)
     expected = {"index.html", "version.json"} | set(D.EXTRAS) | set(D.local_assets(html))
     present = {str(p.relative_to(out)) for p in out.rglob("*") if p.is_file()}
     assert present == expected
-    assert {"app.js", "classify.js", "tierview.js", "report.js", "srs.js", "level.js", "style.css"} <= present
+    assert {"app.js", "classify.js", "tierview.js", "share.js", "report.js", "srs.js", "level.js", "style.css"} <= present
 
 
 def test_no_development_file_can_reach_a_deploy(built):

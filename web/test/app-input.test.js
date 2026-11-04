@@ -984,28 +984,28 @@ test('Suggest does nothing when no position carries rating data or has anything 
   assert.equal($(flat, 'statsView').hidden, false, 'stays on the stats page: nothing to suggest');
 });
 
-test('the adaptive setting picks the most informative position, is remembered, and does nothing in predict mode or without rating data', async () => {
+test('picking positions that sharpen the level estimate is on by default; switching it off is remembered; it does nothing in predict mode or without rating data', async () => {
   const data = dataOf(ANCHORED('same', ALIKE), ANCHORED('hard', STRONG_AT_HIGH));
-  const off = await boot(data);
-  assert.equal($(off, 'adaptiveToggle').checked, false);
-  assert.equal($(off, 'pickChip').hidden, true);
-  assert.equal($(off, 'chips').hidden, true, 'no chip, no row');
-  const on = await boot(data, { ls: { adaptive: true } });
-  assert.equal($(on, 'adaptiveToggle').checked, true);
+  const on = await boot(data);
+  assert.equal($(on, 'adaptiveToggle').checked, true, 'on by default');
   assert.equal($(on, 'pickChip').hidden, false, 'the first position is already the informative one (the other teaches nothing)');
   assert.equal($(on, 'chips').hidden, false, 'and the row that holds the chip is shown');
   assert.match($(on, 'pickChip').textContent, /bits/);
   $(on, 'adaptiveToggle').checked = false; $(on, 'adaptiveToggle').dispatchEvent(new on.Event('change', { bubbles: true }));
   assert.equal(JSON.parse(on.localStorage.getItem('gtm.v1.adaptive')), false);
-  const predict = await boot(data, { ls: { adaptive: true } });
+  const off = await boot(data, { ls: { adaptive: false } });
+  assert.equal($(off, 'adaptiveToggle').checked, false);
+  assert.equal($(off, 'pickChip').hidden, true);
+  assert.equal($(off, 'chips').hidden, true, 'no chip, no row');
+  const predict = await boot(data);
   predict.document.querySelector('input[value=predict]').click();
   click(predict, 'skip');
   assert.equal($(predict, 'pickChip').hidden, true, 'predict mode is not about your level');
-  const plain = await boot(dataOf(ROOK, CAPTURE), { ls: { adaptive: true } });
-  click(plain, 'skip');
+  const plain = await boot(dataOf(ROOK, CAPTURE));
   assert.equal($(plain, 'pickChip').hidden, true, 'no rating data: a random position');
+  click(plain, 'skip');
+  assert.equal($(plain, 'pickChip').hidden, true);
 });
-
 test('opening the page at #stats before the data has loaded fills in the level card once it arrives', async () => {
   let release;
   const gate = new Promise((r) => { release = r; });
@@ -1622,4 +1622,90 @@ test('the answer card links to a pre-filled issue for the position, built from t
   const plain = await boot(dataOf(ROOK));
   play(plain, 'a1', 'a8');
   assert.match($(plain, 'result').querySelector('#reportIssue').getAttribute('href'), /&dataset=$/, 'no build date in the data: an empty field');
+});
+
+/* ---------- saving the answer: the image and the FEN ---------- */
+
+function pngStub(width = 2400, height = 1520) {
+  const u32 = (n) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  return Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, ...u32(13), 73, 72, 68, 82, ...u32(width), ...u32(height), 8, 6, 0, 0, 0, 0, 0, 0, 0, ...u32(0), 73, 69, 78, 68, 0xae, 0x42, 0x60, 0x82]);
+}
+function spySave(w) {
+  const got = { files: [], blobs: [] };
+  const RealBlob = w.Blob;
+  w.Blob = function (parts, o) { got.blobs.push({ parts, type: o && o.type }); return new RealBlob(parts, o); };
+  w.URL.createObjectURL = () => 'blob:x'; w.URL.revokeObjectURL = () => {};
+  w.HTMLAnchorElement.prototype.click = function () { got.files.push(this.download); };
+  return got;
+}
+
+test('after an answer the result offers the image and the FEN; before it nothing is offered', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  assert.equal($(w, 'saveImage'), null);
+  play(w, 'a1', 'a8');
+  ['saveImage', 'saveFen', 'copyFen'].forEach((id) => assert.ok($(w, id), id));
+  assert.match($(w, 'result').textContent, /Save image.*Save FEN.*Copy FEN/);
+});
+
+test('"Save image" draws the card of this answer, stores the position in the PNG and downloads it', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa', clock: { t: Date.UTC(2026, 10, 4, 9) } });
+  const got = spySave(w), seen = [];
+  w.GTM_SHARE.rasterize = async (win, svg, width, height, scale) => { seen.push({ svg, width, height, scale }); return pngStub(width * scale, height * scale); };
+  play(w, 'a1', 'a8');
+  click(w, 'saveImage');
+  assert.equal($(w, 'linkMsg').textContent, 'Drawing the image…');
+  await tick();
+  assert.equal(seen.length, 1);
+  assert.deepEqual([seen[0].width, seen[0].height, seen[0].scale], [1200, 760, 2]);
+  assert.ok(seen[0].svg.includes('Ra8#') && seen[0].svg.includes('2026-11-04') && seen[0].svg.includes('class="arrow'), 'the move, the date and the arrows are on the card');
+  assert.deepEqual(got.files, ['guess-the-move-aaaaaaaaaa.png']);
+  assert.equal(got.blobs.at(-1).type, 'image/png');
+  const info = w.GTM_SHARE.readPng(got.blobs.at(-1).parts[0]);
+  assert.equal(info.FEN, HA.fen); assert.equal(info.Software, 'Guess the Move'); assert.equal(info.width, 2400);
+  assert.equal($(w, 'linkMsg').textContent, 'Image saved. The FEN is also stored inside the PNG.');
+});
+
+test('"Save image" says so when the browser cannot draw it, and works in predict mode and on a flipped board too', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  spySave(w);
+  w.GTM_SHARE.rasterize = async () => { throw new Error('the card could not be drawn'); };
+  play(w, 'a1', 'a8');
+  click(w, 'saveImage'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, 'Could not save the image: the card could not be drawn');
+  w.GTM_SHARE.rasterize = async () => { throw 'plain'; };
+  click(w, 'saveImage'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, 'Could not save the image: plain');
+  const p = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  const got = spySave(p), svgs = [];
+  p.GTM_SHARE.rasterize = async (win, svg) => { svgs.push(svg); return pngStub(); };
+  p.document.querySelector('input[value=predict]').checked = true;
+  p.document.querySelector('input[value=predict]').dispatchEvent(new p.Event('change', { bubbles: true }));
+  await tick();
+  play(p, 'a1', 'a8'); click(p, 'saveImage'); await tick();
+  assert.equal(svgs.length, 1); assert.deepEqual(got.files, ['guess-the-move-aaaaaaaaaa.png']);
+});
+
+test('"Save FEN" downloads the position as a one-line .fen file; "Copy FEN" copies it, or shows it when it cannot', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  const got = spySave(w), copied = clipboard(w);
+  play(w, 'a1', 'a8');
+  click(w, 'saveFen');
+  assert.deepEqual(got.files, ['guess-the-move-aaaaaaaaaa.fen']);
+  assert.deepEqual(Array.from(got.blobs.at(-1).parts), [HA.fen + '\n']);
+  assert.equal($(w, 'linkMsg').textContent, 'FEN saved.');
+  click(w, 'copyFen'); await tick();
+  assert.deepEqual(copied, [HA.fen]);
+  assert.equal($(w, 'linkMsg').textContent, 'FEN copied.');
+  const none = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  play(none, 'a1', 'a8'); click(none, 'copyFen');
+  assert.equal($(none, 'linkMsg').textContent, 'Copy this link: ' + HA.fen);
+});
+
+test('the buttons are there when a shared answer is reviewed, and the review is still not recorded', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa&m=a1a8' });
+  ['saveImage', 'saveFen', 'copyFen'].forEach((id) => assert.ok($(w, id), id));
+  const got = spySave(w);
+  click(w, 'saveFen');
+  assert.deepEqual(got.files, ['guess-the-move-aaaaaaaaaa.fen']);
+  assert.equal(w.localStorage.getItem('gtm.v1.history'), null);
 });
