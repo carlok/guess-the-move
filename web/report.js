@@ -48,5 +48,14 @@
     return L.summaryText(s.n, Math.round(s.quality), s.found, clock(s.avgTime), tiers) + (url ? '\n' + url : '');
   }
 
-  return { FOUND: FOUND, summarize: summarize, html: html, text: text, clock: clock };
+  /* One coloured square per move, by tier (the squares are in the strings, so the order of the tiers is not repeated here). */
+  function grid(rows, T) { return rows.map(function (r) { return T.challenge.square[r.tier]; }).join(''); }
+
+  /* What a challenge result looks like when pasted into a chat: no move, no position, only the squares, the numbers and the link. */
+  function challengeText(rows, T, title, url) {
+    var s = summarize(rows);
+    return [T.challenge.title(title), grid(rows, T), T.challenge.numbers(Math.round(s.quality), s.found, s.n)].concat(url ? [url] : []).join('\n');
+  }
+
+  return { FOUND: FOUND, summarize: summarize, html: html, text: text, clock: clock, grid: grid, challengeText: challengeText };
 }));

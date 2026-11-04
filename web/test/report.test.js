@@ -48,3 +48,18 @@ test('text is a short summary with the tiers, and a link only when one is given'
 test('clock formats seconds as m:ss', () => {
   assert.deepEqual([0, 5, 65, 600, -3].map(R.clock), ['0:00', '0:05', '1:05', '10:00', '0:00']);
 });
+
+test('grid: one coloured square per move, by tier, in the order played', () => {
+  assert.equal(R.grid(rows, T), '🟩🟨⬛🟦🟥');
+  assert.equal(R.grid([], T), '');
+  const every = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'].map((t) => row('x', t, 0, 0, 0));
+  assert.equal(R.grid(every, T), '🟦🟦🟩🟩🟨🟧🟥⬛');
+});
+
+test('challengeText: the title, the squares, the numbers and the link; no move or position is named', () => {
+  const t = R.challengeText(rows, T, 'Daily 2026-11-04', 'https://x.example/#c=20261104.ab12');
+  assert.equal(t.split('\n').length, 4);
+  assert.match(t, /^Guess the Move · Daily 2026-11-04\n🟩🟨⬛🟦🟥\nMove quality 68 · best move found 2\/5\nhttps:\/\/x\.example\/#c=20261104\.ab12$/);
+  assert.doesNotMatch(t, /e4|Nf3|Qh5/);
+  assert.equal(R.challengeText(rows, T, 'Challenge k3j9x').split('\n').length, 3, 'no link given: three lines');
+});

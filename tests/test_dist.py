@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import build_dist as D  # noqa: E402
 
-CODE_GZIP_BUDGET = 66 * 1024          # scripts and styles, gzipped; was 60 KB until the save-image module (5 KB) was added, measured 63.9 KB
+CODE_GZIP_BUDGET = 72 * 1024          # scripts and styles, gzipped; 60 KB until save-image, then 66; the pages, level matching and challenges took it to 68.6 KB measured (lazy-loading share.js and report.js would bring it back down)
 DATA_GZIP_BUDGET = 1600 * 1024        # the shipped dataset, gzipped
 
 

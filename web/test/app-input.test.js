@@ -1751,3 +1751,146 @@ test('the buttons are there when a shared answer is reviewed, and the review is 
   assert.deepEqual(got.files, ['guess-the-move-aaaaaaaaaa.fen']);
   assert.equal(w.localStorage.getItem('gtm.v1.history'), null);
 });
+
+/* ---------- challenges: the daily one, and the ones sent to a friend ---------- */
+
+const SDm = require('../seed.js');
+const chPos = (i) => ({ ...ROOK, id: ('c0000000' + String(i).padStart(2, '0')).slice(0, 10) });
+const chData = (n = 12) => ({ schema: 1, meta: { demo: false, built: '2026-11-03T15:57:07+00:00' }, positions: Array.from({ length: n }, (_, i) => chPos(i)) });
+const noon = () => ({ t: new Date(2026, 10, 4, 12).getTime() });
+const tagFor = (data) => SDm.tagOf(data.meta, data.positions.length);
+const idsOf = (data, token) => SDm.select(data.positions, token, 5).map((p) => p.id);
+/* Answer the live position with the best move and go on; returns the id of the position that was shown (from its link). */
+async function answerChallenge(w, copied) {
+  click(w, 'linkBtn'); await tick();
+  const id = /#p=([0-9a-f]{10})/.exec(copied[copied.length - 1])[1];
+  play(w, 'a1', 'a8'); click(w, 'next');
+  return id;
+}
+
+test('the daily challenge is five fixed positions for today\'s date, in order, with no skipping, and a report at the end', async () => {
+  const data = chData(), clock = noon();
+  const w = await boot(data, { clock }), copied = clipboard(w);
+  assert.equal($(w, 'dailyBtn').textContent, 'Daily challenge');
+  click(w, 'dailyBtn');
+  assert.equal($(w, 'sessionChip').textContent, 'Daily 1/5');
+  assert.equal($(w, 'skip').hidden, true, 'no skipping in a challenge');
+  assert.equal($(w, 'challengeRow').hidden, true); assert.equal($(w, 'sessionBtn').hidden, true);
+  const shown = [];
+  for (let i = 0; i < 5; i++) shown.push(await answerChallenge(w, copied));
+  assert.deepEqual(shown, idsOf(data, '20261104'), 'the positions are the ones the date picks, in that order');
+  assert.equal($(w, 'reportView').hidden, false);
+  assert.equal($(w, 'reportTitle').textContent, 'Daily 2026-11-04');
+  assert.equal($(w, 'reportCopy').textContent, 'Copy result');
+  assert.equal($(w, 'reportLink').hidden, false);
+  const saved = JSON.parse(w.localStorage.getItem('gtm.v1.challenges'));
+  assert.deepEqual(Object.keys(saved), ['20261104']); assert.equal(saved['20261104'].score, 100); assert.equal(saved['20261104'].found, 5);
+  click(w, 'reportCopy'); await tick();
+  assert.equal(copied.at(-1), `Guess the Move · Daily 2026-11-04\n🟦🟦🟦🟦🟦\nMove quality 100 · best move found 5/5\nhttp://localhost/#c=20261104.${tagFor(data)}`);
+  assert.equal($(w, 'reportMsg').textContent, 'Result copied.');
+  click(w, 'reportLink'); await tick();
+  assert.equal(copied.at(-1), `http://localhost/#c=20261104.${tagFor(data)}`);
+  assert.equal($(w, 'reportMsg').textContent, 'Challenge link copied.');
+  click(w, 'reportBack');
+  assert.equal($(w, 'dailyBtn').textContent, 'Daily challenge · done (100)');
+});
+
+test('a second page gets the same positions for the same day; another day gets others', async () => {
+  const data = chData(30);
+  const a = await boot(data, { clock: noon() }), b = await boot(data, { clock: noon() });
+  const ca = clipboard(a), cb = clipboard(b);
+  click(a, 'dailyBtn'); click(b, 'dailyBtn');
+  const first = [await answerChallenge(a, ca), await answerChallenge(b, cb)];
+  assert.equal(first[0], first[1]);
+  const next = { t: new Date(2026, 10, 5, 12).getTime() };
+  const c = await boot(data, { clock: next }), cc = clipboard(c);
+  click(c, 'dailyBtn');
+  assert.deepEqual(idsOf(data, '20261105'), idsOf(data, '20261105'));
+  assert.notDeepEqual(idsOf(data, '20261105'), idsOf(data, '20261104'));
+  assert.equal(await answerChallenge(c, cc), idsOf(data, '20261105')[0]);
+});
+
+test('only the first full attempt counts; a replay does not overwrite it, and an early end saves nothing', async () => {
+  const data = chData(), clock = noon();
+  const w = await boot(data, { clock }), copied = clipboard(w);
+  click(w, 'dailyBtn');
+  for (let i = 0; i < 5; i++) await answerChallenge(w, copied);
+  w.localStorage.setItem('gtm.v1.challenges', JSON.stringify({ '20261104': { score: 61, found: 2, n: 5, t: 1 } }));
+  click(w, 'reportBack');
+  const w2 = await boot(data, { clock, ls: { challenges: { '20261104': { score: 61, found: 2, n: 5, t: 1 } } } }), c2 = clipboard(w2);
+  assert.equal($(w2, 'dailyBtn').textContent, 'Daily challenge · done (61)');
+  click(w2, 'dailyBtn');
+  for (let i = 0; i < 5; i++) await answerChallenge(w2, c2);
+  assert.equal(JSON.parse(w2.localStorage.getItem('gtm.v1.challenges'))['20261104'].score, 61, 'the replay did not replace the first result');
+  const w3 = await boot(data, { clock }), c3 = clipboard(w3);
+  click(w3, 'dailyBtn'); await answerChallenge(w3, c3);
+  click(w3, 'sessionEnd');
+  assert.equal($(w3, 'reportView').hidden, false);
+  assert.equal(w3.localStorage.getItem('gtm.v1.challenges'), null, 'a shortened attempt is not a result');
+  assert.match($(w3, 'reportBody').textContent, /A shorter session: 1 position answered/);
+});
+
+test('a link starts the challenge it names, cleans the address, and is the same as the one the report copies', async () => {
+  const data = chData(), code = SDm.code('k3j9xz', tagFor(data));
+  const w = await boot(data, { hash: '#c=' + code }), copied = clipboard(w);
+  assert.equal($(w, 'sessionChip').textContent, 'Challenge 1/5');
+  assert.equal(w.location.hash, '', 'the address is cleaned');
+  assert.equal(await answerChallenge(w, copied), idsOf(data, 'k3j9xz')[0]);
+  const late = await boot(data, { hash: '#settings' });
+  late.location.hash = '#c=' + code; await tick();
+  assert.equal($(late, 'sessionChip').textContent, 'Challenge 1/5', 'also when the page is already open');
+  assert.equal($(late, 'settingsView').hidden, true);
+});
+
+test('a link made with a different dataset says so and shows a normal position; a bad code is ignored; too few positions says so', async () => {
+  const data = chData();
+  const other = await boot(data, { hash: '#c=k3j9xz.0000' });
+  assert.equal($(other, 'sessionChip').hidden, true);
+  assert.match($(other, 'prompt').textContent, /different set of positions/);
+  assert.ok($(other, 'posInfo').textContent.length > 0, 'a position is shown all the same');
+  const bad = await boot(data, { hash: '#c=nonsense' });
+  assert.equal($(bad, 'sessionChip').hidden, true);
+  const tiny = { schema: 1, meta: { demo: false }, positions: [{ ...ROOK, id: 'c000000001', evals: { a1a8: 1, g1g2: 0 }, san: { a1a8: 'Ra8', g1g2: 'Kg2' } }] };
+  const few = await boot(tiny);
+  click(few, 'dailyBtn');
+  assert.equal($(few, 'sessionChip').hidden, true);
+  assert.match($(few, 'prompt').textContent, /not enough positions/);
+});
+
+test('"Challenge a friend" starts a new challenge with a fresh code, and its link reproduces it', async () => {
+  const data = chData(), w = await boot(data), copied = clipboard(w);
+  click(w, 'friendBtn');
+  assert.equal($(w, 'sessionChip').textContent, 'Challenge 1/5');
+  const shown = [];
+  for (let i = 0; i < 5; i++) shown.push(await answerChallenge(w, copied));
+  assert.equal($(w, 'reportTitle').textContent, 'Challenge 000000', 'Math.random is 0 in the tests');
+  click(w, 'reportLink'); await tick();
+  const link = copied.at(-1);
+  assert.match(link, /^http:\/\/localhost\/#c=000000\.[0-9a-f]{4}$/);
+  const friend = await boot(data, { hash: link.slice(link.indexOf('#')) }), fc = clipboard(friend);
+  assert.equal(await answerChallenge(friend, fc), shown[0]);
+});
+
+test('saved results are untrusted: junk entries are ignored, valid ones kept, and "Reset stats" clears them', async () => {
+  const data = chData();
+  const w = await boot(data, { clock: noon(), ls: { challenges: { '20261104': { score: 77.4, found: 3, n: 5, t: 5 }, 'bad key!': { score: 1, t: 1 }, '20261103': { score: 'x', t: 1 }, k3j9xz: null } } });
+  assert.equal($(w, 'dailyBtn').textContent, 'Daily challenge · done (77)');
+  const junk = await boot(data, { clock: noon(), ls: { challenges: [1, 2, 3] } });
+  assert.equal($(junk, 'dailyBtn').textContent, 'Daily challenge');
+  const str = await boot(data, { clock: noon(), ls: { challenges: 'nope' } });
+  assert.equal($(str, 'dailyBtn').textContent, 'Daily challenge');
+  click(w, 'resetStats'); await tick();
+  assert.equal($(w, 'dailyBtn').textContent, 'Daily challenge');
+  assert.deepEqual(JSON.parse(w.localStorage.getItem('gtm.v1.challenges')), {});
+});
+
+test('more than sixty saved results keep the newest sixty', async () => {
+  const data = chData(), clock = noon();
+  const many60 = Object.fromEntries(Array.from({ length: 60 }, (_, i) => ['t' + String(i).padStart(3, '0'), { score: 50, found: 1, n: 5, t: 100 + i }]));
+  const w = await boot(data, { clock, ls: { challenges: many60 } }), copied = clipboard(w);
+  click(w, 'dailyBtn');
+  for (let i = 0; i < 5; i++) await answerChallenge(w, copied);
+  const saved = JSON.parse(w.localStorage.getItem('gtm.v1.challenges'));
+  assert.equal(Object.keys(saved).length, 60);
+  assert.ok(saved['20261104'] && !saved.t000, 'the oldest went');
+});
