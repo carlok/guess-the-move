@@ -20,7 +20,7 @@
   function fmt(n) { return Number(n).toFixed(1); }
 
   function icon(tier, T) {
-    var inner = ICON[tier] ? '<g class="tier-glyph" transform="translate(5.6 5.6) scale(.6)">' + ICON[tier] + '</g>'
+    var inner = ICON[tier] ? '<g class="tier-glyph" transform="translate(4.8 4.8) scale(.6)">' + ICON[tier] + '</g>'
       : '<text class="tier-sym" x="12" y="16.3" text-anchor="middle">' + esc(T.tiers[tier].sym) + '</text>';
     return '<svg class="tier-icon tier-' + tier + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="tier-disc" cx="12" cy="12" r="11"/>' + inner + '</svg>';
   }
