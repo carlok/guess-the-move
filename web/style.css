@@ -173,28 +173,24 @@ footer { max-width: var(--page-max); margin: var(--s-5) auto var(--s-6); padding
 
 @media (max-width: 480px) {
   .topbar { padding: var(--s-2) var(--s-4); } .brand h1 { font-size: var(--fs-lg); white-space: normal; line-height: 1.15; } .sub { display: none; }
-  .topbar-actions { gap: var(--s-1); } /* four buttons: the title wraps before the buttons are pushed off a narrow screen */
+  .topbar-actions { gap: var(--s-1); } /* five buttons: the title wraps before the buttons are pushed off a narrow screen */
   #gameMain { gap: var(--s-3); } .boardwrap { border-radius: 0; box-shadow: none; }
 }
 
-/* Menu (how it works, the data, credits): a modal sheet from the right; full screen on a phone. */
-.menu-backdrop { position: fixed; inset: 0; z-index: 29; background: rgba(0, 0, 0, .45); }
-.menu {
-  position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); overflow-y: auto; overscroll-behavior: contain;
-  background: var(--surface); color: var(--fg); box-shadow: -8px 0 28px rgba(0, 0, 0, .3); padding: 0 var(--s-4) var(--s-6);
-}
-.menu-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); background: var(--surface); padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
-.menu-head h2 { margin: 0; font-size: var(--fs-lg); }
-.menu-nav { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); padding: var(--s-2) 0; }
-.menu-nav a { display: inline-flex; align-items: center; min-height: var(--tap); }
-.menu h3 { margin: var(--s-5) 0 var(--s-2); font-size: var(--fs-lg); }
-.menu h4 { margin: var(--s-4) 0 var(--s-1); font-size: var(--fs-md); }
-.menu p, .menu li, .menu dd { color: var(--fg); }
-.menu dt { font-weight: 650; margin-top: var(--s-2); } .menu dd { margin: 0 0 var(--s-1); }
-.menu ul { padding-left: var(--s-5); } .menu li { margin: var(--s-1) 0; }
-.menu code { background: var(--surface-2); border-radius: 4px; padding: 0 4px; }
-html.menu-open { overflow: hidden; }
-@media (max-width: 480px) { .menu { width: 100vw; } }
+/* A link that is its own line of text needs a finger-sized target. */
+.tap-link { display: inline-flex; align-items: center; min-height: var(--tap); }
+
+/* Pages (stats, settings, how it works, about): the same view with a row of links to the others. */
+.pagenav { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0 0 var(--s-3); border-bottom: 1px solid var(--line); }
+.pagenav a { display: inline-flex; align-items: center; min-height: var(--tap); border-bottom: 3px solid transparent; }
+.pagenav a[aria-current="page"] { font-weight: 650; border-bottom-color: var(--fg); text-decoration: none; }
+.pagebody { max-width: 760px; }
+.pagebody h3 { margin: var(--s-5) 0 var(--s-2); font-size: var(--fs-lg); }
+.pagebody h4 { margin: var(--s-4) 0 var(--s-1); font-size: var(--fs-md); }
+.pagebody p, .pagebody li, .pagebody dd { color: var(--fg); }
+.pagebody dt { font-weight: 650; margin-top: var(--s-2); } .pagebody dd { margin: 0 0 var(--s-1); }
+.pagebody ul { padding-left: var(--s-5); } .pagebody li { margin: var(--s-1) 0; }
+.pagebody code { background: var(--surface-2); border-radius: 4px; padding: 0 4px; }
 
 /* Timer, sound button */
 .posinfo { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
@@ -280,16 +276,16 @@ html.menu-open { overflow: hidden; }
 .update-bar { position: fixed; z-index: 25; left: var(--s-4); right: var(--s-4); bottom: calc(var(--s-4) + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--s-2) var(--s-3); max-width: 480px; margin: 0 auto; }
 
-/* Keyboard list in the menu */
+/* Keyboard list in the help page */
 .keys { width: 100%; border-collapse: collapse; }
 .keys th, .keys td { text-align: left; padding: var(--s-1) var(--s-2) var(--s-1) 0; vertical-align: top; font-weight: 400; }
 .keys th { white-space: nowrap; }
 kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface-2); font: inherit; font-size: .85em; }
 
-/* Settings in the menu */
+/* Settings page */
 .no-coords .coord { display: none; }
-.menu .settings { background: none; border: 0; padding: 0; }
-.menu .settings .field { display: block; margin-top: var(--s-3); }
+.pagebody .settings { background: none; border: 0; padding: 0; }
+.pagebody .settings .field { display: block; margin-top: var(--s-3); }
 
 /* Training session */
 .session-btn { width: 100%; margin: 0 0 var(--s-3); }

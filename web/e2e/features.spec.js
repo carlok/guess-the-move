@@ -18,10 +18,10 @@ async function open(page, opts = {}) {
 }
 const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
 
-test('the top bar fits: stats, sound, menu and theme are all visible, at least 44 px, with no horizontal scroll', async ({ page }) => {
+test('the top bar fits: stats, settings, sound, help and theme are all visible, at least 44 px, with no horizontal scroll', async ({ page }) => {
   await open(page);
   const vw = page.viewportSize().width; // not innerWidth: that grows when something overflows, which would hide the very failure
-  for (const id of ['statsBtn', 'soundToggle', 'menuBtn', 'themeToggle']) {
+  for (const id of ['statsBtn', 'settingsBtn', 'soundToggle', 'helpBtn', 'themeToggle']) {
     const box = await page.locator('#' + id).boundingBox();
     expect(box, id).not.toBeNull();
     expect(box.width, id).toBeGreaterThanOrEqual(44); expect(box.height, id).toBeGreaterThanOrEqual(44);
@@ -56,17 +56,17 @@ test('the timer runs while a position is open, freezes at the reveal and starts 
   await expect(timer).toHaveText(frozen);
   await page.locator('#next').click();
   await expect(timer).toHaveText('0:00');
-  await page.locator('#menuBtn').click();
+  await page.locator('#helpBtn').click();
   await page.waitForTimeout(1300);
-  await page.locator('#menuClose').click();
-  await expect(timer, 'time spent in the menu is not counted').toHaveText('0:00');
+  await page.locator('#helpBack').click();
+  await expect(timer, 'time spent on a page is not counted').toHaveText('0:00');
 });
 
 test('the timer can be hidden and stays hidden after a reload', async ({ page }) => {
   await open(page);
-  await page.locator('#menuBtn').click();
+  await page.locator('#settingsBtn').click();
   await page.locator('#timerToggle').uncheck();
-  await page.locator('#menuClose').click();
+  await page.locator('#settingsBack').click();
   await expect(page.locator('#timer')).toBeHidden();
   await page.reload();
   await expect(page.locator('#timer')).toBeHidden();
@@ -245,14 +245,14 @@ test('level-sharpening picks are on by default, show their chip, and switching t
   await openLevel(page, '', { history: [] });
   await expect(page.locator('[data-sq]')).toHaveCount(64);
   await expect(page.locator('#pickChip')).toBeVisible();
-  await page.locator('#menuBtn').click();
+  await page.locator('#settingsBtn').click();
   await expect(page.locator('#adaptiveToggle')).toBeChecked();
   await page.locator('#adaptiveToggle').uncheck();
-  await page.locator('#menuClose').click();
+  await page.locator('#settingsBack').click();
   await page.reload();
-  await page.locator('#menuBtn').click();
+  await page.locator('#settingsBtn').click();
   await expect(page.locator('#adaptiveToggle')).not.toBeChecked();
-  await page.locator('#menuClose').click();
+  await page.locator('#settingsBack').click();
   await expect(page.locator('#pickChip')).toBeHidden();
 });
 
@@ -367,9 +367,9 @@ test('a session shows its progress, ends in a report that lists every move, and 
 
 test('turning the board with the setting keeps moves working through real pointer geometry', async ({ page }) => {
   await open(page);
-  await page.locator('#menuBtn').click();
+  await page.locator('#settingsBtn').click();
   await page.locator('#orientation').selectOption('black');
-  await page.locator('#menuClose').click();
+  await page.locator('#settingsBack').click();
   const a1 = await page.locator('[data-sq="a1"]').boundingBox(), h8 = await page.locator('[data-sq="h8"]').boundingBox();
   expect(a1.x).toBeGreaterThan(h8.x); expect(a1.y).toBeLessThan(h8.y);
   await clickMove(page, 'a1a8');
@@ -380,10 +380,10 @@ test('turning the board with the setting keeps moves working through real pointe
 test('? opens the keyboard list and s skips, from the keyboard alone', async ({ page }) => {
   await open(page);
   await page.keyboard.press('?');
-  await expect(page.locator('#menu')).toBeVisible();
-  await expect(page.locator('#menuKeys')).toBeInViewport();
+  await expect(page.locator('#helpView')).toBeVisible();
+  await expect(page.locator('#helpKeys')).toBeInViewport();
   await page.keyboard.press('Escape');
-  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('#helpView')).toBeHidden();
   await page.keyboard.press('s');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('gtm.v1.seen') || '[]').length), 'the skipped position is marked seen').toBe(1);
 });

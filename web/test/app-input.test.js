@@ -323,16 +323,17 @@ test('references that chose the same move share one arrow and one pill; differen
   assert.ok(byKey.best.querySelectorAll('line').length >= 2, 'a halo and a shaft');
 });
 
-test('onboarding appears on first run, closes, is remembered, and the menu brings the tour back', async () => {
+test('onboarding appears on first run, closes, is remembered, and the help page brings the tour back', async () => {
   const w = await boot(dataOf(ROOK), { onboarded: false });
   assert.equal($(w, 'onboarding').hidden, false);
   $(w, 'onboardingClose').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   assert.equal($(w, 'onboarding').hidden, true);
   assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.onboarded')), true);
-  $(w, 'menuBtn').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  $(w, 'helpBtn').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   $(w, 'tourBtn').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await tick();
   assert.equal($(w, 'onboarding').hidden, false);
-  assert.equal($(w, 'menu').hidden, true, 'the menu steps aside for the tour');
+  assert.equal($(w, 'helpView').hidden, true, 'the page steps aside for the tour');
   const seen = await boot(dataOf(ROOK));
   assert.equal($(seen, 'onboarding').hidden, true);
 });
@@ -390,62 +391,66 @@ const PROVENANCE = {
 const withGame = (date) => ({ ...ROOK, id: 'g' + date, game: { date } });
 const click = (w, id) => $(w, id).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
 
-test('the menu opens as a modal dialog, moves focus in, and Escape closes it and returns focus', async () => {
-  const w = await boot(dataOf(ROOK));
-  assert.equal($(w, 'menu').hidden, true);
-  assert.equal($(w, 'menuBtn').getAttribute('aria-expanded'), 'false');
-  $(w, 'menuBtn').focus();
-  click(w, 'menuBtn');
-  assert.equal($(w, 'menu').hidden, false);
-  assert.equal($(w, 'menuBtn').getAttribute('aria-expanded'), 'true');
-  assert.equal(w.document.activeElement, $(w, 'menuClose'));
-  assert.ok(w.document.documentElement.classList.contains('menu-open'));
-  docKey(w, 'Escape');
-  assert.equal($(w, 'menu').hidden, true);
-  assert.equal($(w, 'menuBackdrop').hidden, true);
-  assert.equal($(w, 'menuBtn').getAttribute('aria-expanded'), 'false');
-  assert.equal(w.document.activeElement, $(w, 'menuBtn'));
-  assert.ok(!w.document.documentElement.classList.contains('menu-open'));
+const PAGE_BUTTONS = { stats: 'statsBtn', settings: 'settingsBtn', help: 'helpBtn' };
+
+test('each page opens from its top-bar button, shows only itself, takes focus, and Escape returns to the board and the button', async () => {
+  for (const [name, btn] of Object.entries(PAGE_BUTTONS)) {
+    const w = await boot(dataOf(ROOK));
+    assert.equal($(w, name + 'View').hidden, true);
+    $(w, btn).focus(); click(w, btn);
+    assert.equal($(w, name + 'View').hidden, false, name);
+    assert.equal($(w, 'gameMain').hidden, true);
+    ['stats', 'settings', 'help', 'about'].filter((n) => n !== name).forEach((n) => assert.equal($(w, n + 'View').hidden, true, n + ' stays closed'));
+    assert.equal(w.document.activeElement, $(w, name + 'Title'));
+    assert.equal(w.location.hash, '#' + name);
+    docKey(w, 'Escape'); await tick();
+    assert.equal($(w, name + 'View').hidden, true);
+    assert.equal($(w, 'gameMain').hidden, false);
+    assert.equal(w.document.activeElement, $(w, btn));
+  }
 });
 
-test('the menu closes with its button, its backdrop, and the hamburger toggles it', async () => {
+test('a page closes with its Back button, and its own top-bar button toggles it', async () => {
   const w = await boot(dataOf(ROOK));
-  click(w, 'menuBtn'); click(w, 'menuClose');
-  assert.equal($(w, 'menu').hidden, true);
-  click(w, 'menuBtn'); click(w, 'menuBackdrop');
-  assert.equal($(w, 'menu').hidden, true);
-  click(w, 'menuBtn'); click(w, 'menuBtn');
-  assert.equal($(w, 'menu').hidden, true);
+  click(w, 'settingsBtn'); click(w, 'settingsBack'); await tick();
+  assert.equal($(w, 'settingsView').hidden, true);
+  click(w, 'helpBtn'); click(w, 'helpBtn'); await tick();
+  assert.equal($(w, 'helpView').hidden, true);
 });
 
-test('while the menu is open the board shortcuts are off and Tab stays inside it', async () => {
+test('every page carries the same links to the others, marks the current one, and a click switches in place', async () => {
   const w = await boot(dataOf(ROOK));
-  click(w, 'menuBtn');
-  docKey(w, 'n');
-  assert.equal($(w, 'menu').hidden, false, 'an unrelated key leaves the menu open');
-  const items = [...$(w, 'menu').querySelectorAll('a[href], button:not([disabled])')];
-  items[items.length - 1].focus();
-  const tab = new w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
-  items[items.length - 1].dispatchEvent(tab);
-  assert.equal(tab.defaultPrevented, true);
-  assert.equal(w.document.activeElement, items[0], 'Tab from the last control wraps to the first');
-  const back = new w.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
-  items[0].dispatchEvent(back);
-  assert.equal(w.document.activeElement, items[items.length - 1], 'Shift+Tab from the first wraps to the last');
-  const mid = new w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
-  items[1].focus(); items[1].dispatchEvent(mid);
-  assert.equal(mid.defaultPrevented, false, 'Tab in the middle is left to the browser');
-  const other = new w.KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
-  items[1].dispatchEvent(other);
-  assert.equal(other.defaultPrevented, false);
+  click(w, 'helpBtn');
+  const nav = (n) => [...$(w, n + 'View').querySelectorAll('.pagenav a')];
+  ['stats', 'settings', 'help', 'about'].forEach((n) => assert.deepEqual(nav(n).map((a) => a.getAttribute('href')), ['#stats', '#settings', '#help', '#about'], n));
+  assert.equal($(w, 'helpView').querySelector('.pagenav [aria-current=page]').getAttribute('href'), '#help');
+  nav('help')[3].dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
+  assert.equal($(w, 'aboutView').hidden, false); assert.equal($(w, 'helpView').hidden, true);
+  assert.equal(w.location.hash, '#about');
+  assert.equal($(w, 'aboutView').querySelector('.pagenav [aria-current=page]').getAttribute('href'), '#about');
+  nav('about')[3].dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true })); // the page you are on: nothing happens
+  assert.equal($(w, 'aboutView').hidden, false);
+  docKey(w, 'Escape'); await tick();
+  assert.equal($(w, 'gameMain').hidden, false);
+  const f = w.document.querySelector('footer a[href="#about"]');
+  assert.ok(f, 'the footer links to the credits');
+});
+
+test('the page links work from the address too: #settings opens settings, #about the about page, and a hash change moves between them', async () => {
+  const w = await boot(dataOf(ROOK), { hash: '#settings' });
+  assert.equal($(w, 'settingsView').hidden, false);
+  assert.equal($(w, 'gameMain').hidden, true);
+  w.location.hash = '#about'; await tick();
+  assert.equal($(w, 'aboutView').hidden, false); assert.equal($(w, 'settingsView').hidden, true);
+  w.location.hash = ''; await tick();
+  assert.equal($(w, 'gameMain').hidden, false);
 });
 
 test('"The data" is written from the dataset\'s own provenance', async () => {
   const data = { schema: 1, meta: { demo: false, source: 'lichess_db_standard_rated_2026-09.pgn.zst', built: '2026-11-03T15:57:07+00:00', provenance: PROVENANCE },
     positions: [withGame('2026.09.01'), withGame('2026.09.01')] };
-  const w = await boot(data);
-  click(w, 'menuBtn');
-  const text = $(w, 'aboutData').textContent;
+  const w = await boot(data, { hash: '#about' });
+  const text = $(w, 'aboutList').textContent;
   assert.match(text, /2 positions from real Lichess games, played on 2026\.09\.01/);
   assert.match(text, /Stockfish 19 scored every legal move.*400,000 nodes/);
   assert.match(text, /maia3-23m.*last 8 positions/);
@@ -456,17 +461,15 @@ test('"The data" is written from the dataset\'s own provenance', async () => {
 
 test('"The data" gives a date range, says when usernames are stored, and never claims what the file does not say', async () => {
   const stored = { schema: 1, meta: { demo: false, provenance: { ...PROVENANCE, players_stored: true } }, positions: [withGame('2026.09.01'), withGame('2026.09.30')] };
-  const w = await boot(stored);
-  click(w, 'menuBtn');
-  assert.match($(w, 'aboutData').textContent, /played between 2026\.09\.01 and 2026\.09\.30/);
-  assert.match($(w, 'aboutData').textContent, /also stores the players' Lichess usernames/);
-  assert.doesNotMatch($(w, 'aboutData').textContent, /names are not stored/);
+  const w = await boot(stored, { hash: '#about' });
+  assert.match($(w, 'aboutList').textContent, /played between 2026\.09\.01 and 2026\.09\.30/);
+  assert.match($(w, 'aboutList').textContent, /also stores the players' Lichess usernames/);
+  assert.doesNotMatch($(w, 'aboutList').textContent, /names are not stored/);
 });
 
 test('"The data" copes with demo data that has no provenance, no rating model and no games', async () => {
-  const w = await boot({ schema: 1, meta: { demo: true, engine: 'Stockfish 19', nodes: 1000 }, positions: [ROOK] });
-  click(w, 'menuBtn');
-  const text = $(w, 'aboutData').textContent;
+  const w = await boot({ schema: 1, meta: { demo: true, engine: 'Stockfish 19', nodes: 1000 }, positions: [ROOK] }, { hash: '#about' });
+  const text = $(w, 'aboutList').textContent;
   assert.match(text, /^1 positions from real Lichess games\./);
   assert.match(text, /no human-model \(Maia\) data/);
   assert.doesNotMatch(text, /names/i, 'no claim about names without provenance');
@@ -476,11 +479,10 @@ test('"The data" copes with demo data that has no provenance, no rating model an
 test('"The data" shows its loading line before the dataset arrives, then fills in', async () => {
   let release;
   const gate = new Promise((r) => { release = r; });
-  const w = await boot(dataOf(ROOK), { fetchImpl: async () => { await gate; return { ok: true, json: async () => dataOf(ROOK) }; } });
-  click(w, 'menuBtn');
-  assert.equal($(w, 'aboutData').textContent, 'Loading…');
+  const w = await boot(dataOf(ROOK), { hash: '#about', fetchImpl: async () => { await gate; return { ok: true, json: async () => dataOf(ROOK) }; } });
+  assert.equal($(w, 'aboutList').textContent, 'Loading…');
   release(); await tick();
-  assert.match($(w, 'aboutData').textContent, /1 positions from real Lichess games/);
+  assert.match($(w, 'aboutList').textContent, /1 positions from real Lichess games/);
 });
 
 /* ---------- sounds ---------- */
@@ -547,7 +549,7 @@ test('predict mode: the real move chimes, a distant guess does not', async () =>
   assert.ok(!b.log.includes('f784'));
 });
 
-test('other actions have sounds: a stray click is an error tick, deselecting, confirm-pending, skip/next, theme and menu', async () => {
+test('other actions have sounds: a stray click is an error tick, deselecting, confirm-pending, skip/next, theme and pages', async () => {
   const { Ctx, log } = fakeAudio();
   const w = await boot(dataOf(ROOK, CAPTURE), { audio: Ctx, confirm: true });
   const heard = (fn) => { log.length = 0; fn(); return log.slice(); };
@@ -560,7 +562,7 @@ test('other actions have sounds: a stray click is an error tick, deselecting, co
   assert.ok(heard(() => docKey(w, 'Escape')).includes('f420'), 'Escape cancels with the deselect sound');
   assert.ok(heard(() => click(w, 'skip')).includes('f500'), 'skip');
   assert.ok(heard(() => click(w, 'themeToggle')).includes('f880'), 'theme');
-  assert.ok(heard(() => click(w, 'menuBtn')).includes('f880'), 'menu opens');
+  assert.ok(heard(() => click(w, 'settingsBtn')).includes('f880'), 'a page opens');
 });
 
 test('the speaker button mutes and unmutes, remembers it, and a muted page stays silent', async () => {
@@ -612,11 +614,11 @@ test('the timer counts up from 0:00, restarts with each position and freezes at 
   assert.equal($(w, 'timer').textContent, '0:03');
 });
 
-test('the timer pauses while the menu or the stats view is open and when the tab is hidden', async () => {
+test('the timer pauses while a page or the stats view is open and when the tab is hidden', async () => {
   const clock = { t: 0 };
   const w = await boot(dataOf(ROOK), { clock });
   clock.t += 10_000;
-  click(w, 'menuBtn'); clock.t += 100_000; click(w, 'menuClose');
+  click(w, 'helpBtn'); clock.t += 100_000; click(w, 'helpBack'); await tick();
   clock.t += 5_000;
   click(w, 'statsBtn'); clock.t += 100_000; click(w, 'statsBack'); await tick();
   clock.t += 2_000;
@@ -1442,16 +1444,16 @@ test('retries respect the opening filter too: a due Sicilian retry stays away wh
   assert.match($(w, 'openingLine').textContent, /Sicilian Defense/);
 });
 
-/* ---------- settings in the menu ---------- */
+/* ---------- settings page ---------- */
 
 const rectOf = (w, sqName) => { const r = sq(w, sqName); return [Number(r.getAttribute('x')), Number(r.getAttribute('y'))]; };
 
-test('the settings live in the menu, with the controls that used to be in the panel', async () => {
+test('the settings are a page of their own, with the controls that used to be in the panel', async () => {
   const w = await boot(dataOf(ROOK));
-  const section = $(w, 'menuSettings');
+  const section = $(w, 'settingsBody');
   for (const id of ['confirmToggle', 'timerToggle', 'srsToggle', 'adaptiveToggle', 'orientation', 'coordsToggle']) assert.ok(section.querySelector('#' + id), id);
   assert.equal($(w, 'panel').querySelector('#confirmToggle'), null, 'no longer in the panel');
-  assert.ok($(w, 'menu').querySelector('nav a[href="#menuSettings"]'));
+  assert.ok($(w, 'settingsView').contains(section));
 });
 
 test('board orientation: automatic follows the side to move, White and Black are fixed, and the choice is remembered', async () => {
@@ -1533,17 +1535,17 @@ test('reaching the daily goal is announced once that day, with a sound', async (
 
 /* ---------- keyboard ---------- */
 
-test('? opens the menu at the keyboard list, s skips the position, and typing in a field does neither', async () => {
+test('? opens the help page at the keyboard list, s skips the position, and typing in a field does neither', async () => {
   const w = await boot(twelve());
-  assert.ok($(w, 'menuKeys').querySelectorAll('tbody tr').length >= 9);
-  assert.ok($(w, 'menu').querySelector('nav a[href="#menuKeys"]'));
+  assert.ok($(w, 'helpKeys').querySelectorAll('tbody tr').length >= 9);
+  assert.ok($(w, 'helpView').contains($(w, 'helpKeys')));
   docKey(w, 's');
   assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.seen')).length, 1, 'skipped: counted as seen');
   assert.equal(chipText(w), '');
   docKey(w, '?');
-  assert.equal($(w, 'menu').hidden, false);
+  assert.equal($(w, 'helpView').hidden, false);
   docKey(w, 's');
-  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.seen')).length, 1, 'the open menu is modal: no skipping behind it');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.seen')).length, 1, 'an open page: no skipping behind it');
   docKey(w, 'Escape');
   play(w, 'a1', 'a8');
   docKey(w, 's');
@@ -1552,7 +1554,7 @@ test('? opens the menu at the keyboard list, s skips the position, and typing in
   const input = field.document.getElementById('fenInput');
   input.dispatchEvent(new field.KeyboardEvent('keydown', { key: '?', bubbles: true }));
   input.dispatchEvent(new field.KeyboardEvent('keydown', { key: 's', bubbles: true }));
-  assert.equal($(field, 'menu').hidden, true); assert.equal(field.localStorage.getItem('gtm.v1.seen'), null);
+  assert.equal($(field, 'helpView').hidden, true); assert.equal(field.localStorage.getItem('gtm.v1.seen'), null);
 });
 
 /* ---------- offline / installable: the page side ---------- */

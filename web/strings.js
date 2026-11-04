@@ -235,7 +235,6 @@
         alt: function (n) { return 'Time spent against move quality for ' + n + ' guesses.'; }
       }
     },
-    menu: { open: 'Menu: how it works, about the data, credits' , close: 'Close the menu' },
     about: {
       loading: 'Loading…',
       positions: function (n, dates) { return n + ' positions from real Lichess games' + (dates ? ', ' + dates : '') + '.'; },
