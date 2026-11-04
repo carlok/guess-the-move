@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SRS = window.GTM_SRS, RP = window.GTM_REPORT;
+  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SH = window.GTM_SHARE, SRS = window.GTM_SRS, RP = window.GTM_REPORT;
   var SPRITE = 'pieces.svg#';
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
@@ -87,22 +87,7 @@
 
   function layer(id, html) { $(id).innerHTML = html; }
 
-  function renderSquares() {
-    var s = '', i, p, x, y, f, r, onLight;
-    for (i = 0; i < 64; i++) {
-      p = B.xy(i, S.flipped); f = i % 8; r = Math.floor(i / 8);
-      s += '<rect class="sq ' + ((f + r) % 2 === 1 ? 'light' : 'dark') + '" data-sq="' + B.sqName(i) + '" x="' + p[0] * 100 +
-        '" y="' + p[1] * 100 + '" width="100" height="100"/>';
-    }
-    for (i = 0; i < 64; i++) {
-      p = B.xy(i, S.flipped); x = p[0] * 100; y = p[1] * 100; f = i % 8; r = Math.floor(i / 8);
-      onLight = (f + r) % 2 === 1;
-      var cls = 'coord ' + (onLight ? 'on-light' : 'on-dark');
-      if (p[1] === 7) s += '<text class="' + cls + '" aria-hidden="true" x="' + (x + 80) + '" y="' + (y + 92) + '">' + B.FILES[f] + '</text>';
-      if (p[0] === 0) s += '<text class="' + cls + '" aria-hidden="true" x="' + (x + 6) + '" y="' + (y + 24) + '">' + (r + 1) + '</text>';
-    }
-    layer('gSquares', s);
-  }
+  function renderSquares() { layer('gSquares', SH.squares(S.flipped)); } // the card the answer can be saved as draws the same squares
 
   function renderPieces() {
     var s = '';
@@ -164,7 +149,9 @@
       '<text x="' + g.lx.toFixed(1) + '" y="' + (g.ly + 1).toFixed(1) + '">' + letters + '</text></g></g>';
   }
 
-  function renderArrows() {
+  /* The arrows to draw, thickest first: yours and the references once revealed (or the pending move), plus a move previewed from
+   * the list when `withPreview`. */
+  function arrowGroups(withPreview) {
     var list = [];
     if (S.revealed && S.result) {
       list.push({ uci: S.result.you.uci, key: 'you' });
@@ -177,11 +164,13 @@
       if (!byMove[a.uci]) { byMove[a.uci] = { uci: a.uci, keys: [] }; groups.push(byMove[a.uci]); }
       byMove[a.uci].keys.push(a.key);
     });
-    if (S.revealed && S.preview && !byMove[S.preview]) groups.push({ uci: S.preview, keys: ['preview'] }); // a move chosen in the list that no role already draws
+    if (withPreview && S.revealed && S.preview && !byMove[S.preview]) groups.push({ uci: S.preview, keys: ['preview'] }); // a move chosen in the list that no role already draws
     var style = function (g) { return STYLE_PRIORITY.filter(function (k) { return g.keys.indexOf(k) >= 0; })[0]; };
     groups.sort(function (a, b) { return WIDTH[style(b)] - WIDTH[style(a)]; }); // thick first, thin on top
-    layer('gArrows', groups.map(function (g) { return arrowMarkup(g.uci, g.keys); }).join(''));
+    return groups;
   }
+
+  function renderArrows() { layer('gArrows', arrowGroups(true).map(function (g) { return arrowMarkup(g.uci, g.keys); }).join('')); }
 
   function renderBoard() {
     if (!S.pos) { ['gSquares', 'gMarks', 'gPieces', 'gArrows'].forEach(function (id) { layer(id, ''); }); return; }
@@ -296,6 +285,7 @@
     if (!hasMaia) html += '<p class="detail">' + T.noMaia + '</p>';
     var tags = (p.tags || []).filter(function (t) { return T.tags[t]; });
     if (tags.length) html += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(T.tags[t]) + '</span>'; }).join('') + '</div>';
+    html += '<p class="detail"><button type="button" class="link" id="saveImage">' + T.share.saveImage + '</button> <button type="button" class="link" id="saveFen">' + T.share.saveFen + '</button> <button type="button" class="link" id="copyFen">' + T.share.copyFen + '</button></p>';
     if (!p.custom) html += '<p class="detail"><button type="button" class="link" id="copyAnswer">' + T.link.copyAnswer + '</button></p>';
     if (p.site) html += '<p class="detail"><a href="' + esc(gameLink(p)) + '" rel="noopener noreferrer" target="_blank">' + T.sourceGame + '</a></p>';
     if (!p.custom) html += '<p class="detail"><a id="reportIssue" href="' + esc(issueUrl(p)) + '" rel="noopener noreferrer" target="_blank">' + T.issue.link + '</a></p>';
@@ -985,13 +975,58 @@
 
   function backupMsg(t) { $('backupMsg').textContent = t; }
 
-  function exportStats() {
-    var now = nowMs(), body = window.GTM_BACKUP.build(S.history, S.seen, S.data && S.data.meta, now, { srs: S.srs, plays: S.plays });
-    var url = window.URL.createObjectURL(new window.Blob([JSON.stringify(body, null, 2) + '\n'], { type: 'application/json' }));
-    var a = document.createElement('a');
-    a.href = url; a.download = window.GTM_BACKUP.fileName(now);
+  /* Hand a file to the browser's download. */
+  function saveBlob(blob, name) {
+    var url = window.URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     window.setTimeout(function () { window.URL.revokeObjectURL(url); }, 0);
+  }
+
+  /* ---------- saving the answer: an image of the board with the facts, and the FEN ---------- */
+
+  var sprite = null;
+  function spriteText() {
+    if (!sprite) sprite = window.fetch('pieces.svg').then(function (r) { return r.text ? r.text() : ''; }).catch(function () { return ''; });
+    return sprite;
+  }
+
+  function cardModel(symbols) {
+    var r = S.result, p = S.pos, sum = S.tiers, C = T.share.card, round = function (n) { return Math.round(n); };
+    var head = r.mode === 'predict' ? (r.matched.real ? C.exact : C.closeness(round(r.score))) : C.quality(round(r.score)) + ' · ' + C.gave(fmt(r.you.cost));
+    var rows = [{ key: 'you', label: T.roles.you, san: r.you.san, cost: fmt(r.you.cost) }].concat(r.refs.map(function (x) {
+      return { key: x.key, san: x.san, cost: fmt(x.cost), label: x.key === 'maia' ? T.result.maiaAt(p.maia.elo) : (x.key === 'real' && p.player_elo ? T.result.realAt(p.player_elo) : T.roles[x.key]) };
+    }));
+    return {
+      fen: p.fen, flipped: S.flipped, board: S.parsed.board, symbols: symbols, posLine: T.posInfo(p), ratingLine: '',
+      opening: p.game && p.game.opening ? T.openingLine(p.game.opening, p.game.eco) : '', yourSan: r.you.san, tier: sum.yours.tier,
+      headline: head, better: T.tiers.better(sum.betterThan), sum: sum, yours: r.you.uci, rows: rows,
+      arrows: arrowGroups(false).map(function (g) { return arrowMarkup(g.uci, g.keys); }).join(''), date: new Date(nowMs()).toISOString().slice(0, 10)
+    };
+  }
+
+  function saveImage() {
+    if (!S.pos || !S.revealed || !S.result) return;
+    var say = function (t) { $('linkMsg').textContent = t; };
+    say(T.share.working);
+    spriteText().then(function (text) {
+      var card = SH.card(cardModel(SH.symbolsOf(text)), T);
+      return SH.rasterize(window, card.svg, card.width, card.height, 2);
+    }).then(function (png) {
+      saveBlob(new window.Blob([SH.addPngText(png, { FEN: S.pos.fen, Software: 'Guess the Move' })], { type: 'image/png' }), SH.fileName('png', S.pos.id));
+      sfx('tick'); say(T.share.imageSaved);
+    }).catch(function (e) { say(T.share.failed(e && e.message ? e.message : String(e))); });
+  }
+
+  function saveFen() {
+    if (!S.pos) return;
+    saveBlob(new window.Blob([S.pos.fen + '\n'], { type: 'text/plain' }), SH.fileName('fen', S.pos.id));
+    sfx('tick'); $('linkMsg').textContent = T.share.fenSaved;
+  }
+
+  function exportStats() {
+    var now = nowMs(), body = window.GTM_BACKUP.build(S.history, S.seen, S.data && S.data.meta, now, { srs: S.srs, plays: S.plays });
+    saveBlob(new window.Blob([JSON.stringify(body, null, 2) + '\n'], { type: 'application/json' }), window.GTM_BACKUP.fileName(now));
     sfx('tick'); backupMsg(T.backup.exported(S.history.length));
   }
 
@@ -1020,7 +1055,7 @@
 
   /* The scripts this one needs. If one did not load (a 404 from a stale image or a bad deploy, a blocked request) say so
    * plainly instead of failing on the first move with a console error. GTM_SOUND is optional (the page works without it). */
-  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SRS', 'GTM_REPORT', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
+  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SHARE', 'GTM_SRS', 'GTM_REPORT', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
 
   function missingScripts() { return REQUIRED.filter(function (k) { return !window[k]; }); }
 
@@ -1121,6 +1156,9 @@
     $('adaptiveToggle').addEventListener('change', function () { S.adaptive = $('adaptiveToggle').checked; store.set(ADAPTIVE_KEY, S.adaptive); });
     $('result').addEventListener('click', function (e) {
       if (e.target && e.target.id === 'copyAnswer') { copyLink(S.result.you.uci); return; }
+      if (e.target && e.target.id === 'saveImage') { saveImage(); return; }
+      if (e.target && e.target.id === 'saveFen') { saveFen(); return; }
+      if (e.target && e.target.id === 'copyFen') { copyText(S.pos.fen, $('linkMsg'), T.share.fenCopied); return; }
       var b = e.target.closest ? e.target.closest('.ml-row') : null;
       if (b) togglePreview(b.getAttribute('data-uci'));
     });
