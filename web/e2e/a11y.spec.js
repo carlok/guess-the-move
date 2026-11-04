@@ -83,6 +83,20 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
+for (const theme of ['light', 'dark']) {
+  test(`axe: ${theme} theme, the reveal with move tiers and the open list of all moves`, async ({ page }) => {
+    await preset(page, { theme, confirm: false });
+    await serveDataset(page, [ROOK]);
+    await page.goto('/');
+    await expect(page.locator('[data-sq]')).toHaveCount(64);
+    await clickMove(page, 'a1a2'); // a middling move, so several tiers are on screen
+    await expect(page.locator('svg.tier-bar')).toBeVisible();
+    await page.locator('.all-moves summary').click();
+    await page.locator('.ml-row').first().click();
+    await scan(page, `${theme} tiers`);
+  });
+}
+
 test('axe: error state', async ({ page }) => {
   await preset(page);
   await page.route('**/data/positions.json', (route) => route.fulfill({ status: 503, body: 'down' }));

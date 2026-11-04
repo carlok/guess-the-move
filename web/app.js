@@ -6,10 +6,10 @@
 (function () {
   'use strict';
 
-  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD;
+  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW;
   var SPRITE = 'pieces.svg#';
-  var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot' };
-  var WIDTH = { best: 15, real: 12, maia: 11, you: 10 };
+  var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
+  var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
   var TRAIL_MAX = 100, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
@@ -20,7 +20,7 @@
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
     seen: new Set(), history: [], showTimer: true, statsPushed: false,
-    adaptive: false, hasAnchors: false, byId: null, picked: null,
+    adaptive: false, hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
     trail: [], cur: null // positions answered in this visit, and the one being reviewed (null: a live position)
   };
   var snd = null; // sound effects, made in init()
@@ -144,7 +144,7 @@
   /* One arrow per distinct move. When several references chose the same move (often: you, Stockfish and the real player),
    * one pill at the arrow lists every letter, so nothing is stacked or hidden. The arrow takes the style of the most
    * informative key; the letters, not the colour, say who chose it. */
-  var STYLE_PRIORITY = ['best', 'real', 'maia', 'you'];
+  var STYLE_PRIORITY = ['best', 'real', 'maia', 'you', 'preview'];
 
   function arrowMarkup(uci, keys) {
     var key = STYLE_PRIORITY.filter(function (k) { return keys.indexOf(k) >= 0; })[0], w = WIDTH[key];
@@ -154,7 +154,7 @@
         '" y2="' + g.y2.toFixed(1) + '" stroke-width="' + (w + extra) + '" stroke-linecap="round"/>';
     };
     var pts = g.head.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
-    var letters = keys.map(function (k) { return T.letters[k]; }).join(' '), width = 22 + keys.length * 15 + (keys.length - 1) * 7;
+    var letters = keys.map(function (k) { return k === 'preview' ? S.previewLabel : T.letters[k]; }).join(' '), width = 22 + keys.length * 15 + (keys.length - 1) * 7;
     return '<g class="arrow arrow-' + key + '" data-key="' + key + '" data-keys="' + keys.join(' ') + '" data-dash="' + DASH[key] + '">' +
       line('halo', 7) + line('main', 0) + '<polygon class="head" points="' + pts + '"/>' +
       '<g class="arrow-label"><rect x="' + (g.lx - width / 2).toFixed(1) + '" y="' + (g.ly - 17).toFixed(1) + '" width="' + width + '" height="34" rx="17"/>' +
@@ -174,6 +174,7 @@
       if (!byMove[a.uci]) { byMove[a.uci] = { uci: a.uci, keys: [] }; groups.push(byMove[a.uci]); }
       byMove[a.uci].keys.push(a.key);
     });
+    if (S.revealed && S.preview && !byMove[S.preview]) groups.push({ uci: S.preview, keys: ['preview'] }); // a move chosen in the list that no role already draws
     var style = function (g) { return STYLE_PRIORITY.filter(function (k) { return g.keys.indexOf(k) >= 0; })[0]; };
     groups.sort(function (a, b) { return WIDTH[style(b)] - WIDTH[style(a)]; }); // thick first, thin on top
     layer('gArrows', groups.map(function (g) { return arrowMarkup(g.uci, g.keys); }).join(''));
@@ -261,21 +262,25 @@
       head = T.result.quality(fmt(r.score, 0));
       detail = T.result.lost(fmt(r.you.cost), r.you.rank, r.you.n);
     }
-    var rows = [{ key: 'you', san: r.you.san, cost: r.you.cost, plaus: r.you.plaus, sim: null }].concat(r.refs.map(function (x) {
-      return { key: x.key, san: x.san, cost: x.cost, plaus: x.plaus, sim: x };
+    var sum = CL.summary(p, r.you.uci), marks = {};
+    S.tiers = sum;
+    var rows = [{ key: 'you', uci: r.you.uci, san: r.you.san, cost: r.you.cost, plaus: r.you.plaus, sim: null }].concat(r.refs.map(function (x) {
+      return { key: x.key, uci: x.uci, san: x.san, cost: x.cost, plaus: x.plaus, sim: x };
     }));
+    rows.forEach(function (row) { (marks[row.uci] = marks[row.uci] || []).push(row.key); });
     var hasMaia = !!p.maia, c = T.result.cols;
-    var html = '<p class="headline">' + head + '</p><p class="detail">' + detail + '</p>' +
+    var html = '<p class="headline">' + head + '</p><p class="tier-line">' + TV.badge(sum.yours.tier, T) + ' ' + esc(T.tiers.better(sum.betterThan)) + '</p><p class="detail">' + detail + '</p>' +
+      TV.bar(sum, T, r.you.uci) +
       '<table><thead><tr><th><span class="sr-only">Move by</span></th><th>' + c.move + '</th><th class="num">' + c.cost + '</th>' +
       (hasMaia ? '<th class="num">' + c.plausible + '</th>' : '') + '<th class="num">' + c.closeness + '</th></tr></thead><tbody>';
     rows.forEach(function (row) {
       var label = row.key === 'maia' ? T.result.maiaAt(p.maia.elo) : (row.key === 'real' && p.player_elo ? T.result.realAt(p.player_elo) : T.roles[row.key]);
       var closeness = row.sim === null ? '' : (row.sim.same ? T.result.sameMove : fmt(row.sim.similarity, 0) + ' (Δ' + fmt(row.sim.distance) + ')');
-      html += '<tr><td><span class="chip chip-' + row.key + '"></span>' + esc(label) + '</td><td>' + esc(row.san) +
+      html += '<tr><td><span class="chip chip-' + row.key + '"></span>' + esc(label) + '</td><td>' + esc(row.san) + ' ' + TV.badge(sum.all[row.uci].tier, T, true) +
         '</td><td class="num">' + fmt(row.cost) + costBar(row.cost) + '</td>' + (hasMaia ? '<td class="num">' + plausText(row.plaus) + '</td>' : '') +
         '<td class="num">' + closeness + '</td></tr>';
     });
-    html += '</tbody></table><p class="detail muted small">' + T.result.help + '</p>';
+    html += '</tbody></table><p class="detail muted small">' + T.result.help + '</p>' + TV.list(p, sum, marks, T);
     if (!hasMaia) html += '<p class="detail">' + T.noMaia + '</p>';
     var tags = (p.tags || []).filter(function (t) { return T.tags[t]; });
     if (tags.length) html += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(T.tags[t]) + '</span>'; }).join('') + '</div>';
@@ -288,6 +293,14 @@
     $('verdict').hidden = false;
     $('legend').innerHTML = legendHtml(p);
     $('legend').hidden = false;
+  }
+
+  /* Draw (or stop drawing) a move picked from the list of all legal moves. */
+  function togglePreview(uci) {
+    S.preview = S.preview === uci ? null : uci;
+    S.previewLabel = S.preview && S.tiers ? T.tiers[S.tiers.all[S.preview].tier].sym : '';
+    $('result').querySelectorAll('.ml-row').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-uci') === S.preview ? 'true' : 'false'); });
+    renderArrows();
   }
 
   function renderStats() {
@@ -338,7 +351,7 @@
     S.pos = p; S.parsed = B.parseFen(p.fen); S.flipped = S.parsed.stm === 'b';
     S.legalFrom = {};
     Object.keys(p.evals).forEach(function (u) { (S.legalFrom[u.slice(0, 2)] = S.legalFrom[u.slice(0, 2)] || []).push(u); });
-    S.selected = null; S.promo = null; S.pending = null; S.revealed = false; S.result = null; S.cursor = null;
+    S.selected = null; S.promo = null; S.pending = null; S.revealed = false; S.result = null; S.cursor = null; S.preview = null; S.tiers = null;
     $('result').hidden = true;
     svgReset();
     renderSquares(); renderPieces();
@@ -394,11 +407,12 @@
     timerStop();
     S.revealed = true; S.selected = null; S.promo = null; S.pending = null;
     S.result = G.analyse(S.pos, uci, S.pos.custom ? 'best' : S.mode); // an arbitrary position has no real move to predict
+    var tier = CL.classifyAll(S.pos)[uci].tier;
     if (!S.pos.custom) {  // the session stats are about the dataset, not about positions pasted in
       S.seen.add(S.pos.id);
       store.set(SEEN_KEY, Array.from(S.seen));
       S.history.push({
-        id: S.pos.id, mode: S.mode, phase: S.pos.phase, tags: S.pos.tags || [], cost: S.result.you.cost,
+        id: S.pos.id, mode: S.mode, phase: S.pos.phase, tags: S.pos.tags || [], cost: S.result.you.cost, tier: tier,
         score: S.result.score, mb: S.result.matched.best, mr: S.result.matched.real, mm: S.result.matched.maia, t: Date.now(),
         dur: Math.round(elapsedMs() / 1000),
         fen: S.pos.fen, uci: uci, opp: S.pos.opp_elo || null // what the level estimate needs
@@ -408,7 +422,7 @@
       S.trail.push({ pos: S.pos, uci: uci, mode: S.mode, dur: Math.round(elapsedMs() / 1000) });
       if (S.trail.length > TRAIL_MAX) S.trail.shift();
     }
-    sfx(isCapture(uci) ? 'capture' : 'move'); sfx(outcomeSound(S.result), 0.16);
+    sfx(isCapture(uci) ? 'capture' : 'move'); sfx(S.result.mode === 'best' && (tier === 'brilliant' || tier === 'great') ? 'brilliant' : outcomeSound(S.result), 0.16); // the fanfare is for finding it, not for predicting
     refresh(); renderResult(); renderStats(); applyFilters(); updateEstimate();
     announce(T.live.played(uci.slice(0, 2), uci.slice(2, 4), verdictText(S.result, S.pos)));
   }
@@ -746,7 +760,17 @@
   function statsIsOpen() { return !$('statsView').hidden; }
 
   /* Charts are drawn at the width of the page, so they are redrawn when the window is resized (or the phone turned). */
-  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(S.history, T, { width: $('statsBody').clientWidth || undefined, level: levelModel() }); }
+  /* History entries from before tiers existed get theirs from the dataset (not saved back). */
+  function tieredHistory() {
+    var by = positionById();
+    return S.history.map(function (e) {
+      var p = by[e.id];
+      if (e.tier || !e.uci || !p || !p.evals || !(e.uci in p.evals)) return e;
+      return Object.assign({}, e, { tier: CL.classifyAll(p)[e.uci].tier });
+    });
+  }
+
+  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, level: levelModel() }); }
 
   function showStats(on) {
     if (on === statsIsOpen()) return;
@@ -807,7 +831,7 @@
 
   /* The scripts this one needs. If one did not load (a 404 from a stale image or a bad deploy, a blocked request) say so
    * plainly instead of failing on the first move with a console error. GTM_SOUND is optional (the page works without it). */
-  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
+  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
 
   function missingScripts() { return REQUIRED.filter(function (k) { return !window[k]; }); }
 
@@ -884,6 +908,10 @@
       updateSoundButton(); sfx('tick');
     });
     $('adaptiveToggle').addEventListener('change', function () { S.adaptive = $('adaptiveToggle').checked; store.set(ADAPTIVE_KEY, S.adaptive); });
+    $('result').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('.ml-row') : null;
+      if (b) togglePreview(b.getAttribute('data-uci'));
+    });
     $('statsBody').addEventListener('click', function (e) { if (e.target && e.target.id === 'suggestBtn') suggestAndGo(); });
     $('timerToggle').addEventListener('change', function () { S.showTimer = $('timerToggle').checked; store.set(TIMER_KEY, S.showTimer); $('timer').hidden = !S.showTimer; });
     $('statsBtn').addEventListener('click', openStatsView);

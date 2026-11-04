@@ -86,3 +86,14 @@ test('html draws charts at the requested width, within 300 to 640, and uses a na
   assert.match(ST.html(h, T, { width: 350 }), /class="ch-track" x="112"/);
   assert.match(ST.html(h, T, { width: 600 }), /class="ch-track" x="150"/);
 });
+
+test('the tier order in stats.js is the classifier\'s, and the tier card counts best-move guesses only', () => {
+  assert.deepEqual(ST.TIER_ORDER, require('../classify.js').TIERS);
+  const h = [g(1, { tier: 'best' }), g(2, { tier: 'best' }), g(3, { tier: 'blunder' }), g(4, { tier: 'excellent' }), g(5, { tier: 'best', mode: 'predict' }), g(6)];
+  const s = ST.summarize(h);
+  assert.equal(s.tiered, 4); assert.deepEqual(s.tiers.map((t) => t.n), [0, 0, 2, 1, 0, 0, 0, 1]);
+  const html = ST.html(h, T);
+  assert.match(html, /Your moves by tier/); assert.match(html, /75% of your 4 best-move guesses were Excellent or better/);
+  assert.match(html, /class="ch-bar t-best"/);
+  assert.doesNotMatch(ST.html([g(1)], T), /Your moves by tier/, 'no tiers recorded: no card');
+});

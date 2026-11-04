@@ -11,7 +11,7 @@
 
   return {
     roles: { you: 'Your move', best: 'Stockfish', real: 'Real player', maia: 'Maia' },
-    letters: { you: 'Y', best: 'S', real: 'R', maia: 'M' },
+    letters: { you: 'Y', best: 'S', real: 'R', maia: 'M', preview: '·' },
     promoNames: { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' },
     tags: {
       real_blunder: 'Real player blundered', real_mistake: 'Real player erred',
@@ -115,6 +115,22 @@
     },
     timer: { label: 'Time on this position', show: 'Show the timer', showHelp: 'Your time is still recorded for the stats when the timer is hidden.' },
     sound: { off: 'Turn sounds on', on: 'Mute sounds', setting: 'Sounds' },
+    tiers: {
+      brilliant: { name: 'Brilliant', sym: '!!', desc: 'A best or nearly best move that gives up material.' },
+      great: { name: 'Great', sym: '!', desc: 'The only move that holds the position: every alternative gives up at least 15 win-% points.' },
+      best: { name: 'Best', sym: '★', desc: 'The engine\'s first choice.' },
+      excellent: { name: 'Excellent', sym: '✓', desc: 'Within 2 win-% points of the best move.' },
+      good: { name: 'Good', sym: '=', desc: 'Within 5 win-% points of the best move.' },
+      inaccuracy: { name: 'Inaccuracy', sym: '?!', desc: 'Gives up 5 to 10 win-% points.' },
+      mistake: { name: 'Mistake', sym: '?', desc: 'Gives up 10 to 20 win-% points.' },
+      blunder: { name: 'Blunder', sym: '??', desc: 'Gives up 20 or more win-% points.' },
+      better: function (pct) { return 'Your move beats ' + pct + '% of the other legal moves.'; },
+      barAlt: function (n, parts, yours, pct) { return 'The ' + n + ' legal moves by tier: ' + parts.join(', ') + '. Yours is ' + yours.toLowerCase() + ', better than ' + pct + '% of the others.'; },
+      listTitle: function (n) { return 'All ' + n + ' legal moves, best to worst'; },
+      listHint: 'Tap a move to draw it on the board. Each tier compares a move with the best one in this position, so it is relative: in a lost position the best move is still Best.',
+      scale: 'Move tiers',
+      preview: 'Preview'
+    },
     level: {
       title: 'Your level',
       unavailable: 'This dataset carries no rating data for the models, so no level estimate is made.',
@@ -154,6 +170,11 @@
         caption: function (pct) { return pct + '% of your guesses gave up less than 2 win-% points compared with the best move.'; },
         buckets: ['About the best', 'Under 2 points', '2 to 5', '5 to 10', '10 to 20', '20 or more'],
         alt: 'Number of guesses by how many win-percentage points they gave up against the best move.'
+      },
+      tiers: {
+        title: 'Your moves by tier',
+        caption: function (pct, n) { return pct + '% of your ' + n + ' best-move guesses were Excellent or better (Brilliant, Great, Best, Excellent).'; },
+        alt: 'Number of your best-move guesses in each tier, from Brilliant to Blunder.'
       },
       phases: { opening: 'Opening', middlegame: 'Middlegame', endgame: 'Endgame' },
       phase: {

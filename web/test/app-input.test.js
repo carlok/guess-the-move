@@ -1032,3 +1032,90 @@ test('a script that failed to load is named on the page instead of breaking the 
   await tick();
   assert.equal(dom.window.document.querySelectorAll('[data-sq]').length, 64, 'sound.js is optional: the page works without it');
 });
+
+/* ---------- move tiers ---------- */
+
+const tierLineOf = (w) => $(w, 'result').querySelector('.tier-line');
+
+test('the reveal names the tier of your move, draws the distribution bar and lists every legal move; the table keeps its rows', async () => {
+  const w = await boot(dataOf(ROOK));
+  play(w, 'a1', 'a8'); // Ra8#: the only move that wins
+  assert.match(tierLineOf(w).textContent, /Great\s*Your move beats 100% of the other legal moves\./);
+  assert.ok(tierLineOf(w).querySelector('.tier-great'));
+  assert.equal($(w, 'result').querySelectorAll('svg.tier-bar').length, 1);
+  assert.match($(w, 'result').querySelector('.tier-bar').getAttribute('aria-label'), /The 5 legal moves by tier:/);
+  assert.equal($(w, 'result').querySelectorAll('.ml-row').length, 5);
+  assert.match($(w, 'result').querySelector('.all-moves summary').textContent, /All 5 legal moves, best to worst/);
+  assert.equal($(w, 'result').querySelectorAll('tbody tr').length, 4, 'the table still has you, Stockfish, the real player and Maia');
+  assert.ok($(w, 'result').querySelector('tbody .tier.compact'), 'a compact tier badge in every row');
+  const first = $(w, 'result').querySelector('.ml-row');
+  assert.equal(first.getAttribute('data-uci'), 'a1a8');
+  assert.match(first.textContent, /Great/); assert.ok(first.querySelector('.mark-you') && first.querySelector('.mark-best'));
+});
+
+test('a poor move is named for what it is, and beats none of the others', async () => {
+  const w = await boot(dataOf(ROOK));
+  play(w, 'g1', 'f1');
+  assert.match(tierLineOf(w).textContent, /Blunder\s*Your move beats 0% of the other legal moves\./);
+  assert.ok(tierLineOf(w).querySelector('.tier-blunder'));
+});
+
+test('choosing a move in the list draws it on the board, once more takes it off, and a move already drawn adds nothing', async () => {
+  const w = await boot(dataOf(ROOK));
+  play(w, 'a1', 'a8');
+  const arrows = () => w.document.querySelectorAll('#gArrows .arrow').length;
+  const row = (u) => $(w, 'result').querySelector(`.ml-row[data-uci="${u}"]`);
+  const before = arrows();
+  row('a1a7').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal(arrows(), before + 1);
+  assert.ok(w.document.querySelector('#gArrows .arrow-preview'));
+  assert.equal(row('a1a7').getAttribute('aria-pressed'), 'true');
+  assert.equal(w.document.querySelector('#gArrows .arrow-preview text').textContent, T_sym('a1a7', w), 'labelled with the tier symbol');
+  row('a1a2').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal(arrows(), before + 1, 'one preview at a time');
+  assert.equal(row('a1a7').getAttribute('aria-pressed'), 'false');
+  row('a1a2').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal(arrows(), before, 'a second click removes it');
+  row('g1g2').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal(arrows(), before, 'g1g2 is already drawn (real and Maia): nothing extra');
+  click(w, 'next');
+  assert.equal(w.document.querySelector('#gArrows .arrow-preview'), null, 'a new position starts clean');
+});
+function T_sym(uci, w) { return w.GTM_STRINGS.tiers[w.GTM_CLASSIFY.summary(ROOK, 'a1a8').all[uci].tier].sym; }
+
+test('the tier is saved with the guess, shown again in a review, and also in predict mode', async () => {
+  const w = await boot(dataOf(ROOK, CAPTURE));
+  play(w, 'a1', 'a8'); click(w, 'next');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.history'))[0].tier, 'great');
+  click(w, 'back');
+  assert.ok(tierLineOf(w).querySelector('.tier-great'), 'the review shows it too');
+  const p = await boot(dataOf(ROOK));
+  p.document.querySelector('input[value=predict]').click();
+  play(p, 'g1', 'g2');
+  assert.match(tierLineOf(p).textContent, /(Blunder|Mistake|Inaccuracy|Good|Excellent|Best|Great|Brilliant)\s*Your move beats \d+%/);
+});
+
+test('guesses saved before tiers existed get theirs from the dataset on the stats page, and nothing is written back', async () => {
+  const old = Array.from({ length: 6 }, (_, i) => entryFor('h' + i, i % 2 ? 'g1g2' : 'a1a8', { t: i, tier: undefined }));
+  old.forEach((e) => delete e.tier);
+  const w = await boot(levelData(8), { ls: { history: old } });
+  click(w, 'statsBtn');
+  assert.match($(w, 'statsBody').textContent, /Your moves by tier/);
+  const card = [...$(w, 'statsBody').querySelectorAll('figure')].find((f) => /Your moves by tier/.test(f.textContent));
+  const values = [...card.querySelectorAll('.ch-value')].map((t) => t.textContent);
+  assert.deepEqual(values, ['0 (0%)', '3 (50%)', '0 (0%)', '0 (0%)', '0 (0%)', '0 (0%)', '0 (0%)', '3 (50%)'], 'a1a8 is Great, g1g2 a Blunder: three of each, in tier order');
+  assert.match(card.querySelector('figcaption').textContent, /50% of your 6 best-move guesses were Excellent or better/);
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.history'))[0].tier, undefined, 'not saved back');
+});
+
+test('finding a great move in best-move mode plays the fanfare; predicting does not', async () => {
+  const best = fakeAudio();
+  let w = await boot(dataOf(ROOK), { audio: best.Ctx });
+  play(w, 'a1', 'a8');
+  assert.ok(best.log.includes('f1319'), 'the fanfare');
+  const pred = fakeAudio();
+  w = await boot(dataOf(ROOK), { audio: pred.Ctx });
+  w.document.querySelector('input[value=predict]').click();
+  play(w, 'a1', 'a8');
+  assert.ok(!pred.log.includes('f1319'));
+});

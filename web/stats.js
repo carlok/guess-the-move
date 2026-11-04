@@ -11,6 +11,7 @@
 
   var W_MAX = 640, W_MIN = 300, SERIES_MAX = 100, AVG_WINDOW = 10, MIN_POINTS = 3, MIN_TIMED = 3, MIN_SPLIT = 6;
   var PHASES = ['opening', 'middlegame', 'endgame'];
+  var TIER_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder']; // = GTM_CLASSIFY.TIERS (a test checks)
   var COST_EDGES = [0.5, 2, 5, 10, 20]; // upper bounds in win-% points; the last bucket is open
 
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -49,6 +50,8 @@
       while (i < COST_EDGES.length && c >= COST_EDGES[i]) i++;
       buckets[i]++;
     });
+    var tiers = TIER_ORDER.map(function (t) { return { tier: t, n: best.filter(function (e) { return e.tier === t; }).length }; });
+    var tiered = tiers.reduce(function (a, t) { return a + t.n; }, 0);
     var phases = PHASES.map(function (p) {
       var sc = scoresOf(best.filter(function (e) { return e.phase === p; }));
       return { phase: p, n: sc.length, mean: mean(sc) };
@@ -61,7 +64,7 @@
       found: pctOf(h, 'mb'), real: pctOf(h, 'mr'), maia: pctOf(h, 'mm'),
       medianTime: median(timed.map(function (e) { return e.dur; })),
       bestScores: scoresOf(best).slice(-SERIES_MAX), predictScores: scoresOf(pred).slice(-SERIES_MAX),
-      costBuckets: buckets, phases: phases, timedBest: timedBest,
+      tiers: tiers, tiered: tiered, costBuckets: buckets, phases: phases, timedBest: timedBest,
       split: timedBest.length >= MIN_SPLIT && fast.length && slow.length ?
         { at: medT, fast: mean(fast.map(function (e) { return e.score; })), slow: mean(slow.map(function (e) { return e.score; })) } : null
     };
@@ -220,6 +223,13 @@
       });
       out += card(V.cost.title, V.cost.caption(round(100 * (S.costBuckets[0] + S.costBuckets[1]) / total)), barChart(w, rows, V.cost.alt));
     }
+    // moves by tier
+    if (S.tiered) {
+      var maxT = Math.max.apply(null, S.tiers.map(function (t) { return t.n; }));
+      var trows = S.tiers.map(function (t) { return { label: T.tiers[t.tier].name, value: t.n, max: maxT, text: t.n + ' (' + round(100 * t.n / S.tiered) + '%)', cls: 't-' + t.tier }; });
+      var good = S.tiers.slice(0, 4).reduce(function (a, t) { return a + t.n; }, 0);
+      out += card(V.tiers.title, V.tiers.caption(round(100 * good / S.tiered), S.tiered), barChart(w, trows, V.tiers.alt));
+    }
     // by phase
     if (S.phases.length) {
       var prow = S.phases.map(function (p) { return { label: V.phases[p.phase], value: p.mean, max: 100, text: round(p.mean) + '  (n=' + p.n + ')', cls: 'c-real' }; });
@@ -240,5 +250,5 @@
     return out + '</div>';
   }
 
-  return { summarize: summarize, html: html, clock: clock, median: median, movingAverage: movingAverage };
+  return { TIER_ORDER: TIER_ORDER, summarize: summarize, html: html, clock: clock, median: median, movingAverage: movingAverage };
 }));

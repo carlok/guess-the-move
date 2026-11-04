@@ -60,3 +60,11 @@ test('merge: union by position and time, oldest first, newest kept up to the cap
   assert.deepEqual(B.merge([], [entry('q', 0, { t: undefined })].map(B.cleanEntry), 10).history.length, 1);
   assert.equal(B.merge([entry('a', 1)], [entry('a', 2)], 9).added, 1, 'the same position guessed again later is a new guess');
 });
+
+test('a tier is kept only when it is one of the eight names', () => {
+  assert.equal(B.cleanEntry(entry('a', 1, { tier: 'blunder' })).tier, 'blunder');
+  assert.equal('tier' in B.cleanEntry(entry('a', 1, { tier: 'amazing' })), false);
+  assert.equal('tier' in B.cleanEntry(entry('a', 1, { tier: 'hasOwnProperty' })), false);
+  assert.equal('tier' in B.cleanEntry(entry('a', 1, { tier: 7 })), false);
+  assert.equal('tier' in B.cleanEntry(entry('a', 1)), false, 'older files have none');
+});

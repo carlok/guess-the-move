@@ -10,6 +10,7 @@
   var APP = 'guess-the-move', FORMAT = 1, MAX_BYTES = 5 * 1024 * 1024, MAX_SEEN = 20000;
   var MODES = { best: 1, predict: 1 }, PHASES = { opening: 1, middlegame: 1, endgame: 1 };
   var UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+  var TIERS = { brilliant: 1, great: 1, best: 1, excellent: 1, good: 1, inaccuracy: 1, mistake: 1, blunder: 1 };
 
   var num = function (v) { return typeof v === 'number' && isFinite(v); };
   var bool = function (v) { return v === true || v === false ? v : null; };
@@ -33,6 +34,7 @@
       cost: num(e.cost) ? e.cost : null, score: e.score, mb: bool(e.mb), mr: bool(e.mr), mm: bool(e.mm), t: num(e.t) ? e.t : 0
     };
     if (num(e.dur) && e.dur >= 0) out.dur = Math.round(e.dur);
+    if (typeof e.tier === 'string' && TIERS.hasOwnProperty(e.tier)) out.tier = e.tier;
     if (typeof e.fen === 'string' && e.fen.length <= 100 && typeof e.uci === 'string' && UCI.test(e.uci)) {
       out.fen = e.fen; out.uci = e.uci; out.opp = num(e.opp) ? e.opp : null;
     }

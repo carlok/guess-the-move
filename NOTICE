@@ -12,7 +12,7 @@ Chess pieces: "cburnett" set by Colin M.L. Burnett (Cburnett)
   and other lila sets are CC BY-NC-SA 4.0 and were rejected).
 
 Icons: Lucide, https://github.com/lucide-icons/lucide
-  Files: inline <svg> elements in web/index.html (moon, sun, menu, x, chart-column, volume-2, volume-x; sun and moon are Feather-derived; geometry checked against lucide-static 1.67.0 on 2026-11-04)
+  Files: inline <svg> elements in web/index.html (moon, sun, menu, x, chart-column, volume-2, volume-x, star, thumbs-up, check; sun and moon are Feather-derived; geometry checked against lucide-static 1.67.0 on 2026-11-04)
   Sounds: none bundled; they are synthesised in the browser by web/sound.js (Web Audio), so there is no audio licence to carry.
   Licence: ISC, "Copyright (c) 2026 Lucide Icons and Contributors"; icons derived from Feather are MIT, "Copyright
   (c) 2013-2023 Cole Bemis". Licence text: https://github.com/lucide-icons/lucide/blob/main/LICENSE (read 2026-11-03).

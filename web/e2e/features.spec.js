@@ -247,3 +247,33 @@ test('the adaptive setting is remembered across a reload and shows the chip on t
   await expect(page.locator('#adaptiveToggle')).toBeChecked();
   await expect(page.locator('#pickChip')).toBeVisible();
 });
+
+/* ---------- move tiers ---------- */
+
+test('the reveal shows the tier of your move, the distribution bar and every legal move; a row draws its move on the board', async ({ page }) => {
+  await preset(page, { confirm: false }); await serveDataset(page, [ROOK]); await page.goto('/'); await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await clickMove(page, 'a1a8');
+  await expect(page.locator('#result')).toBeVisible();
+  await expect(page.locator('.tier-line')).toContainText('Your move beats 100% of the other legal moves');
+  const bar = await page.locator('svg.tier-bar').boundingBox();
+  expect(bar.width).toBeGreaterThan(200); expect(bar.height).toBeGreaterThan(20);
+  await page.locator('.all-moves summary').click();
+  await expect(page.locator('.ml-row')).toHaveCount(5);
+  for (const row of await page.locator('.ml-row').all()) { const b = await row.boundingBox(); expect(b.height).toBeGreaterThanOrEqual(44); }
+  const arrows = await page.locator('#gArrows .arrow').count();
+  await page.locator('.ml-row[data-uci="a1a7"]').click();
+  await expect(page.locator('#gArrows .arrow')).toHaveCount(arrows + 1);
+  await expect(page.locator('.ml-row[data-uci="a1a7"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.ml-row[data-uci="a1a7"]').click();
+  await expect(page.locator('#gArrows .arrow')).toHaveCount(arrows);
+  expect(await noHScroll(page)).toBe(true);
+});
+
+test('the tier badges are not colour-only: each carries a name, and the discs differ in glyph', async ({ page }) => {
+  await preset(page, { confirm: false }); await serveDataset(page, [ROOK]); await page.goto('/'); await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await clickMove(page, 'a1a8');
+  const names = await page.locator('.tier-key .tier-name').allTextContents();
+  expect(names.length).toBeGreaterThan(0); names.forEach((n) => expect(n.length).toBeGreaterThan(2));
+  const compact = await page.locator('tbody .tier.compact .sr-only').allTextContents();
+  expect(compact.length).toBe(4);
+});
