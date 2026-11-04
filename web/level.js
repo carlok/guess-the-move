@@ -60,6 +60,41 @@
     return list ? probAt(list, uci, r) : null;
   }
 
+  /* The moves of `pos` that share the best evaluation. Needs `pos.evals`. */
+  function bestMoves(pos) {
+    var ev = pos && pos.evals, keys = ev ? Object.keys(ev) : [];
+    if (!keys.length) return [];
+    var top = Math.max.apply(null, keys.map(function (k) { return ev[k]; }));
+    return keys.filter(function (k) { return ev[k] === top; });
+  }
+
+  /* Probability that a player rated r plays the best move (the sum over moves tied for best); null when the position has no
+   * anchors or no evaluations. This is the chance of that exact move, not of "a good move". */
+  function bestProb(pos, r) {
+    var list = anchorsOf(pos), best = bestMoves(pos);
+    if (!list || !best.length) return null;
+    return best.reduce(function (sum, m) { return sum + probAt(list, m, r); }, 0);
+  }
+
+  /* Bands for the chance of finding the best move: "match" is a position about as hard as a coin flip slightly in your
+   * favour, "harder" one that fewer players of your rating solve. */
+  var BANDS = { match: [0.4, 0.7], harder: [0.25, 0.5] };
+
+  /* The position, among `candidates`, whose chance of the best move at `rating` falls in the band of `mode`; at random among
+   * those, or the one nearest the middle of the band when none does. Returns {pos, p, mode} or null when nothing can be scored. */
+  function matchPick(candidates, rating, mode, rng) {
+    var m = BANDS[mode] ? mode : 'match', lo = BANDS[m][0], hi = BANDS[m][1], mid = (lo + hi) / 2, scored = [];
+    candidates.forEach(function (c) { var p = bestProb(c, rating); if (p !== null) scored.push({ pos: c, p: p }); });
+    if (!scored.length) return null;
+    var inBand = scored.filter(function (s) { return s.p >= lo && s.p <= hi; });
+    if (!inBand.length) {
+      var near = Math.min.apply(null, scored.map(function (s) { return Math.abs(s.p - mid); }));
+      inBand = scored.filter(function (s) { return Math.abs(s.p - mid) <= near + 1e-12; });
+    }
+    var chosen = inBand[Math.floor((rng || Math.random)() * inBand.length)];
+    return { pos: chosen.pos, p: chosen.p, mode: m };
+  }
+
   function uniformPrior() { return GRID.map(function () { return 1 / GRID.length; }); }
 
   /* observations: [{pos, uci}]. Those whose position has no anchors are skipped and counted. `temperature` defaults to
@@ -144,5 +179,5 @@
     return top[Math.floor((rng || Math.random)() * top.length)];
   }
 
-  return { GRID: GRID, FLOOR: FLOOR, TEMPERATURE: TEMPERATURE, anchorsOf: anchorsOf, moveProb: moveProb, posterior: posterior, summary: summary, information: information, suggest: suggest };
+  return { GRID: GRID, FLOOR: FLOOR, TEMPERATURE: TEMPERATURE, anchorsOf: anchorsOf, moveProb: moveProb, bestProb: bestProb, matchPick: matchPick, BANDS: BANDS, posterior: posterior, summary: summary, information: information, suggest: suggest };
 }));

@@ -241,17 +241,17 @@ test('Suggest a position leaves the stats page for the board, with a chip naming
   await expect(page.locator('#pickChip'), 'the chip is about the position being chosen, not the answer').toBeVisible();
 });
 
-test('level-sharpening picks are on by default, show their chip, and switching them off is remembered across a reload', async ({ page }) => {
+test('level-sharpening picks are the default, show their chip, and choosing random picks is remembered across a reload', async ({ page }) => {
   await openLevel(page, '', { history: [] });
   await expect(page.locator('[data-sq]')).toHaveCount(64);
   await expect(page.locator('#pickChip')).toBeVisible();
   await page.locator('#settingsBtn').click();
-  await expect(page.locator('#adaptiveToggle')).toBeChecked();
-  await page.locator('#adaptiveToggle').uncheck();
+  await expect(page.locator('#picker')).toHaveValue('sharpen');
+  await page.locator('#picker').selectOption('random');
   await page.locator('#settingsBack').click();
   await page.reload();
   await page.locator('#settingsBtn').click();
-  await expect(page.locator('#adaptiveToggle')).not.toBeChecked();
+  await expect(page.locator('#picker')).toHaveValue('random');
   await page.locator('#settingsBack').click();
   await expect(page.locator('#pickChip')).toBeHidden();
 });
