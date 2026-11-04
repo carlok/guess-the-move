@@ -324,3 +324,33 @@ test('a position queued for retry comes back with a Retry chip, and the stats pa
   await expect(page.locator('#retryChip')).toBeVisible();
   expect(await noHScroll(page)).toBe(true);
 });
+
+/* ---------- training sessions ---------- */
+
+const MANY = Array.from({ length: 12 }, (_, i) => ({ ...ROOK, id: 'd' + String(i).padStart(9, '0') }));
+
+async function sessionPage(page, theme) {
+  await preset(page, { confirm: false, ...(theme ? { theme } : {}) });
+  await serveDataset(page, MANY);
+  await page.goto('/');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+}
+
+test('a session shows its progress, ends in a report that lists every move, and a move can be reviewed from it', async ({ page }) => {
+  await sessionPage(page);
+  await page.locator('#sessionBtn').click();
+  await expect(page.locator('#sessionChip')).toHaveText('Session 1/10');
+  await clickMove(page, 'a1a8'); await page.locator('#next').click();
+  await clickMove(page, 'g1f1'); await page.locator('#next').click();
+  await page.locator('#sessionEnd').click();
+  await expect(page.locator('#reportView')).toBeVisible();
+  await expect(page.locator('#gameMain')).toBeHidden();
+  await expect(page.locator('#reportBody .kpi')).toHaveCount(4);
+  await expect(page.locator('#reportBody .session-row')).toHaveCount(2);
+  for (const r of await page.locator('.session-row').all()) { const b = await r.boundingBox(); expect(b.height).toBeGreaterThanOrEqual(44); }
+  expect(await noHScroll(page)).toBe(true);
+  await page.locator('.session-row').nth(1).click();
+  await expect(page.locator('#reportView')).toBeHidden();
+  await expect(page.locator('#reviewChip')).toBeVisible();
+  await expect(page.locator('.tier-line')).toContainText('Blunder');
+});

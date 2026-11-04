@@ -6,12 +6,12 @@
 (function () {
   'use strict';
 
-  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SRS = window.GTM_SRS;
+  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SRS = window.GTM_SRS, RP = window.GTM_REPORT;
   var SPRITE = 'pieces.svg#';
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
-  var TRAIL_MAX = 100, SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
+  var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
   var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
@@ -20,6 +20,7 @@
     mode: 'best', selected: null, promo: null, pending: null, revealed: false, result: null,
     api: null, confirm: false, cursor: null, kbd: false, pid: null, hoverSq: null, liveFlip: false,
     seen: new Set(), history: [], showTimer: true, statsPushed: false,
+    session: null,
     srs: {}, plays: 0, srsOn: true, sinceRetry: RETRY_GAP, retrying: false,
     adaptive: false, hasAnchors: false, byId: null, picked: null, preview: null, previewLabel: '', tiers: null,
     trail: [], cur: null // positions answered in this visit, and the one being reviewed (null: a live position)
@@ -60,7 +61,7 @@
   function timerPause() { if (timer.since !== null) { timer.acc += nowMs() - timer.since; timer.since = null; } }
   function timerStop() { timerPause(); renderTimer(); }
   function timerReset() { timer.acc = 0; timer.since = null; renderTimer(); }
-  function overlayOpen() { return !$('menu').hidden || !$('statsView').hidden || document.hidden === true; }
+  function overlayOpen() { return !$('menu').hidden || !$('statsView').hidden || !$('reportView').hidden || document.hidden === true; }
   function timerResume() { if (S.pos && !S.revealed && timer.since === null && !overlayOpen()) timer.since = nowMs(); }
 
   /* ---------- sound ---------- */
@@ -214,11 +215,17 @@
     $('reviewChip').textContent = reviewing && S.trail[S.cur] && S.trail[S.cur].shared ? T.link.sharedChip : T.review.chip;
     $('linkBtn').hidden = !S.pos || !!S.pos.custom;
     $('retryChip').hidden = reviewing || !S.retrying || !S.pos;
+    var ses = S.session;
+    $('sessionBtn').hidden = !!ses;
+    $('sessionChip').hidden = $('sessionEnd').hidden = !ses;
+    if (ses) $('sessionChip').textContent = T.session.chip(ses.done ? ses.n : Math.min(ses.n, ses.rows.length + (S.revealed ? 0 : 1)), ses.n);
+    $('next').textContent = ses && ses.done && S.revealed && !reviewing ? T.session.seeReport : T.next;
     $('pickChip').hidden = reviewing || S.picked === null || !S.pos;
     if (!$('pickChip').hidden) $('pickChip').textContent = T.level.pickedBits(S.picked);
     $('skip').hidden = !S.pos || S.revealed;
     $('confirm').hidden = !S.pending || S.revealed;
     $('next').hidden = !S.revealed;
+    $('chips').hidden = !['reviewChip', 'pickChip', 'retryChip', 'sessionChip', 'sessionEnd'].some(function (id) { return !$(id).hidden; });
   }
 
   /* ---------- results ---------- */
@@ -414,6 +421,7 @@
 
   /* Next: while reviewing, the next reviewed position; after the last one (or live) a new position. */
   function goNext() {
+    if (S.session && S.session.done && S.revealed && S.cur === null) { openReport(false); return; }
     sfx('next');
     if (S.cur !== null && S.cur + 1 < S.trail.length) { loadPosition(S.trail[S.cur + 1].pos, S.trail[S.cur + 1]); return; }
     nextPosition();
@@ -460,8 +468,13 @@
       store.set(HISTORY_KEY, S.history);
       S.plays++; store.set(PLAYS_KEY, S.plays);
       if (S.mode === 'best') { S.srs = SRS.update(S.srs, S.plays, S.pos.id, S.result.you.cost); store.set(SRS_KEY, S.srs); }
-      S.trail.push({ pos: S.pos, uci: uci, mode: S.mode, dur: Math.round(elapsedMs() / 1000) });
+      var entry = { pos: S.pos, uci: uci, mode: S.mode, dur: Math.round(elapsedMs() / 1000) };
+      S.trail.push(entry);
       if (S.trail.length > TRAIL_MAX) S.trail.shift();
+      if (S.session && !S.session.done && S.mode === 'best') {
+        S.session.rows.push({ id: S.pos.id, san: S.result.you.san, uci: uci, tier: tier, cost: S.result.you.cost, score: S.result.score, dur: entry.dur, entry: entry });
+        if (S.session.rows.length >= S.session.n) S.session.done = true;
+      }
     }
     sfx(isCapture(uci) ? 'capture' : 'move'); sfx(S.result.mode === 'best' && (tier === 'brilliant' || tier === 'great') ? 'brilliant' : outcomeSound(S.result), 0.16); // the fanfare is for finding it, not for predicting
     refresh(); renderResult(); renderStats(); applyFilters(); updateEstimate();
@@ -605,6 +618,7 @@
   function onDocKey(e) {
     if (e.key === 'Escape' && menuIsOpen()) { closeMenu(); return; }
     if (menuIsOpen()) return; // the menu is modal: board shortcuts stay off while it is open
+    if (reportOpen()) { if (e.key === 'Escape') closeReport(true); return; }
     if (statsIsOpen()) { if (e.key === 'Escape') closeStatsView(); return; }
     if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     if ((e.key === 'n' || e.key === 'N') && S.revealed) goNext();
@@ -797,6 +811,56 @@
     loadPosition(s.pos, undefined, s.bits);
   }
 
+  /* ---------- training session and its report ---------- */
+
+  function startSession() {
+    S.session = { n: SESSION_LEN, rows: [], done: false };
+    document.querySelector('input[name=mode][value=best]').checked = true; S.mode = 'best';
+    sfx('next');
+    if (S.data) nextPosition(); else updateActions();
+  }
+
+  function reportOpen() { return !$('reportView').hidden; }
+
+  function openReport(partial) {
+    var rows = S.session.rows;
+    var sum = RP.summarize(rows);
+    store.set(LAST_KEY, { t: nowMs(), n: sum.n, quality: Math.round(sum.quality), found: sum.found });
+    $('reportBody').innerHTML = RP.html(rows, T, partial);
+    $('reportMsg').textContent = '';
+    timerPause();
+    $('gameMain').hidden = true; document.querySelector('footer').hidden = true; $('reportView').hidden = false;
+    sfx('good');
+    $('reportTitle').focus();
+  }
+
+  /* Leave the report. The session ends; `next` goes on to a new position, otherwise the caller picks what to show. */
+  function closeReport(next) {
+    $('reportView').hidden = true; $('gameMain').hidden = false; document.querySelector('footer').hidden = false;
+    S.session = null;
+    timerResume();
+    if (next) nextPosition(); else updateActions();
+  }
+
+  function endSession() {
+    if (!S.session) return;
+    if (S.session.rows.length) openReport(!S.session.done);
+    else { S.session = null; updateActions(); }
+  }
+
+  function copyText(text, msgEl, done) {
+    var manual = function () { msgEl.textContent = T.link.manual(text); };
+    if (window.navigator.clipboard && window.navigator.clipboard.writeText) window.navigator.clipboard.writeText(text).then(function () { sfx('tick'); msgEl.textContent = done; }, manual);
+    else manual();
+  }
+
+  function reviewFromReport(index) {
+    var row = S.session && S.session.rows[index];
+    if (!row || S.trail.indexOf(row.entry) < 0) return;
+    closeReport(false);
+    loadPosition(row.entry.pos, row.entry);
+  }
+
   /* ---------- links: #stats, #p=<position id>, #p=<id>&m=<move> (a shared answer) ---------- */
 
   function parseHash() {
@@ -854,7 +918,7 @@
     });
   }
 
-  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays) }); }
+  function drawStats() { $('statsBody').innerHTML = window.GTM_STATS.html(tieredHistory(), T, { width: $('statsBody').clientWidth || undefined, level: levelModel(), srs: SRS.summary(srsPresent(), S.plays), last: store.get(LAST_KEY, null) }); }
 
   function showStats(on) {
     if (on === statsIsOpen()) return;
@@ -916,7 +980,7 @@
 
   /* The scripts this one needs. If one did not load (a 404 from a stale image or a bad deploy, a blocked request) say so
    * plainly instead of failing on the first move with a console error. GTM_SOUND is optional (the page works without it). */
-  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SRS', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
+  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SRS', 'GTM_REPORT', 'GTM_STATS', 'GTM_BACKUP', 'GTM_LEVEL'];
 
   function missingScripts() { return REQUIRED.filter(function (k) { return !window[k]; }); }
 
@@ -984,7 +1048,7 @@
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
     $('skip').addEventListener('click', function () { if (S.pos) S.seen.add(S.pos.id); store.set(SEEN_KEY, Array.from(S.seen)); goNext(); });
     $('resetStats').addEventListener('click', function () {
-      S.history = []; S.seen = new Set(); S.srs = {}; S.plays = 0; store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); store.set(SRS_KEY, {}); store.set(PLAYS_KEY, 0); renderStats(); updateEstimate(); if (S.data) applyFilters();
+      S.history = []; S.seen = new Set(); S.srs = {}; S.plays = 0; store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); store.set(SRS_KEY, {}); store.set(PLAYS_KEY, 0); store.set(LAST_KEY, null); renderStats(); updateEstimate(); if (S.data) applyFilters();
     });
     $('confirmToggle').addEventListener('change', function () {
       S.confirm = $('confirmToggle').checked; store.set(CONFIRM_KEY, S.confirm);
@@ -994,6 +1058,15 @@
     $('soundToggle').addEventListener('click', function () {
       if (snd) { snd.setEnabled(!snd.isEnabled()); store.set(SOUND_KEY, snd.isEnabled()); }
       updateSoundButton(); sfx('tick');
+    });
+    $('sessionBtn').addEventListener('click', startSession);
+    $('sessionEnd').addEventListener('click', endSession);
+    $('reportBack').addEventListener('click', function () { closeReport(true); });
+    $('reportAgain').addEventListener('click', function () { closeReport(false); startSession(); });
+    $('reportCopy').addEventListener('click', function () { if (S.session) copyText(RP.text(S.session.rows, T, window.location.origin + window.location.pathname), $('reportMsg'), T.session.copied); });
+    $('reportBody').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('.session-row') : null;
+      if (b) reviewFromReport(Number(b.getAttribute('data-index')));
     });
     $('srsToggle').addEventListener('change', function () { S.srsOn = $('srsToggle').checked; store.set(SRS_ON_KEY, S.srsOn); });
     $('adaptiveToggle').addEventListener('change', function () { S.adaptive = $('adaptiveToggle').checked; store.set(ADAPTIVE_KEY, S.adaptive); });

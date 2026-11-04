@@ -110,7 +110,8 @@
 
   <main id="gameMain">
     <section class="stage" aria-label="Board">
-      <div class="posinfo"><span id="posInfo"></span><span id="reviewChip" class="review-chip" hidden>Review</span><span id="pickChip" class="review-chip" hidden></span><span id="retryChip" class="review-chip" hidden>Retry</span><button id="linkBtn" type="button" class="icon-btn link-btn" aria-label="Copy a link to this position" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
+      <div class="posinfo"><span id="posInfo"></span><button id="linkBtn" type="button" class="icon-btn link-btn" aria-label="Copy a link to this position" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><span id="timer" class="timer" role="timer" aria-live="off" aria-label="Time on this position" hidden>0:00</span></div>
+      <div id="chips" class="chips" hidden><span id="reviewChip" class="review-chip" hidden>Review</span><span id="pickChip" class="review-chip" hidden></span><span id="retryChip" class="review-chip" hidden>Retry</span><span id="sessionChip" class="review-chip" hidden></span><button id="sessionEnd" type="button" class="link" hidden>End</button></div>
       <div id="boardWrap" class="boardwrap">
         <div id="skeleton" class="skeleton" aria-hidden="true"></div>
         <svg id="boardSvg" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Chess board" tabindex="0">
@@ -137,6 +138,8 @@
         <label><input type="radio" name="mode" value="best" checked> Find the best move</label>
         <label><input type="radio" name="mode" value="predict"> Predict the real move</label>
       </fieldset>
+
+      <button id="sessionBtn" type="button" class="session-btn">Start a 10-position session</button>
 
       <details id="filters" class="filters" open>
         <summary>Filters <span id="matchCount" class="muted"></span></summary>
@@ -211,6 +214,19 @@
     <div id="statsBody"></div>
   </main>
 
+  <main id="reportView" class="statsview" aria-labelledby="reportTitle" hidden>
+    <div class="statsview-head">
+      <h2 id="reportTitle" tabindex="-1">Session report</h2>
+      <button id="reportBack" type="button">Back to the board</button>
+    </div>
+    <div id="reportBody"></div>
+    <div class="backup">
+      <button id="reportCopy" type="button">Copy summary</button>
+      <button id="reportAgain" type="button" class="primary">New session</button>
+      <p id="reportMsg" class="muted small" role="status" aria-live="polite"></p>
+    </div>
+  </main>
+
   <footer>
     <div id="banner" class="banner" hidden></div>
     <p>Scores use the Lichess win-probability curve. Stockfish evaluates every legal move offline; Maia
@@ -226,6 +242,7 @@
   <script defer src="classify.js"></script>
   <script defer src="srs.js"></script>
   <script defer src="tierview.js"></script>
+  <script defer src="report.js"></script>
   <script defer src="sound.js"></script>
   <script defer src="stats.js"></script>
   <script defer src="backup.js"></script>

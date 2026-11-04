@@ -988,9 +988,11 @@ test('the adaptive setting picks the most informative position, is remembered, a
   const off = await boot(data);
   assert.equal($(off, 'adaptiveToggle').checked, false);
   assert.equal($(off, 'pickChip').hidden, true);
+  assert.equal($(off, 'chips').hidden, true, 'no chip, no row');
   const on = await boot(data, { ls: { adaptive: true } });
   assert.equal($(on, 'adaptiveToggle').checked, true);
   assert.equal($(on, 'pickChip').hidden, false, 'the first position is already the informative one (the other teaches nothing)');
+  assert.equal($(on, 'chips').hidden, false, 'and the row that holds the chip is shown');
   assert.match($(on, 'pickChip').textContent, /bits/);
   $(on, 'adaptiveToggle').checked = false; $(on, 'adaptiveToggle').dispatchEvent(new on.Event('change', { bubbles: true }));
   assert.equal(JSON.parse(on.localStorage.getItem('gtm.v1.adaptive')), false);
@@ -1298,4 +1300,97 @@ test('the queue is saved with the stats file, merged back on loading, reset with
   const corrupt = await boot(six(), { ls: { srs: 'garbage', plays: 'many' } });
   assert.equal(chip(corrupt), false); bestThenNext(corrupt);
   assert.equal(playsOf(corrupt), 1);
+});
+
+/* ---------- training sessions ---------- */
+
+const twelve = () => dataOf(...Array.from({ length: 12 }, (_, i) => ({ ...ROOK, id: 's' + String(i % 10).repeat(8) + (i < 10 ? '0' : '1') })));
+const chipText = (w) => $(w, 'sessionChip').textContent;
+async function sessionOf(w, moves) { // moves: array of 'good' | 'bad'
+  for (const m of moves) { if (m === 'good') play(w, 'a1', 'a8'); else play(w, 'g1', 'f1'); if (!$(w, 'next').hidden) click(w, 'next'); }
+}
+
+test('a session counts ten answered positions in best-move mode, with a progress chip, and ends in a report', async () => {
+  const w = await boot(twelve());
+  assert.equal($(w, 'sessionBtn').hidden, false); assert.equal($(w, 'sessionChip').hidden, true);
+  w.document.querySelector('input[value=predict]').click();
+  click(w, 'sessionBtn');
+  assert.equal(w.document.querySelector('input[name=mode]:checked').value, 'best');
+  assert.equal($(w, 'sessionBtn').hidden, true); assert.equal(chipText(w), 'Session 1/10'); assert.equal($(w, 'sessionEnd').hidden, false);
+  play(w, 'a1', 'a8');
+  assert.equal(chipText(w), 'Session 1/10', 'answered: one done');
+  click(w, 'next');
+  assert.equal(chipText(w), 'Session 2/10');
+  click(w, 'skip');
+  assert.equal(chipText(w), 'Session 2/10', 'a skipped position does not count');
+  await sessionOf(w, ['bad', 'good', 'good', 'good', 'good', 'good', 'good', 'bad']); // answers 2 to 9
+  assert.equal(chipText(w), 'Session 10/10', 'the tenth position is on screen');
+  assert.equal($(w, 'next').textContent, 'Next position (n)', 'not answered yet');
+  play(w, 'a1', 'a8');
+  assert.equal(chipText(w), 'Session 10/10');
+  assert.equal($(w, 'next').textContent, 'See report', 'the tenth answer is on screen: Next becomes See report');
+  click(w, 'next');
+  assert.equal($(w, 'reportView').hidden, false); assert.equal($(w, 'gameMain').hidden, true);
+  assert.equal(w.document.activeElement, $(w, 'reportTitle'));
+  const kpi = [...$(w, 'reportBody').querySelectorAll('.kpi dd')].map((d) => d.textContent);
+  assert.equal(kpi[1], '8/10', 'eight great moves found out of ten');
+  assert.equal($(w, 'reportBody').querySelectorAll('.session-row').length, 10);
+  const last = JSON.parse(w.localStorage.getItem('gtm.v1.lastSession'));
+  assert.deepEqual([last.n, last.found], [10, 8]);
+});
+
+test('guesses in predict mode and in positions pasted in do not count for the session', async () => {
+  const w = await boot(twelve());
+  click(w, 'sessionBtn');
+  w.document.querySelector('input[value=predict]').click();
+  play(w, 'a1', 'a8'); click(w, 'next');
+  assert.equal(chipText(w), 'Session 1/10', 'still on the first: nothing counted');
+});
+
+test('ending early shows a shorter report; ending with nothing answered just drops the session', async () => {
+  const w = await boot(twelve());
+  click(w, 'sessionBtn'); click(w, 'sessionEnd');
+  assert.equal($(w, 'reportView').hidden, true); assert.equal($(w, 'sessionBtn').hidden, false); assert.equal($(w, 'sessionChip').hidden, true);
+  click(w, 'sessionBtn');
+  await sessionOf(w, ['good', 'bad', 'good']);
+  click(w, 'sessionEnd');
+  assert.equal($(w, 'reportView').hidden, false);
+  assert.match($(w, 'reportBody').textContent, /A shorter session: 3 positions answered\./);
+});
+
+test('from the report: review a move, copy the summary, start again, go back, or press Escape', async () => {
+  const w = await boot(twelve());
+  const copied = clipboard(w);
+  click(w, 'sessionBtn'); await sessionOf(w, ['bad', 'good', 'good']); click(w, 'sessionEnd');
+  click(w, 'reportCopy'); await tick();
+  assert.match(copied[0], /^Guess the Move, 3 positions: average move quality \d+, best move found 2 of 3,/);
+  assert.match(copied[0], /http:\/\/localhost\/$/m);
+  assert.equal($(w, 'reportMsg').textContent, 'Summary copied.');
+  w.document.querySelector('.session-row[data-index="0"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal($(w, 'reportView').hidden, true); assert.equal($(w, 'reviewChip').hidden, false);
+  assert.ok(tierLineOf(w).querySelector('.tier-blunder'), 'the blunder it was');
+  assert.equal($(w, 'sessionBtn').hidden, false, 'the session is over');
+  click(w, 'sessionBtn'); play(w, 'a1', 'a8'); click(w, 'sessionEnd');
+  click(w, 'reportAgain');
+  assert.equal($(w, 'reportView').hidden, true); assert.equal(chipText(w), 'Session 1/10');
+  click(w, 'sessionEnd');
+  play(w, 'a1', 'a8'); click(w, 'sessionEnd');
+  docKey(w, 'Escape');
+  assert.equal($(w, 'reportView').hidden, true); assert.equal($(w, 'gameMain').hidden, false);
+  click(w, 'sessionBtn'); play(w, 'a1', 'a8'); click(w, 'sessionEnd');
+  click(w, 'reportBack');
+  assert.equal($(w, 'reportView').hidden, true); assert.equal($(w, 'sessionBtn').hidden, false);
+});
+
+test('the timer rests while the report is open, and the stats page remembers the last session', async () => {
+  const clock = { t: 0 };
+  const w = await boot(twelve(), { clock });
+  click(w, 'sessionBtn'); await sessionOf(w, ['good', 'good']);
+  clock.t += 1000; click(w, 'sessionEnd'); clock.t += 100_000; click(w, 'reportBack');
+  clock.t += 3000; w.__intervals[0]();
+  assert.equal(timerText(w), '0:03', 'the 100 s in the report were not counted');
+  click(w, 'statsBtn');
+  assert.match($(w, 'statsBody').textContent, /Last session2 positions, average move quality 100, best move found 2 times\./);
+  click(w, 'statsBack'); await tick(); click(w, 'resetStats');
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.lastSession')), null);
 });

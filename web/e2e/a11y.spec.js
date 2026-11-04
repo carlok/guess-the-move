@@ -97,6 +97,22 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
+for (const theme of ['light', 'dark']) {
+  test(`axe: ${theme} theme, the session report`, async ({ page }) => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ ...ROOK, id: 'd' + String(i).padStart(9, '0') }));
+    await preset(page, { theme, confirm: false });
+    await serveDataset(page, many);
+    await page.goto('/');
+    await expect(page.locator('[data-sq]')).toHaveCount(64);
+    await page.locator('#sessionBtn').click();
+    await clickMove(page, 'a1a8'); await page.locator('#next').click();
+    await clickMove(page, 'a1a2'); await page.locator('#next').click();
+    await clickMove(page, 'g1f1'); await page.locator('#sessionEnd').click();
+    await expect(page.locator('#reportView')).toBeVisible();
+    await scan(page, `${theme} report`);
+  });
+}
+
 test('axe: error state', async ({ page }) => {
   await preset(page);
   await page.route('**/data/positions.json', (route) => route.fulfill({ status: 503, body: 'down' }));

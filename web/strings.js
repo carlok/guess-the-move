@@ -115,6 +115,17 @@
     },
     timer: { label: 'Time on this position', show: 'Show the timer', showHelp: 'Your time is still recorded for the stats when the timer is hidden.' },
     sound: { off: 'Turn sounds on', on: 'Mute sounds', setting: 'Sounds' },
+    session: {
+      start: 'Start a 10-position session', chip: function (i, n) { return 'Session ' + i + '/' + n; }, end: 'End', seeReport: 'See report',
+      title: 'Session report', back: 'Back to the board', again: 'New session', copy: 'Copy summary', copied: 'Summary copied.',
+      quality: 'Average move quality', found: 'Best move found', time: 'Time', avg: 'Per position', moves: 'Your moves',
+      partial: function (n) { return 'A shorter session: ' + n + ' position' + (n === 1 ? '' : 's') + ' answered.'; },
+      worst: function (list) { return 'Tap a move to review it. The weakest were move' + (list.length === 1 ? ' ' : 's ') + list.join(', ') + '.'; },
+      noWorst: 'Tap a move to review it. Nothing gave up 5 or more win-% points.',
+      summaryText: function (n, quality, found, avg, tiers) { return 'Guess the Move, ' + n + ' positions: average move quality ' + quality + ', best move found ' + found + ' of ' + n + ', ' + avg + ' per position. ' + tiers + '.'; },
+      lastTitle: 'Last session',
+      lastLine: function (n, quality, found) { return n + ' positions, average move quality ' + quality + ', best move found ' + found + ' times.'; }
+    },
     srs: {
       chip: 'Retry', cardTitle: 'Mistakes to retry',
       cardNone: 'Nothing to retry. A position where you give up 10 or more win-% points in "Find the best move" mode comes back here.',

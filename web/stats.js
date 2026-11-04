@@ -185,6 +185,11 @@
     return '<div class="chart-card srs-card"><h3>' + esc(L.cardTitle) + '</h3>' + body + '</div>';
   }
 
+  function lastCard(last, T) {
+    var L = T.session;
+    return '<div class="chart-card srs-card"><h3>' + esc(L.lastTitle) + '</h3><p class="muted">' + esc(L.lastLine(last.n, last.quality, last.found)) + '</p></div>';
+  }
+
   function card(title, caption, chart) {
     return '<figure class="chart-card"><figcaption><h3>' + esc(title) + '</h3><p>' + esc(caption) + '</p></figcaption>' + chart + '</figure>';
   }
@@ -209,6 +214,7 @@
     out += '<div class="charts">';
     if (opts && opts.level) out += levelCard(opts.level, T, w, Math.round((opts && opts.width) || W_MAX));
     if (opts && opts.srs) out += srsCard(opts.srs, T);
+    if (opts && opts.last) out += lastCard(opts.last, T);
     // quality over time
     if (S.bestScores.length >= MIN_POINTS) {
       var tr = trend(S.bestScores);
