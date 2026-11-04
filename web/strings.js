@@ -186,8 +186,7 @@
       suggest: 'Suggest a position that sharpens my estimate',
       picked: 'Chosen to sharpen your estimate',
       pickedBits: function (b) { return 'Chosen to sharpen your estimate (' + b.toFixed(2) + ' bits)'; },
-      adaptive: 'Pick positions that sharpen my level estimate',
-      adaptiveHelp: 'Chooses positions where players of different ratings disagree most, so fewer guesses are needed. It makes your set of positions less random.'
+      pickedMatch: function (mode, p) { return (mode === 'harder' ? 'A bit above your level' : 'Matched to your level') + ' (about ' + Math.round(p * 100) + '% find the best move)'; }
     },
     statsView: {
       title: 'Your stats', open: 'Open the full stats', back: 'Back to the board', btn: 'Your stats',
