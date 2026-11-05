@@ -61,3 +61,24 @@ test('"Save FEN" downloads the position, and the buttons do not move the board',
     expect(box.height, id).toBeGreaterThanOrEqual(24);
   }
 });
+
+test('"Share" hands the real card (a PNG with the position) to a browser share sheet', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__shared = null;
+    navigator.canShare = () => true;
+    navigator.share = async (d) => { window.__shared = { title: d.title, text: d.text, url: d.url, name: d.files[0].name, size: d.files[0].size, head: Array.from(new Uint8Array(await d.files[0].slice(0, 8).arrayBuffer())) }; };
+  });
+  await answered(page);
+  await page.locator('#shareAnswer').click();
+  await expect(page.locator('#linkMsg')).toHaveText('Shared.');
+  const got = await page.evaluate(() => window.__shared);
+  expect(got).toMatchObject({ title: 'Guess the Move', name: 'guess-the-move-rook.png', head: [137, 80, 78, 71, 13, 10, 26, 10] });
+  expect(got.size).toBeGreaterThan(20000);
+  expect(got.url).toMatch(/#p=rook&m=g1f1$/);
+});
+
+test('without a share sheet there is no Share button', async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); });
+  await answered(page);
+  await expect(page.locator('#shareAnswer')).toHaveCount(0);
+});

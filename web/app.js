@@ -307,7 +307,7 @@
     if (!hasMaia) html += '<p class="detail">' + T.noMaia + '</p>';
     var tags = (p.tags || []).filter(function (t) { return T.tags[t]; });
     if (tags.length) html += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(T.tags[t]) + '</span>'; }).join('') + '</div>';
-    html += '<div class="result-actions"><button type="button" id="saveImage">' + T.share.saveImage + '</button><button type="button" id="saveFen">' + T.share.saveFen + '</button><button type="button" id="copyFen">' + T.share.copyFen + '</button>' +
+    html += '<div class="result-actions">' + (window.navigator.share ? '<button type="button" id="shareAnswer">' + T.share.share + '</button>' : '') + '<button type="button" id="saveImage">' + T.share.saveImage + '</button><button type="button" id="saveFen">' + T.share.saveFen + '</button><button type="button" id="copyFen">' + T.share.copyFen + '</button>' +
       (p.custom ? '' : '<button type="button" id="copyAnswer">' + T.link.copyAnswer + '</button>') + '</div>';
     if (p.site) html += '<p class="detail"><a href="' + esc(gameLink(p)) + '" rel="noopener noreferrer" target="_blank">' + T.sourceGame + '</a></p>';
     if (!p.custom) html += '<p class="detail"><a id="reportIssue" href="' + esc(issueUrl(p)) + '" rel="noopener noreferrer" target="_blank">' + T.issue.link + '</a></p>';
@@ -1091,19 +1091,36 @@
     };
   }
 
-  function saveImage() {
+  /* The card as PNG bytes (the FEN stored inside), for saving or sharing; a failure is said in the message line. */
+  function cardPng(done) {
+    var fail = function (m) { $('linkMsg').textContent = m === null ? T.lazyFailed : T.share.failed(m); };
     if (!S.pos || !S.revealed || !S.result) return;
-    var say = function (t) { $('linkMsg').textContent = t; };
-    say(T.share.working);
+    $('linkMsg').textContent = T.share.working;
     lazy('share.js', 'GTM_SHARE', function (SH) {
       spriteText().then(function (text) {
         var card = SH.card(cardModel(SH.symbolsOf(text)), T);
         return SH.rasterize(window, card.svg, card.width, card.height, 2);
       }).then(function (png) {
-        saveBlob(new window.Blob([SH.addPngText(png, { FEN: S.pos.fen, Software: 'Guess the Move' })], { type: 'image/png' }), SH.fileName('png', S.pos.id));
-        sfx('tick'); say(T.share.imageSaved);
-      }).catch(function (e) { say(T.share.failed(e && e.message ? e.message : String(e))); });
-    }, function () { say(T.lazyFailed); });
+        return done(SH, SH.addPngText(png, { FEN: S.pos.fen, Software: 'Guess the Move' }));
+      }).catch(function (e) { fail(e && e.message ? e.message : String(e)); });
+    }, function () { fail(null); });
+  }
+
+  function saveImage() {
+    cardPng(function (SH, bytes) {
+      saveBlob(new window.Blob([bytes], { type: 'image/png' }), SH.fileName('png', S.pos.id));
+      sfx('tick'); $('linkMsg').textContent = T.share.imageSaved;
+    });
+  }
+
+  /* The system share sheet (where there is one): the card as a picture if the browser can send files, the text, and the link. */
+  function shareAnswer() {
+    var say = function (t) { $('linkMsg').textContent = t; }, p = S.pos, r = S.result;
+    if (!window.navigator.share) return;
+    cardPng(function (SH, bytes) {
+      var data = { title: T.share.card.title, text: T.share.text(r.you.san, T.tiers[S.tiers.yours.tier].name), url: p.custom ? '' : linkTo(r.you.uci) };
+      return SH.send(window.navigator, bytes, SH.fileName('png', p.id), data).then(function (sent) { say(sent ? T.share.shared : ''); });
+    });
   }
 
   function saveFen() {
@@ -1268,6 +1285,7 @@
     $('picker').addEventListener('change', function () { S.picker = $('picker').value; store.set(PICKER_KEY, S.picker); });
     $('result').addEventListener('click', function (e) {
       if (e.target && e.target.id === 'copyAnswer') { copyLink(S.result.you.uci); return; }
+      if (e.target && e.target.id === 'shareAnswer') { shareAnswer(); return; }
       if (e.target && e.target.id === 'saveImage') { saveImage(); return; }
       if (e.target && e.target.id === 'saveFen') { saveFen(); return; }
       if (e.target && e.target.id === 'copyFen') { copyText(S.pos.fen, $('linkMsg'), T.share.fenCopied); return; }

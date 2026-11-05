@@ -176,8 +176,21 @@
 
   function fileName(kind, id) { return 'guess-the-move-' + String(id || 'position').replace(/[^A-Za-z0-9_-]/g, '') + '.' + kind; }
 
+  /* Hand the picture and the text to the system's share sheet. The picture goes along only when the browser says it can share
+   * files (many cannot); the link is left out for a custom position, which has none. Resolves with true when shared, false when
+   * the person closed the sheet. */
+  function send(nav, png, name, data) {
+    var payload = { title: data.title, text: data.text };
+    if (data.url) payload.url = data.url;
+    var withFile = Object.assign({ files: [new File([png], name, { type: 'image/png' })] }, payload);
+    return nav.share(nav.canShare && nav.canShare(withFile) ? withFile : payload).then(function () { return true; }, function (e) {
+      if (e && e.name === 'AbortError') return false;
+      throw e;
+    });
+  }
+
   return {
     W: W, H: H, COLORS: COLORS, TIER_COLORS: TIER_COLORS, wrap: wrap, symbolsOf: symbolsOf, card: card, crc32: crc32,
-    addPngText: addPngText, readPng: readPng, isPng: isPng, rasterize: rasterize, fileName: fileName
+    addPngText: addPngText, readPng: readPng, isPng: isPng, rasterize: rasterize, fileName: fileName, send: send
   };
 }));
