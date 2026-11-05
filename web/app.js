@@ -1327,6 +1327,9 @@
     $('tourBtn').addEventListener('click', function () { closePage(); $('onboarding').hidden = false; });
     $('onboardingClose').addEventListener('click', function () { $('onboarding').hidden = true; store.set(ONBOARD_KEY, true); });
     document.addEventListener('keydown', onDocKey);
+    /* The worker (offline use, the update bar) is set up once the page has loaded, so it is not part of the first load. */
+    var worker = function () { if (!window.__GTM_NO_PWA) lazy('pwa.js', 'GTM_PWA', function (P) { P.setup(window); }); };
+    if (document.readyState === 'complete') worker(); else window.addEventListener('load', worker);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

@@ -24,6 +24,7 @@ const HTML_LAZY = rawHtml.replace(SCRIPT_TAG, (m, src) => (LAZY.includes(src) ? 
 function newDom({ lazy = false } = {}) {
   const dom = new JSDOM(lazy ? HTML_LAZY : HTML, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true });
   dom.window.__intervals = [];
+  dom.window.__GTM_NO_PWA = true; // tests call GTM_PWA.setup themselves; the page would otherwise load and run it after 'load'
   dom.window.scrollTo = () => {}; // jsdom does not implement it and prints a notice each time
   dom.window.setInterval = (fn) => dom.window.__intervals.push(fn);
   return dom;
