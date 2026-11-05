@@ -102,7 +102,7 @@
         return 'About ' + mean + ' (80% range ' + lo + ' to ' + hi + '), from your last ' + n + ' guesses. Lichess-equivalent rating, not FIDE.';
       }
     },
-    settings: { confirm: 'Confirm moves before revealing', confirmHelp: 'Useful on touch screens, where a slip of the finger would reveal the answer.' },
+    settings: { confirm: 'Confirm moves before revealing' },
     focus: { on: 'Focus on the board', off: 'Back to the full page' },
     lazyFailed: 'That part of the page could not be loaded. Check your connection and try again.',
     backup: {
@@ -116,8 +116,8 @@
         empty: 'That stats file has no guess history.', read: 'The file could not be read.'
       }
     },
-    timer: { label: 'Time on this position', show: 'Show the timer', showHelp: 'Your time is still recorded for the stats when the timer is hidden.' },
-    sound: { off: 'Turn sounds on', on: 'Mute sounds', setting: 'Sounds' },
+    timer: { label: 'Time on this position', show: 'Show the timer' },
+    sound: { off: 'Turn sounds on', on: 'Mute sounds' },
     session: {
       start: 'Start a 10-position session', chip: function (i, n) { return 'Session ' + i + '/' + n; }, end: 'End', seeReport: 'See report',
       title: 'Session report', back: 'Back to the board', again: 'New session', copy: 'Copy summary', copied: 'Summary copied.',
@@ -143,9 +143,11 @@
       reached: function (n) { return 'Daily goal reached: ' + n + ' guesses today.'; }
     },
     share: {
-      saveImage: 'Save image', saveFen: 'Save FEN', copyFen: 'Copy FEN',
+      saveImage: 'Save image', saveFen: 'Save FEN', copyFen: 'Copy FEN', share: 'Share',
+      text: function (san, tier) { return 'I played ' + san + ' (' + tier + ') on Guess the Move.'; },
+      shared: 'Shared.',
       working: 'Drawing the image…', imageSaved: 'Image saved. The FEN is also stored inside the PNG.', fenSaved: 'FEN saved.', fenCopied: 'FEN copied.',
-      failed: function (m) { return 'Could not save the image: ' + m; },
+      failed: function (m) { return 'Could not make the image: ' + m; },
       card: {
         title: 'Guess the Move', yourMove: 'Your move', fen: 'FEN', footer: 'Free software, AGPL-3.0-or-later',
         quality: function (n) { return 'Move quality ' + n + '/100'; }, closeness: function (n) { return 'Closeness to the real move ' + n + '/100'; },
@@ -161,7 +163,7 @@
       retryNow: 'Retry one now'
     },
     link: {
-      copyPos: 'Copy a link to this position', copyAnswer: 'Copy a link to my answer', copied: 'Link copied.', copiedAnswer: 'Link to your answer copied.',
+      copyAnswer: 'Copy a link to my answer', copied: 'Link copied.', copiedAnswer: 'Link to your answer copied.',
       manual: function (url) { return 'Copy this link: ' + url; },
       missing: 'That position is not in this dataset, so here is another one.',
       sharedChip: 'Shared answer'

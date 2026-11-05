@@ -121,3 +121,21 @@ test('file names are safe and say what they hold', () => {
   assert.equal(S.fileName('fen', ''), 'guess-the-move-position.fen');
   assert.equal(S.fileName('png'), 'guess-the-move-position.png');
 });
+
+test('send hands the picture, the text and the link to the share sheet, and drops what it cannot send', async () => {
+  const calls = [], nav = { canShare: () => true, share: async (d) => { calls.push(d); } };
+  assert.equal(await S.send(nav, Uint8Array.from([1, 2]), 'a.png', { title: 'T', text: 'x', url: 'https://e.org/#p=1' }), true);
+  assert.deepEqual([calls[0].title, calls[0].text, calls[0].url, calls[0].files[0].name, calls[0].files[0].type], ['T', 'x', 'https://e.org/#p=1', 'a.png', 'image/png']);
+  await S.send(nav, Uint8Array.from([1]), 'a.png', { title: 'T', text: 'x', url: '' });
+  assert.equal('url' in calls[1], false, 'no link for a position that has none');
+  await S.send({ canShare: () => false, share: async (d) => { calls.push(d); } }, Uint8Array.from([1]), 'a.png', { title: 'T', text: 'x' });
+  assert.equal('files' in calls[2], false, 'the browser cannot share files');
+  await S.send({ share: async (d) => { calls.push(d); } }, Uint8Array.from([1]), 'a.png', { title: 'T', text: 'x' });
+  assert.equal('files' in calls[3], false, 'no canShare at all');
+});
+
+test('closing the share sheet is not an error; any other failure is', async () => {
+  const abort = Object.assign(new Error('x'), { name: 'AbortError' });
+  assert.equal(await S.send({ share: () => Promise.reject(abort) }, Uint8Array.from([1]), 'a.png', { title: 'T', text: 'x' }), false);
+  await assert.rejects(S.send({ share: () => Promise.reject(new Error('denied')) }, Uint8Array.from([1]), 'a.png', { title: 'T', text: 'x' }), /denied/);
+});

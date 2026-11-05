@@ -1713,10 +1713,10 @@ test('"Save image" says so when the browser cannot draw it, and works in predict
   w.GTM_SHARE.rasterize = async () => { throw new Error('the card could not be drawn'); };
   play(w, 'a1', 'a8');
   click(w, 'saveImage'); await tick();
-  assert.equal($(w, 'linkMsg').textContent, 'Could not save the image: the card could not be drawn');
+  assert.equal($(w, 'linkMsg').textContent, 'Could not make the image: the card could not be drawn');
   w.GTM_SHARE.rasterize = async () => { throw 'plain'; };
   click(w, 'saveImage'); await tick();
-  assert.equal($(w, 'linkMsg').textContent, 'Could not save the image: plain');
+  assert.equal($(w, 'linkMsg').textContent, 'Could not make the image: plain');
   const p = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
   const got = spySave(p), svgs = [];
   p.GTM_SHARE.rasterize = async (win, svg) => { svgs.push(svg); return pngStub(); };
@@ -1741,6 +1741,69 @@ test('"Save FEN" downloads the position as a one-line .fen file; "Copy FEN" copi
   const none = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
   play(none, 'a1', 'a8'); click(none, 'copyFen');
   assert.equal($(none, 'linkMsg').textContent, 'Copy this link: ' + HA.fen);
+});
+
+function shareSpy(w, over = {}) {
+  const calls = [];
+  Object.defineProperty(w.navigator, 'share', { value: over.share || (async (d) => { calls.push(d); }), configurable: true });
+  if (over.canShare) Object.defineProperty(w.navigator, 'canShare', { value: over.canShare, configurable: true });
+  w.GTM_SHARE.rasterize = async (win, svg, width, height, scale) => pngStub(width * scale, height * scale);
+  return calls;
+}
+
+test('"Share" is offered only where the browser has a share sheet', async () => {
+  const none = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  play(none, 'a1', 'a8');
+  assert.equal($(none, 'shareAnswer'), null);
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  Object.defineProperty(w.navigator, 'share', { value: async () => {}, configurable: true });
+  assert.equal($(w, 'shareAnswer'), null, 'not before the reveal');
+  play(w, 'a1', 'a8');
+  assert.equal($(w, 'shareAnswer').textContent, 'Share');
+  assert.match($(w, 'result').textContent, /Share.*Save image/);
+});
+
+test('"Share" sends the card, a line about the answer and the link to it', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  spySave(w);
+  const calls = shareSpy(w, { canShare: () => true });
+  play(w, 'a1', 'a8');
+  click(w, 'shareAnswer');
+  assert.equal($(w, 'linkMsg').textContent, 'Drawing the image…');
+  await tick();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].title, 'Guess the Move');
+  assert.match(calls[0].text, /^I played Ra8# \(\w+\) on Guess the Move\.$/);
+  assert.match(calls[0].url, /#p=aaaaaaaaaa&m=a1a8$/);
+  assert.equal(calls[0].files[0].name, 'guess-the-move-aaaaaaaaaa.png');
+  assert.equal(w.GTM_SHARE.readPng(new Uint8Array(await calls[0].files[0].arrayBuffer())).FEN, HA.fen);
+  assert.equal($(w, 'linkMsg').textContent, 'Shared.');
+});
+
+test('"Share" sends no file where the browser cannot share files; closing the sheet is quiet; a failure is reported', async () => {
+  const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
+  spySave(w);
+  const calls = shareSpy(w);
+  play(w, 'a1', 'a8');
+  click(w, 'shareAnswer'); await tick();
+  assert.equal('files' in calls[0], false);
+  Object.defineProperty(w.navigator, 'share', { value: () => Promise.reject(Object.assign(new Error('x'), { name: 'AbortError' })), configurable: true });
+  click(w, 'shareAnswer'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, '');
+  Object.defineProperty(w.navigator, 'share', { value: () => Promise.reject(new Error('not allowed')), configurable: true });
+  click(w, 'shareAnswer'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, 'Could not make the image: not allowed');
+  w.GTM_SHARE.rasterize = async () => { throw new Error('the card could not be drawn'); };
+  click(w, 'shareAnswer'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, 'Could not make the image: the card could not be drawn');
+});
+
+test('"Share" says so when its part of the page cannot be loaded', async () => {
+  const w = await boot(dataOf(ROOK), lazyOn({ fail: ['share.js'] }));
+  Object.defineProperty(w.navigator, 'share', { value: async () => {}, configurable: true });
+  play(w, 'a1', 'a8');
+  click(w, 'shareAnswer'); await tick();
+  assert.equal($(w, 'linkMsg').textContent, 'That part of the page could not be loaded. Check your connection and try again.');
 });
 
 test('the buttons are there when a shared answer is reviewed, and the review is still not recorded', async () => {
