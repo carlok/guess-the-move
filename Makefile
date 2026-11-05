@@ -14,6 +14,7 @@ IN          ?= $(CURDIR)/data
 OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
+.DEFAULT_GOAL := run   # plain `make` serves the site; `make help` lists the targets
 .PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e lighthouse web-image builder-image api-image api-weights run run-api stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
@@ -24,7 +25,7 @@ help:
 	@echo "make lighthouse      Lighthouse mobile run against the container from `make run` (adjust the Chrome path on Linux)"
 	@echo "make e2e             browser tests in Chrome; GTM_BASE_URL=http://127.0.0.1:8080 targets a running container"
 	@echo "make web-image       build $(WEB_IMG)"
-	@echo "make run             serve on http://127.0.0.1:$(PORT) (mounts web/data)"
+	@echo "make run             (the default: plain `make` does this) serve on http://127.0.0.1:$(PORT) (mounts web/data)"
 	@echo "make api-image      build $(API_IMG)   (add WITH_MAIA=1 for Maia-2; then 'make api-weights' once)"
 	@echo "make run-api         start the api next to the web container (same network, no published port)"
 	@echo "make stop"

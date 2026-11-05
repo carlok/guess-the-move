@@ -75,6 +75,7 @@ Served from a `make dist` build over https (or localhost, e.g. `make run`), the 
 The app runs as podman services. Built, started and probed on 2026-11-03 on macOS (podman 5.8.2, `libkrun` machine, rootless, arm64 Linux VM; Docker Compose v5.6.1 as the compose provider; Quadlet inside the machine VM). **Not tried:** a Linux host (SELinux `:Z` behaviour, native rootless uid mapping), `podman-compose`.
 
 ```bash
+make                                    # same as `make run`: builds the image (and `make dist`) and serves
 make web-image && make run              # http://127.0.0.1:8080  (serves ./web/data, read-only rootfs, health check)
 make stop
 make dataset PGN=/in/games.pgn.zst ARGS='--min-elo 1200 --max-elo 2000 --time-controls Rapid,Classical --max-games 200000 --maia none'
