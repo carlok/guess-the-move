@@ -1636,6 +1636,23 @@ test('a waiting build shows the bar, and the page switches only after Reload is 
   assert.equal(reloads, 1);
 });
 
+test('the bar is not shown for a build the page is already running (a plain reload loads the newest page)', async () => {
+  const run = async (reply) => {
+    const w = await boot(dataOf(ROOK));
+    const tag = w.document.createElement('script'); tag.type = 'text/lazy'; tag.setAttribute('src', 'app.js?v=abc123'); w.document.head.appendChild(tag);
+    const asked = []; w.fetch = (url, o) => { asked.push([url, o && o.cache]); return reply(); };
+    const f = fakeSw(); f.reg.waiting = f.worker('installed');
+    await w.GTM_PWA.setup(w, { sw: f.sw });
+    await tick();
+    return { bar: $(w, 'updateBar').hidden, asked };
+  };
+  const same = await run(() => Promise.resolve({ json: async () => ({ build: 'abc123' }) }));
+  assert.equal(same.bar, true, 'the page is current: nothing to reload for');
+  assert.deepEqual(same.asked, [['version.json', 'no-store']]);
+  assert.equal((await run(() => Promise.resolve({ json: async () => ({ build: 'def456' }) }))).bar, false, 'a newer build exists: offer it');
+  assert.equal((await run(() => Promise.reject(new Error('offline')))).bar, false, 'cannot tell: offer it');
+});
+
 test('an update found while the page is open is offered; the very first install is not an update', async () => {
   const w = await boot(dataOf(ROOK));
   const f = fakeSw(); f.reg.installing = f.worker('installing');
@@ -1969,7 +1986,16 @@ test('at the start only what the first move needs is loaded: no image saving, no
   assert.equal($(w, 'timer').textContent, '0:00');
   assert.match($(w, 'progress').textContent, /Streak 0/, 'the streak line works from the small stats module');
   assert.deepEqual(w.__lazyLoads, []);
-  assert.equal(w.document.querySelectorAll('script[type="text/lazy"]').length, 3, 'the three lazy parts stay listed in the page');
+  assert.equal(w.document.querySelectorAll('script[type="text/lazy"]').length, 4, 'the four lazy parts stay listed in the page');
+});
+
+test('the service worker part is fetched after the page has loaded, not before, and runs its setup', async () => {
+  const w = await boot(dataOf(ROOK), lazyOn());
+  w.__GTM_NO_PWA = false;
+  w.dispatchEvent(new w.Event('load'));
+  await tick();
+  assert.deepEqual(w.__lazyLoads, ['pwa.js']);
+  assert.equal(typeof w.GTM_PWA.setup, 'function');
 });
 
 test('the stats page loads its charts the first time, shows a loading line meanwhile, and draws at once afterwards', async () => {
