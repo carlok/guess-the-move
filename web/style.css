@@ -180,6 +180,17 @@ footer { max-width: var(--page-max); margin: var(--s-5) auto var(--s-6); padding
 /* A link that is its own line of text needs a finger-sized target. */
 .tap-link { display: inline-flex; align-items: center; min-height: var(--tap); }
 
+/* Focus mode: only the board and the timer, as large as the screen allows, until you move (a button, or `f`; Esc leaves). */
+#focusBtn.off { visibility: hidden; } /* not offered, but it keeps its place: the board must not move when the answer appears */
+.icon-focus-off, html.focus-mode .icon-focus-on { display: none; } html.focus-mode .icon-focus-off { display: block; }
+html.focus-mode .topbar, html.focus-mode .panel, html.focus-mode .actionbar, html.focus-mode footer, html.focus-mode #chips, html.focus-mode #openingLine,
+html.focus-mode #linkBtn, html.focus-mode #updateBar, html.focus-mode #banner, html.focus-mode #linkMsg { display: none; }
+html.focus-mode #gameMain { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage"; grid-template-rows: auto; justify-content: stretch; padding: 0; gap: 0; max-width: none; }
+html.focus-mode .stage { width: min(100vw, calc(100vh - 3.5rem)); width: min(100vw, calc(100dvh - 3.5rem)); margin: 0 auto; } /* the line above the board (a 44 px button and padding) takes 52 px */
+html.focus-mode .posinfo { padding: var(--s-1) var(--s-3); min-height: 0; }
+html.focus-mode .slot { min-height: 0; padding: 0; } html.focus-mode .slot > :not(#live) { display: none; } /* the prompt goes; the screen-reader announcements stay */
+html.focus-mode .boardwrap { border-radius: 0; box-shadow: none; }
+
 /* Pages (stats, settings, how it works, about): the same view with a row of links to the others. */
 .pagenav { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0 0 var(--s-3); border-bottom: 1px solid var(--line); }
 .pagenav a { display: inline-flex; align-items: center; min-height: var(--tap); border-bottom: 3px solid transparent; }
@@ -193,7 +204,7 @@ footer { max-width: var(--page-max); margin: var(--s-5) auto var(--s-6); padding
 .pagebody code { background: var(--surface-2); border-radius: 4px; padding: 0 4px; }
 
 /* Timer, sound button */
-.posinfo { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
+.posinfo { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); min-height: 3.25rem; } /* as tall as the 44 px buttons it can hold, so showing or hiding one never moves the board */
 .level-card, .srs-card { grid-column: 1 / -1; }
 .level-card h4 { margin: var(--s-4) 0 var(--s-1); font-size: var(--fs-md); }
 .level-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--s-4); }
