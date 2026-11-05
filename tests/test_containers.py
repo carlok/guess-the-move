@@ -179,3 +179,8 @@ def test_nginx_serves_the_web_manifest_with_its_own_type_without_losing_the_stan
     conf = read("containers/web/nginx.conf")
     assert "include /etc/nginx/mime.types;" in conf and re.search(r"types\s*\{\s*application/manifest\+json\s+webmanifest;\s*\}", conf)
     assert conf.index("include /etc/nginx/mime.types;") < conf.index("application/manifest+json"), "the include comes first, so the extra type is added to it"
+
+
+def test_plain_make_runs_the_site():
+    mk = read("Makefile")
+    assert re.search(r"^\.DEFAULT_GOAL\s*:=\s*run\b", mk, flags=re.M), "plain `make` should serve the site"
