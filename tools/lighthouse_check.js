@@ -25,6 +25,17 @@ const BUDGET = {
 };
 const REPORTED = ['first-contentful-paint', 'largest-contentful-paint', 'cumulative-layout-shift', 'total-blocking-time', 'speed-index', 'total-byte-weight'];
 
+/* The page element that was the largest paint, as "selector: text" (what to look at when the largest paint is late), or null. */
+function lcpElement(lhr) {
+  var found = null;
+  (function walk(x) {
+    if (found || !x || typeof x !== 'object') return;
+    if (x.type === 'node' && x.selector) { found = x.selector + ': ' + String(x.nodeLabel || x.snippet || '').slice(0, 70); return; }
+    Object.keys(x).forEach(function (k) { walk(x[k]); });
+  })((lhr.audits['lcp-breakdown-insight'] || lhr.audits['largest-contentful-paint-element'] || {}).details);
+  return found;
+}
+
 /* The summary to keep, and the list of budgets missed (empty when all hold). Pure. */
 function evaluate(lhr, budget) {
   budget = budget || BUDGET;
@@ -40,7 +51,7 @@ function evaluate(lhr, budget) {
     if (!a || typeof a.numericValue !== 'number' || a.numericValue > budget.metrics[k]) failures.push(k + ' ' + (a && typeof a.numericValue === 'number' ? Math.round(a.numericValue * 1000) / 1000 : 'missing') + ' is above ' + budget.metrics[k]);
   });
   return {
-    summary: { tool: 'lighthouse ' + lhr.lighthouseVersion, formFactor: lhr.configSettings.formFactor, throttling: lhr.configSettings.throttlingMethod, scores: scores, metrics: metrics },
+    summary: { tool: 'lighthouse ' + lhr.lighthouseVersion, formFactor: lhr.configSettings.formFactor, throttling: lhr.configSettings.throttlingMethod, scores: scores, metrics: metrics, lcpElement: lcpElement(lhr) },
     failures: failures
   };
 }
@@ -97,4 +108,4 @@ async function main(argv) {
 }
 
 if (require.main === module) main(process.argv.slice(2)).then(function (code) { process.exit(code); });
-module.exports = { evaluate: evaluate, BUDGET: BUDGET };
+module.exports = { evaluate: evaluate, lcpElement: lcpElement, BUDGET: BUDGET };

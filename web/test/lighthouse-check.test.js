@@ -2,7 +2,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { evaluate, BUDGET } = require('../../tools/lighthouse_check.js');
+const { evaluate, lcpElement, BUDGET } = require('../../tools/lighthouse_check.js');
 
 const lhr = (over = {}) => ({
   lighthouseVersion: '13.6.0', configSettings: { formFactor: 'mobile', throttlingMethod: 'simulate' },
@@ -46,4 +46,11 @@ test('a missing category or metric fails instead of passing by default; blocking
   assert.deepEqual(evaluate(slow).failures, []);
   assert.deepEqual(Object.keys(BUDGET.metrics), ['largest-contentful-paint', 'cumulative-layout-shift']);
   assert.deepEqual(Object.keys(BUDGET.categories), ['accessibility', 'best-practices']);
+});
+
+test('the largest paint element is read from the breakdown, wherever it sits in the details, and is null when there is none', () => {
+  const x = lhr(); x.audits['lcp-breakdown-insight'] = { details: { items: [{ type: 'table' }, { type: 'node', selector: 'main#gameMain > div#prompt', nodeLabel: 'Find the best move for the side to play. Tap or drag a piece' }] } };
+  assert.equal(lcpElement(x), 'main#gameMain > div#prompt: Find the best move for the side to play. Tap or drag a piece');
+  assert.equal(evaluate(x).summary.lcpElement, lcpElement(x));
+  assert.equal(lcpElement(lhr()), null);
 });
