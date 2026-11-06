@@ -22,6 +22,8 @@ test('the board grows to the largest square the screen allows, the rest of the p
   for (const sel of ['.topbar', '.panel', '.actionbar', 'footer']) await expect(page.locator(sel).first(), sel).toBeHidden();
   await expect(page.locator('#timer')).toBeVisible();
   await expect(page.locator('#posInfo')).toBeVisible();
+  // A browser that really enters full screen (Firefox) is still resizing for a moment after the class appears: wait for the size.
+  await expect.poll(async () => (await boardBox(page)).width, 'using nearly all of the shorter side (3.5rem is left for the line above)').toBeGreaterThan(Math.min(vp.width, vp.height - 56) - 4);
   const after = await boardBox(page);
   expect(after.width, 'the board is not smaller').toBeGreaterThanOrEqual(before.width - 1);
   expect(after.width, 'and is a square that fits the screen').toBeLessThanOrEqual(Math.min(vp.width, vp.height) + 1);

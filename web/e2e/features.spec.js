@@ -24,7 +24,7 @@ test('the top bar fits: stats, settings, sound, help and theme are all visible, 
   for (const id of ['statsBtn', 'settingsBtn', 'soundToggle', 'helpBtn', 'themeToggle']) {
     const box = await page.locator('#' + id).boundingBox();
     expect(box, id).not.toBeNull();
-    expect(box.width, id).toBeGreaterThanOrEqual(44); expect(box.height, id).toBeGreaterThanOrEqual(44);
+    expect(box.width, id).toBeGreaterThanOrEqual(43.9); expect(box.height, id).toBeGreaterThanOrEqual(43.9); // Firefox reports 43.999998 for a 44 px box
     expect(box.x, id + ' inside the viewport').toBeGreaterThanOrEqual(0);
     expect(box.x + box.width, id + ' inside the viewport').toBeLessThanOrEqual(vw);
   }
@@ -290,8 +290,9 @@ test('the tier badges are not colour-only: each carries a name, and the discs di
 
 const LINKED = { ...ROOK, id: 'aaaaaaaaaa' };
 
-test('a link to a position or to an answer opens it in a real browser, and the copy buttons put the right address on the clipboard', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('a link to a position or to an answer opens it in a real browser, and the copy buttons put the right address on the clipboard', async ({ page, context, browserName }) => {
+  const chromium = browserName === 'chromium'; // only Chromium lets a test grant and read the clipboard
+  if (chromium) await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await preset(page, { confirm: false });
   await serveDataset(page, [LINKED]);
   await page.goto('/#p=aaaaaaaaaa&m=a1a7');
@@ -304,13 +305,13 @@ test('a link to a position or to an answer opens it in a real browser, and the c
   const box = await page.locator('#linkBtn').boundingBox();
   expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
   await page.locator('#linkBtn').click();
-  await expect(page.locator('#linkMsg')).toHaveText('Link copied.');
+  await expect(page.locator('#linkMsg')).toHaveText(chromium ? 'Link copied.' : /^(Link copied\.|Copy this link: )/);
   const origin = new URL(page.url()).origin;
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/#p=aaaaaaaaaa`);
+  if (chromium) expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/#p=aaaaaaaaaa`);
   await clickMove(page, 'a1a8');
   await page.locator('#copyAnswer').click();
-  await expect(page.locator('#linkMsg')).toHaveText('Link to your answer copied.');
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/#p=aaaaaaaaaa&m=a1a8`);
+  await expect(page.locator('#linkMsg')).toHaveText(chromium ? 'Link to your answer copied.' : /^(Link to your answer copied\.|Copy this link: )/);
+  if (chromium) expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/#p=aaaaaaaaaa&m=a1a8`);
   expect(await noHScroll(page)).toBe(true);
 });
 
