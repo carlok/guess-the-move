@@ -57,6 +57,13 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
+          name: lighthouse-report
+          path: test-results/lighthouse-report.json
+          retention-days: 7
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
           name: playwright-traces
           path: web/test-results
           retention-days: 7

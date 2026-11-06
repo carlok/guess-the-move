@@ -81,7 +81,7 @@ e2e:
 # tools/lighthouse_check.js. Needs Chrome (CHROME_PATH, or the macOS default). Refresh the kept numbers with
 #   node tools/lighthouse_check.js --write docs/lighthouse/summary.json
 lighthouse-check: dist
-	node tools/lighthouse_check.js
+	node tools/lighthouse_check.js --keep test-results/lighthouse-report.json
 
 # Lighthouse (mobile) against the running container (`make run`); writes docs/lighthouse/mobile.report.{json,html}.
 lighthouse:

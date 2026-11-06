@@ -3,7 +3,7 @@
 /* Lighthouse (mobile) on the real build: `make dist`, served from this process with gzip like the nginx container does, and the
  * shipped 2,000-position dataset, so the numbers include the cost of loading the data. Fails when a budget is missed.
  *
- *   node tools/lighthouse_check.js [--dist dist] [--write docs/lighthouse/summary.json]
+ *   node tools/lighthouse_check.js [--dist dist] [--write docs/lighthouse/summary.json] [--keep report.json]
  *
  * Chrome: CHROME_PATH, else the usual macOS location, else whatever lighthouse finds. The lighthouse version is pinned so a
  * score does not move because the tool did. Only `evaluate` is unit tested (web/test/lighthouse-check.test.js); running it
@@ -85,7 +85,7 @@ function chromePath() {
 
 async function main(argv) {
   var arg = function (name, dflt) { var i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : dflt; };
-  var dist = path.resolve(arg('--dist', 'dist')), write = arg('--write', null);
+  var dist = path.resolve(arg('--dist', 'dist')), write = arg('--write', null), keep = arg('--keep', null);
   if (!fs.existsSync(path.join(dist, 'index.html'))) { console.error('no ' + dist + '/index.html: run `make dist` first'); return 2; }
   var server = await serve(dist), out = path.join(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'gtm-lh-')), 'report.json');
   try {
@@ -96,6 +96,7 @@ async function main(argv) {
     var status = await new Promise(function (resolve) { cp.spawn('npx', args, { stdio: ['ignore', 'inherit', 'inherit'] }).on('exit', resolve); });
     if (status !== 0 || !fs.existsSync(out)) { console.error('lighthouse did not produce a report'); return 2; }
   } finally { server.close(); }
+  if (keep) { fs.mkdirSync(path.dirname(path.resolve(keep)), { recursive: true }); fs.copyFileSync(out, keep); } // the whole report, for a failure that needs a closer look (CI uploads it)
   var result = evaluate(JSON.parse(fs.readFileSync(out, 'utf8')));
   console.log(JSON.stringify(result.summary, null, 2));
   if (write) {
