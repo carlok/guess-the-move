@@ -529,6 +529,7 @@
   /* A move was chosen (clicked, dragged or typed): reveal it, or hold it as pending when confirmation is on. */
   /* ---------- focus mode: just the board and the timer, as large as the screen allows, until you move ---------- */
 
+  var ownExit = false; // we asked the browser to leave its full screen: the event that follows is ours, not an Esc from the person
   function focusOn() { return document.documentElement.classList.contains('focus-mode'); }
 
   function setFocus(on) {
@@ -540,7 +541,7 @@
     // The browser's own full screen too, where there is one (not on an iPhone): it hides the address bar and makes the board larger still.
     // It is optional: a refusal leaves the page-level focus mode as it is.
     if (on && root.requestFullscreen) { var r = root.requestFullscreen(); if (r && r.catch) r.catch(function () {}); }
-    if (!on && document.fullscreenElement && document.exitFullscreen) { var x = document.exitFullscreen(); if (x && x.catch) x.catch(function () {}); }
+    if (!on && document.fullscreenElement && document.exitFullscreen) { ownExit = true; var x = document.exitFullscreen(); if (x && x.catch) x.catch(function () { ownExit = false; }); }
     if (on) { window.scrollTo(0, 0); announce(T.focus.on); }
   }
 
@@ -1250,7 +1251,11 @@
     $('confirm').addEventListener('click', function () { if (S.pending) commit(S.pending); });
     $('skip').addEventListener('click', skipPosition);
     $('focusBtn').addEventListener('click', function () { setFocus(!focusOn()); });
-    document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && focusOn()) setFocus(false); }); // Esc in the browser's full screen ends this too
+    document.addEventListener('fullscreenchange', function () {
+      if (document.fullscreenElement) return;
+      if (ownExit) { ownExit = false; return; } // late: it must not switch off a focus mode started since
+      if (focusOn()) setFocus(false);
+    }); // Esc in the browser's full screen ends this too
     $('resetStats').addEventListener('click', function () {
       S.history = []; S.seen = new Set(); S.srs = {}; S.plays = 0; store.set(HISTORY_KEY, []); store.set(SEEN_KEY, []); store.set(SRS_KEY, {}); store.set(PLAYS_KEY, 0); store.set(LAST_KEY, null); S.challenges = {}; store.set(CHALLENGES_KEY, {}); updateActions(); renderStats(); updateEstimate(); if (S.data) applyFilters();
     });
