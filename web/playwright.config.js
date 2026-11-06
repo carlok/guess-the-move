@@ -13,10 +13,10 @@ const external = process.env.GTM_BASE_URL;
  * and WebKit again with a touch phone (the closest thing to Safari on an iPhone that runs without one). */
 function otherBrowsers() {
   return [
-    { name: 'firefox', testIgnore: /touch\.spec/, use: { browserName: 'firefox', viewport: { width: 1280, height: 800 } } },
-    { name: 'webkit', testIgnore: /touch\.spec/, use: { browserName: 'webkit', viewport: { width: 1280, height: 800 } } },
+    { name: 'firefox', retries: process.env.CI ? 1 : 0, testIgnore: /touch\.spec/, use: { browserName: 'firefox', viewport: { width: 1280, height: 800 } } },
+    { name: 'webkit', retries: process.env.CI ? 1 : 0, testIgnore: /touch\.spec/, use: { browserName: 'webkit', viewport: { width: 1280, height: 800 } } },
     {
-      name: 'webkit-phone', testIgnore: /input\.spec/,
+      name: 'webkit-phone', retries: process.env.CI ? 1 : 0, testIgnore: /input\.spec/,
       use: { browserName: 'webkit', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
     },
   ];
