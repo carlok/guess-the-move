@@ -270,7 +270,7 @@
   }
 
   /* The link to the original game. On Lichess a "#<ply>" suffix opens the game at that half-move, i.e. at the position
-   * that was guessed (assumed from Lichess's behaviour, not verified for every game page). Anything else stays as is. */
+   * that was guessed (checked by hand on one game, 2026-11-06, not on every game page). Anything else stays as is. */
   function gameLink(p) {
     return /^https:\/\/lichess\.org\/[A-Za-z0-9]{8,12}$/.test(p.site) && Number.isInteger(p.ply) ? p.site + '#' + p.ply : p.site;
   }
