@@ -57,14 +57,21 @@ test('the board does not jump when the first position arrives (the opening line 
     await route.fulfill({ json: { schema: 1, meta: { demo: false }, positions: [{ ...ROOK, game: { opening: 'Scandinavian Defense', eco: 'B01' } }] } });
   });
   await page.addInitScript(() => {
-    window.__cls = 0;
-    new PerformanceObserver((list) => { for (const e of list.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: 'layout-shift', buffered: true });
+    window.__cls = 0; window.__shifts = [];
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (e.hadRecentInput) continue;
+        window.__cls += e.value;
+        window.__shifts.push((e.sources || []).map((s) => `${s.node && (s.node.id || s.node.className || s.node.nodeName)}: y ${s.previousRect.y | 0}->${s.currentRect.y | 0}, h ${s.previousRect.height | 0}->${s.currentRect.height | 0}`)); // what moved, for a failure message
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
   });
   await page.goto('/');
   await expect(page.locator('[data-sq]')).toHaveCount(64);
   await expect(page.locator('#openingLine')).toBeVisible();
   await page.waitForTimeout(300);
-  expect(await page.evaluate(() => window.__cls), 'cumulative layout shift while the data arrives').toBeLessThan(0.02);
+  const cls = await page.evaluate(() => window.__cls), moved = await page.evaluate(() => JSON.stringify(window.__shifts));
+  expect(cls, 'cumulative layout shift while the data arrives; what moved: ' + moved).toBeLessThan(0.02);
 });
 
 test('a failed load explains itself and offers a retry that works', async ({ page }) => {
