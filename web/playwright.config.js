@@ -13,11 +13,11 @@ const external = process.env.GTM_BASE_URL;
  * and WebKit again with a touch phone (the closest thing to Safari on an iPhone that runs without one). */
 function otherBrowsers() {
   return [
-    { name: 'firefox', testIgnore: /touch\.spec/, use: { browserName: 'firefox', channel: undefined, viewport: { width: 1280, height: 800 } } },
-    { name: 'webkit', testIgnore: /touch\.spec/, use: { browserName: 'webkit', channel: undefined, viewport: { width: 1280, height: 800 } } },
+    { name: 'firefox', testIgnore: /touch\.spec/, use: { browserName: 'firefox', viewport: { width: 1280, height: 800 } } },
+    { name: 'webkit', testIgnore: /touch\.spec/, use: { browserName: 'webkit', viewport: { width: 1280, height: 800 } } },
     {
       name: 'webkit-phone', testIgnore: /input\.spec/,
-      use: { browserName: 'webkit', channel: undefined, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+      use: { browserName: 'webkit', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
     },
   ];
 }
@@ -26,7 +26,7 @@ module.exports = defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
   reporter: process.env.CI ? [['list'], ['github']] : [['list']],
-  use: { baseURL: external || 'http://127.0.0.1:8765', channel: 'chrome', trace: 'retain-on-failure' },
+  use: { baseURL: external || 'http://127.0.0.1:8765', trace: 'retain-on-failure' }, // `channel: 'chrome'` is set per Chrome project (it cannot be unset for the others)
   webServer: external ? undefined : {
     command: 'node e2e/serve.js 8765',
     url: 'http://127.0.0.1:8765/index.html',
@@ -34,11 +34,11 @@ module.exports = defineConfig({
   },
   projects: [
     ...(process.env.GTM_OTHER_BROWSERS ? otherBrowsers() : []),
-    { name: 'desktop', testIgnore: /touch\.spec/, use: { viewport: { width: 1280, height: 800 } } },
-    { name: 'tablet', testIgnore: /touch\.spec/, use: { viewport: { width: 768, height: 1024 } } },
+    { name: 'desktop', testIgnore: /touch\.spec/, use: { channel: 'chrome', viewport: { width: 1280, height: 800 } } },
+    { name: 'tablet', testIgnore: /touch\.spec/, use: { channel: 'chrome', viewport: { width: 768, height: 1024 } } },
     {
       name: 'phone', testIgnore: /input\.spec/,
-      use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+      use: { channel: 'chrome', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
     },
   ],
 });
