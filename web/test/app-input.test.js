@@ -517,6 +517,52 @@ test('selecting a piece clicks, a plain move thuds and a best move chimes; nothi
   assert.ok(log.includes('f784'), 'the best move gets the rising chime');
 });
 
+test('a beep sounds for each full minute spent on a position, never twice for the same minute, and starts over on the next one', async () => {
+  const { Ctx, log } = fakeAudio(), clock = { t: 5_000_000 };
+  const w = await boot(dataOf(ROOK, CAPTURE), { audio: Ctx, clock });
+  const beeps = () => log.filter((x) => x === 'f1047').length;
+  clock.t += 59_000; w.__intervals[0]();
+  assert.equal(beeps(), 0, 'not yet a minute');
+  clock.t += 2_000; w.__intervals[0](); w.__intervals[0]();
+  assert.equal(beeps(), 1, 'one beep at the minute, however often the display is refreshed');
+  clock.t += 60_000; w.__intervals[0]();
+  assert.equal(beeps(), 2, 'and one more a minute later');
+  click(w, 'next');
+  clock.t += 59_000; w.__intervals[0]();
+  assert.equal(beeps(), 2, 'a new position counts its own minutes');
+  clock.t += 2_000; w.__intervals[0]();
+  assert.equal(beeps(), 3);
+});
+
+test('no beep after the reveal, while a page covers the board, or when it is switched off or the sound is muted', async () => {
+  const { Ctx, log } = fakeAudio(), clock = { t: 5_000_000 };
+  const w = await boot(dataOf(ROOK, CAPTURE), { audio: Ctx, clock });
+  const beeps = () => log.filter((x) => x === 'f1047').length;
+  assert.equal($(w, 'beepToggle').checked, true, 'on by default');
+  click(w, 'settingsBtn');
+  clock.t += 125_000; w.__intervals[0]();
+  assert.equal(beeps(), 0, 'the time on a page does not count as thinking');
+  click(w, 'settingsBack');
+  $(w, 'beepToggle').checked = false; $(w, 'beepToggle').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.beep')), false);
+  clock.t += 61_000; w.__intervals[0]();
+  assert.equal(beeps(), 0, 'switched off');
+  $(w, 'beepToggle').checked = true; $(w, 'beepToggle').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.equal(JSON.parse(w.localStorage.getItem('gtm.v1.beep')), true);
+  click(w, 'soundToggle');
+  clock.t += 61_000; w.__intervals[0]();
+  assert.equal(beeps(), 0, 'the sound button mutes it too');
+  click(w, 'soundToggle');
+  sq(w, 'a1').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); sq(w, 'a8').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  clock.t += 200_000; w.__intervals[0]();
+  assert.equal(beeps(), 0, 'once answered the clock is stopped');
+});
+
+test('the beep setting is remembered and restored', async () => {
+  const w = await boot(dataOf(ROOK), { ls: { beep: false } });
+  assert.equal($(w, 'beepToggle').checked, false);
+});
+
 test('a capture and en passant sound heavier; a poor move ends on the low tone; a middling one on the neutral pair', async () => {
   const cap = fakeAudio();
   let w = await boot(dataOf(CAPTURE), { audio: cap.Ctx });
