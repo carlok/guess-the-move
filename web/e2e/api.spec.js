@@ -60,7 +60,7 @@ test.describe('with a real api', () => {
       await clickMove(page, bestMove(chosen[0]));
       if (await page.locator('#confirm').isVisible()) await page.locator('#confirm').click();
       await expect(page.locator('#result')).toBeVisible();
-      await page.unroute('**/data/positions.json');
+      await page.unroute('**/data/{first,positions}.json');
     }
     await page.locator('summary', { hasText: 'Your stats' }).click();
     await expect(page.locator('#estimateBtn')).toBeEnabled();

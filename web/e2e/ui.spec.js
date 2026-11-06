@@ -39,7 +39,7 @@ test('first-run onboarding is at most 3 steps, dismissible and remembered', asyn
 
 test('a loading skeleton shows while the data loads, then the board replaces it', async ({ page }) => {
   await preset(page);
-  await page.route('**/data/positions.json', async (route) => {
+  await page.route('**/data/{first,positions}.json', async (route) => {
     await new Promise((r) => setTimeout(r, 2500)); // long enough that a busy machine still sees the skeleton before the data arrives
     await route.fulfill({ json: { schema: 1, meta: { demo: false }, positions: [ROOK] } });
   });
@@ -52,7 +52,7 @@ test('a loading skeleton shows while the data loads, then the board replaces it'
 test('the board does not jump far when the first position arrives (the opening line and chips have their rows reserved)', async ({ page }) => {
   test.skip(page.viewportSize().width >= 900, 'the stacked layout only: on the desktop grid the rows are not reserved, to keep the board large');
   await preset(page);
-  await page.route('**/data/positions.json', async (route) => {
+  await page.route('**/data/{first,positions}.json', async (route) => {
     await new Promise((r) => setTimeout(r, 1200));
     await route.fulfill({ json: { schema: 1, meta: { demo: false }, positions: [{ ...ROOK, game: { opening: 'Scandinavian Defense', eco: 'B01' } }] } });
   });
@@ -66,10 +66,29 @@ test('the board does not jump far when the first position arrives (the opening l
   expect(Math.abs(after.y - before.y), 'how far the board moved when the data arrived').toBeLessThan(40);
 });
 
+test('the first position is there from the small sample while the full dataset is still loading, and the full one then arrives without a jump', async ({ page }) => {
+  await preset(page, { confirm: false });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await page.route('**/data/positions.json', async (route) => { await gate; await route.continue(); }); // the full file is held back
+  await page.goto('/');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await expect(page.locator('#skeleton')).toBeHidden();
+  await expect(page.locator('#posInfo')).toContainText('to move');
+  await expect(page.locator('#dailyBtn')).toBeDisabled(); // challenges pick from every position
+  await expect(page.locator('#matchCount')).toHaveText('24 positions match');
+  const info = await page.locator('#posInfo').textContent(), board = await page.locator('#boardSvg').boundingBox();
+  release();
+  await expect(page.locator('#dailyBtn')).toBeEnabled();
+  await expect(page.locator('#matchCount')).toHaveText('2000 positions match');
+  expect(await page.locator('#posInfo').textContent(), 'the position on the board is the same').toBe(info);
+  expect(await page.locator('#boardSvg').boundingBox(), 'and the board did not move').toEqual(board);
+});
+
 test('a failed load explains itself and offers a retry that works', async ({ page }) => {
   await preset(page);
   let fail = true;
-  await page.route('**/data/positions.json', (route) =>
+  await page.route('**/data/{first,positions}.json', (route) =>
     fail ? route.fulfill({ status: 503, body: 'down' }) : route.fulfill({ json: { schema: 1, meta: { demo: false }, positions: [ROOK] } }));
   await page.goto('/');
   await expect(page.locator('#prompt')).toContainText(/could not load/i);

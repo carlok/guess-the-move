@@ -39,7 +39,8 @@
           'and make sure data/positions.json exists (see README).';
       },
       offline: function (url) { return 'Could not load ' + url + ': you appear to be offline. Reconnect and try again.'; },
-      retry: 'Try again'
+      retry: 'Try again',
+      moreFailed: 'Could not load all the positions, so you are playing a small sample. Reload to try again.'
     },
     confirm: 'Confirm move',
     back: 'Previous (p)',

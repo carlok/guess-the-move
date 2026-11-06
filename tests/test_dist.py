@@ -86,7 +86,7 @@ def test_the_worker_is_stamped_with_this_build_and_precaches_exactly_the_urls_th
         assert f"{asset}?v={r['build']}" in files, f"{asset}: the page asks for the stamped URL, so that is what must be cached"
     for f in files:
         assert (out / f.split("?")[0]).is_file(), f"{f} is cached but not in dist"
-    assert "data/positions.json" in files and "sw.js" not in "".join(files)
+    assert "data/positions.json" in files and "data/first.json" in files and "sw.js" not in "".join(files)
     assert set(re.findall(r"\?v=([0-9a-f]+)", html)) == {r["build"]}, "every stamp in the page is this build's"
 
 
@@ -104,7 +104,8 @@ def test_the_build_is_deterministic_and_changes_with_the_content(tmp_path):
         if p.is_file():
             (src / p.name).write_bytes(p.read_bytes())
     (src / "data").mkdir()
-    (src / "data" / "positions.json").write_bytes((D.WEB / "data" / "positions.json").read_bytes())
+    for name in ("positions.json", "first.json"):
+        (src / "data" / name).write_bytes((D.WEB / "data" / name).read_bytes())
     (src / "app.js").write_text((D.WEB / "app.js").read_text(encoding="utf-8") + "\n// changed\n", encoding="utf-8")
     assert D.build(src, tmp_path / "c")["build"] != a["build"]
 

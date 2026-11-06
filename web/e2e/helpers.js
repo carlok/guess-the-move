@@ -6,9 +6,9 @@ const G = require('../scoring.js');
  * serves the page, so a container's headers, compression and CSP are exercised). Returns the chosen list. */
 async function serveSubset(page, pick = (positions) => positions.slice(0, 1)) {
   const chosen = [];
-  await page.route('**/data/positions.json', async (route) => {
+  await page.route('**/data/{first,positions}.json', async (route) => {
     try {
-      const res = await route.fetch();
+      const res = await route.fetch({ url: route.request().url().replace('first.json', 'positions.json') }); // the sample file is the same subset
       const data = await res.json();
       data.positions = pick(data.positions);
       chosen.splice(0, chosen.length, ...data.positions);
@@ -36,7 +36,7 @@ function watchProblems(page) {
 
 /* Serve a synthetic dataset instead of the shipped one (UI behaviour tests need known positions). */
 async function serveDataset(page, positions) {
-  await page.route('**/data/positions.json', (route) =>
+  await page.route('**/data/{first,positions}.json', (route) =>
     route.fulfill({ json: { schema: 1, meta: { demo: false, engine: 'synthetic' }, positions } }));
 }
 

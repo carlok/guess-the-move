@@ -226,6 +226,7 @@
     var ses = S.session;
     $('sessionBtn').hidden = !!ses;
     $('challengeRow').hidden = !!ses;
+    $('dailyBtn').disabled = $('friendBtn').disabled = !!S.partial; // they pick from every position
     var doneToday = S.challenges[SD.todayToken(nowMs())];
     $('dailyBtn').textContent = doneToday ? T.challenge.dailyDone(doneToday.score) : T.challenge.daily;
     $('sessionChip').hidden = $('sessionEnd').hidden = !ses;
@@ -767,35 +768,73 @@
     $('retry').addEventListener('click', load);
   }
 
-  function load() {
-    var url = new URLSearchParams(window.location.search).get('data') || 'data/positions.json';
-    $('skeleton').hidden = false;
-    $('prompt').textContent = '';
-    window.fetch(url).then(function (r) {
+  /* The data arrives in two steps (tools/make_first.py): data/first.json, a fixed selection of 24 positions (about 20 KB), lets the first
+   * position be played at once; data/positions.json (1.3 MB) replaces it when it arrives, without changing the position on the board.
+   * Until then the choice is from the 24, and the things that need every position (challenges, links to other positions) wait.
+   * A custom file (?data=) is loaded as one step, as before. */
+  function fetchJson(url) {
+    return window.fetch(url).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (d) {
       if (!d || d.schema !== 1 || !Array.isArray(d.positions)) throw new Error('unsupported data file (expected schema 1)');
-      S.data = d; S.byId = null;
-      S.hasAnchors = d.positions.some(function (p) { return window.GTM_LEVEL.anchorsOf(p); });
-      var counts = {};
-      d.positions.forEach(function (p) { (p.tags || []).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
-      $('tag').innerHTML = '<option value="any">' + T.anyOption + '</option>' + Object.keys(T.tags).filter(function (t) { return counts[t]; })
-        .map(function (t) { return '<option value="' + t + '">' + esc(T.tags[t]) + ' (' + counts[t] + ')</option>'; }).join('');
-      var fams = {};
-      d.positions.forEach(function (p) { var f = family(p); if (f) fams[f] = (fams[f] || 0) + 1; });
-      var top = Object.keys(fams).filter(function (f) { return fams[f] >= 5; }).sort(function (a, b) { return fams[b] - fams[a] || (a < b ? -1 : 1); }).slice(0, 30);
-      $('opening').innerHTML = '<option value="any">' + T.anyOption + '</option>' + top.map(function (f) { return '<option value="' + esc(f) + '">' + esc(f) + ' (' + fams[f] + ')</option>'; }).join('');
-      $('openingLabel').hidden = !top.length;
-      if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; $('demoChip').hidden = false; }
-      $('skeleton').hidden = true;
-      if (pageName() === 'about') renderAbout(); // opened by its link before the data arrived
-      if (pageName() === 'stats') drawStats(); // opened at #stats before the data arrived: the level card needs it
-      renderStats();
-      if (!consumeRoute()) nextPosition();
-    }).catch(function (e) {
-      $('skeleton').hidden = true;
-      showLoadError(url, e);
+      return d;
+    });
+  }
+
+  /* The tag and opening menus count what is in the data; a rebuild keeps what was chosen. */
+  function buildFilterOptions(d) {
+    var keepTag = $('tag').value, keepOpening = $('opening').value;
+    var counts = {};
+    d.positions.forEach(function (p) { (p.tags || []).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
+    $('tag').innerHTML = '<option value="any">' + T.anyOption + '</option>' + Object.keys(T.tags).filter(function (t) { return counts[t]; })
+      .map(function (t) { return '<option value="' + t + '">' + esc(T.tags[t]) + ' (' + counts[t] + ')</option>'; }).join('');
+    var fams = {};
+    d.positions.forEach(function (p) { var f = family(p); if (f) fams[f] = (fams[f] || 0) + 1; });
+    var top = Object.keys(fams).filter(function (f) { return fams[f] >= 5; }).sort(function (a, b) { return fams[b] - fams[a] || (a < b ? -1 : 1); }).slice(0, 30);
+    $('opening').innerHTML = '<option value="any">' + T.anyOption + '</option>' + top.map(function (f) { return '<option value="' + esc(f) + '">' + esc(f) + ' (' + fams[f] + ')</option>'; }).join('');
+    $('openingLabel').hidden = !top.length;
+    if ($('tag').querySelector('option[value="' + keepTag + '"]')) $('tag').value = keepTag;
+    if (keepOpening !== 'any' && Array.prototype.some.call($('opening').options, function (o) { return o.value === keepOpening; })) $('opening').value = keepOpening;
+  }
+
+  /* A link can only be followed once the position (or the challenge's set) is known: with the sample, only when it is in the sample. */
+  function routeReady(r) {
+    if (!r || (r.view !== 'position' && r.view !== 'challenge')) return true;
+    return !S.partial || (r.view === 'position' && !!positionById()[r.id]);
+  }
+
+  function useData(d, partial) {
+    var wasPartial = !!S.partial;
+    S.data = d; S.byId = null; S.partial = partial;
+    S.hasAnchors = d.positions.some(function (p) { return window.GTM_LEVEL.anchorsOf(p); });
+    buildFilterOptions(d);
+    if (d.meta && d.meta.demo) { $('banner').hidden = false; $('banner').textContent = T.demoBanner; $('demoChip').hidden = false; }
+    $('skeleton').hidden = true;
+    if (pageName() === 'about') renderAbout(); // opened by its link before the data arrived
+    if (pageName() === 'stats') drawStats(); // opened at #stats before the data arrived: the level card needs it
+    renderStats();
+    if (wasPartial) { // the full data replaces the sample: the person keeps playing the position on the board
+      applyFilters(); updateActions();
+      if (S.route || !S.pos) { if (!consumeRoute() && !S.pos) nextPosition(); }
+      return;
+    }
+    if (!routeReady(S.route || parseHash())) { updateActions(); return; } // a link to a position that is not in the sample: wait for the full data
+    if (!consumeRoute()) nextPosition();
+  }
+
+  function load() {
+    var custom = new URLSearchParams(window.location.search).get('data'), url = custom || 'data/positions.json';
+    $('skeleton').hidden = false;
+    $('prompt').textContent = '';
+    var full = fetchJson(url);
+    var sample = custom ? Promise.resolve() : fetchJson('data/first.json').then(function (d) { if (!S.data) useData(d, true); }, function () { /* no sample: wait for the full file */ });
+    full.then(function (d) { useData(d, false); }, function (e) {
+      return sample.then(function () { // the sample may still be on its way: decide once it is known
+        if (S.data) { $('linkMsg').textContent = T.prompt.moreFailed; return; } // playing the sample: say so, keep the board
+        $('skeleton').hidden = true;
+        showLoadError(url, e);
+      });
     });
   }
 
@@ -806,7 +845,7 @@
     if (!d) { el.innerHTML = '<li>' + T.about.loading + '</li>'; return; }
     var m = d.meta || {}, prov = m.provenance || {}, eng = prov.engine || {}, maia = prov.maia, items = [];
     var dates = d.positions.map(function (p) { return p.game && p.game.date; }).filter(Boolean).sort();
-    items.push(T.about.positions(d.positions.length, dates.length ? T.about.dates(dates[0], dates[dates.length - 1]) : ''));
+    items.push(T.about.positions(d.meta && d.meta.partial ? d.meta.partial.of : d.positions.length, dates.length ? T.about.dates(dates[0], dates[dates.length - 1]) : ''));
     items.push(T.about.engine(eng.name || m.engine || 'The engine', eng.nodes || m.nodes));
     items.push(maia ? T.about.maia(maia.model, maia.history_plies) : (m.maia ? T.about.maia(m.maia) : T.about.noMaia));
     if (m.source) items.push(T.about.source(m.source));
@@ -884,7 +923,7 @@
   /* A challenge: the positions come from the token alone (see web/seed.js), so everyone who opens the same one gets the same ones.
    * `wantTag` is the dataset tag the link was made with; a different dataset would pick different positions. */
   function startChallenge(token, wantTag) {
-    if (!S.data) return;
+    if (!S.data || S.partial) return;
     var tag = SD.tagOf(S.data.meta, S.data.positions.length), why = null;
     var queue = wantTag && wantTag !== tag ? [] : SD.select(S.data.positions, token, CHALLENGE_LEN);
     if (!queue.length) { why = wantTag && wantTag !== tag ? T.challenge.otherData : T.challenge.none; }
@@ -1335,7 +1374,7 @@
     window.addEventListener('resize', function () { if (pageName() === 'stats') drawStats(); });
     window.addEventListener('hashchange', function () {
       var r = parseHash();
-      if (r && (r.view === 'position' || r.view === 'challenge')) { S.route = r; if (S.data) consumeRoute(); } else showPage(PAGES.indexOf(window.location.hash.slice(1)) >= 0 ? window.location.hash.slice(1) : null);
+      if (r && (r.view === 'position' || r.view === 'challenge')) { S.route = r; if (S.data && routeReady(r)) consumeRoute(); } else showPage(PAGES.indexOf(window.location.hash.slice(1)) >= 0 ? window.location.hash.slice(1) : null);
     });
     $('linkBtn').addEventListener('click', function () { copyLink(null); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) timerPause(); else timerResume(); });

@@ -23,7 +23,7 @@ async function newPage(browser, vp, { theme, onboarded = true } = {}) {
     if (theme) localStorage.setItem('gtm.v1.theme', JSON.stringify(theme));
   }, { theme, onboarded });
   let first;
-  await page.route('**/data/positions.json', async (route) => {
+  await page.route('**/data/{first,positions}.json', async (route) => {
     const res = await route.fetch(); const data = await res.json();
     data.positions = [data.positions.find((p) => p.stm === 'w' && Object.keys(p.evals).length > 20) || data.positions[0]];
     first = data.positions[0];

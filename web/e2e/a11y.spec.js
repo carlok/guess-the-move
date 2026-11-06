@@ -119,7 +119,7 @@ for (const theme of ['light', 'dark']) {
 
 test('axe: error state', async ({ page }) => {
   await preset(page);
-  await page.route('**/data/positions.json', (route) => route.fulfill({ status: 503, body: 'down' }));
+  await page.route('**/data/{first,positions}.json', (route) => route.fulfill({ status: 503, body: 'down' }));
   await page.goto('/');
   await expect(page.locator('#retry')).toBeVisible();
   await scan(page, 'error');
