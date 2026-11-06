@@ -1744,6 +1744,21 @@ function spySave(w) {
   return got;
 }
 
+test('the comparison table lists the moves from best to worst, Stockfish first, whoever played what', async () => {
+  const rows = (w) => [...$(w, 'result').querySelectorAll('tbody tr')].map((tr) => ({ who: tr.children[0].textContent.trim(), cost: Number(tr.children[2].textContent.trim().split(/\s/)[0]) }));
+  const mid = await boot(dataOf(ROOK));
+  play(mid, 'a1', 'a2'); // a middling move: it must sit below Stockfish and above whoever did worse
+  const a = rows(mid);
+  assert.equal(a[0].who, 'Stockfish', 'the best move comes first');
+  assert.deepEqual(a.map((r) => r.cost), [...a.map((r) => r.cost)].sort((x, y) => x - y), 'costs only go up down the table');
+  assert.equal(a.length, 4);
+  const best = await boot(dataOf(ROOK));
+  play(best, 'a1', 'a8'); // the best move: tied with Stockfish, which still comes first, then you
+  const b = rows(best);
+  assert.deepEqual(b.slice(0, 2).map((r) => r.who), ['Stockfish', 'Your move']);
+  assert.equal(b[0].cost, 0); assert.equal(b[1].cost, 0);
+});
+
 test('after an answer the result offers the image and the FEN; before it nothing is offered', async () => {
   const w = await boot(linkData(), { hash: '#p=aaaaaaaaaa' });
   assert.equal($(w, 'saveImage'), null);
