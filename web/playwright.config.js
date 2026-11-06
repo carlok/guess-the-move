@@ -8,22 +8,37 @@ const { defineConfig } = require('@playwright/test');
 
 const external = process.env.GTM_BASE_URL;
 
+/* Firefox and WebKit (Safari's engine), only when GTM_OTHER_BROWSERS is set (`make other-browsers`, the "Firefox and WebKit" CI job): they
+ * are downloads (`npx playwright install firefox webkit`), and the Chrome run above stays what `make ci` does. Desktop size for both,
+ * and WebKit again with a touch phone (the closest thing to Safari on an iPhone that runs without one). */
+function otherBrowsers() {
+  return [
+    { name: 'firefox', retries: process.env.CI ? 1 : 0, testIgnore: /touch\.spec/, use: { browserName: 'firefox', viewport: { width: 1280, height: 800 } } },
+    { name: 'webkit', retries: process.env.CI ? 1 : 0, testIgnore: /touch\.spec/, use: { browserName: 'webkit', viewport: { width: 1280, height: 800 } } },
+    {
+      name: 'webkit-phone', retries: process.env.CI ? 1 : 0, testIgnore: /input\.spec/,
+      use: { browserName: 'webkit', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+    },
+  ];
+}
+
 module.exports = defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
   reporter: process.env.CI ? [['list'], ['github']] : [['list']],
-  use: { baseURL: external || 'http://127.0.0.1:8765', channel: 'chrome', trace: 'retain-on-failure' },
+  use: { baseURL: external || 'http://127.0.0.1:8765', trace: 'retain-on-failure' }, // `channel: 'chrome'` is set per Chrome project (it cannot be unset for the others)
   webServer: external ? undefined : {
     command: 'node e2e/serve.js 8765',
     url: 'http://127.0.0.1:8765/index.html',
     reuseExistingServer: true,
   },
   projects: [
-    { name: 'desktop', testIgnore: /touch\.spec/, use: { viewport: { width: 1280, height: 800 } } },
-    { name: 'tablet', testIgnore: /touch\.spec/, use: { viewport: { width: 768, height: 1024 } } },
+    ...(process.env.GTM_OTHER_BROWSERS ? otherBrowsers() : []),
+    { name: 'desktop', testIgnore: /touch\.spec/, use: { channel: 'chrome', viewport: { width: 1280, height: 800 } } },
+    { name: 'tablet', testIgnore: /touch\.spec/, use: { channel: 'chrome', viewport: { width: 768, height: 1024 } } },
     {
       name: 'phone', testIgnore: /input\.spec/,
-      use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+      use: { channel: 'chrome', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
     },
   ],
 });

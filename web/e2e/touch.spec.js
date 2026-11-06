@@ -25,7 +25,8 @@ test('confirm-before-reveal is on by default for a coarse pointer, and tap-tap n
   await expect(page.locator('#result')).toContainText('Move quality: 100/100');
 });
 
-test('a touch drag moves a ghost, drops as a pending move, and confirm reveals it', async ({ page }) => {
+test('a touch drag moves a ghost, drops as a pending move, and confirm reveals it', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'a raw touch drag is sent through the DevTools protocol, which only Chromium has');
   await open(page);
   // Diagnostics for a failure seen only on the GitHub runner's Linux Chrome: record what the page really receives.
   await page.evaluate(() => {
@@ -51,7 +52,8 @@ test('a touch drag moves a ghost, drops as a pending move, and confirm reveals i
   }
 });
 
-test('dropping a touch drag outside the board cancels it', async ({ page }) => {
+test('dropping a touch drag outside the board cancels it', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'a raw touch drag is sent through the DevTools protocol, which only Chromium has');
   await open(page);
   const a = await center(page, 'a1');
   const b = await board(page).boundingBox();
@@ -61,7 +63,8 @@ test('dropping a touch drag outside the board cancels it', async ({ page }) => {
   await expect(page.locator('.sel')).toHaveCount(0);
 });
 
-test('touchcancel (the OS takes the gesture) cancels the drag cleanly', async ({ page }) => {
+test('touchcancel (the OS takes the gesture) cancels the drag cleanly', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'a raw touch drag is sent through the DevTools protocol, which only Chromium has');
   await open(page);
   const drag = await touchDrag(page, 'a1', 'a7', { release: false });
   await expect(board(page)).toHaveAttribute('data-dragging', 'true');
@@ -72,7 +75,8 @@ test('touchcancel (the OS takes the gesture) cancels the drag cleanly', async ({
   await expect(page.locator('.sel')).toHaveCount(0);
 });
 
-test('the page still scrolls when a touch starts outside the board, and does not when it starts on the board', async ({ page }) => {
+test('the page still scrolls when a touch starts outside the board, and does not when it starts on the board', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'a raw touch drag is sent through the DevTools protocol, which only Chromium has');
   await open(page);
   const scrollable = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
   expect(scrollable, 'the phone layout must be taller than the viewport for this test to mean anything').toBeGreaterThan(120);

@@ -68,6 +68,30 @@ jobs:
           path: web/test-results
           retention-days: 7
 
+  # The same browser specs in Firefox and WebKit (Safari's engine). Playwright retries a failing test once in these projects.
+  other-browsers:
+    name: Firefox and WebKit browser tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npx playwright install --with-deps firefox webkit
+        working-directory: web
+      - run: make other-browsers
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-other-browsers
+          path: web/test-results
+          retention-days: 7
+
   containers:
     name: Container images build and answer
     runs-on: ubuntu-24.04
