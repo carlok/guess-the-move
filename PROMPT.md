@@ -275,6 +275,16 @@ Added after the hand-off request for podman services: sampler streams `http(s)` 
 
 Known limitations (UI, measured/read 2026-11-03): moves are made by click-source-then-click-destination only, with no drag and no pointer-event code; keyboard support is limited to `n` and `Escape`; commit is irreversible; the layout is functional but plain; unicode piece glyphs (look depends on installed fonts); no en-passant/castling-specific UI hints; rank beyond ~10 in the engine ordering is noisy at 400k nodes; the demo set has no endgames and no ratings.
 
+### 14.0 Reading section 14 today (added 2026-11-06)
+
+Sections 14 and 14.1 are a dated log and are kept as written. Several statements in them are no longer true; the current state is:
+
+- **Data:** the shipped `web/data/positions.json` has 2,000 real positions (4.8 MB raw, about 1.3 MB gzipped), not the 90-position demo set. They all come from games dated 2026-09-01, ratings 1200 to 2000, so a wider and fresher set is backlog item 5.
+- **Input:** moves are made by tapping, by dragging, or with the keyboard (arrows, Home, Enter or Space, Escape, `n`, and more; see `README.md`). The "click-source-then-click-destination only" and "`n` and `Escape` only" limits above are gone.
+- **Containers:** both images, the api image and the web image build and answer in GitHub Actions on every pull request ("Container images build and answer"); the `podman build` UNTESTED note above no longer holds for them. The Quadlet unit, SELinux `:Z`, Safari and Firefox, and screen readers are still not verified.
+- **Maia:** the shipped data and the api use Maia-3 (23M). The Maia-2 path is untested and a candidate for removal (backlog item 10).
+- **Lichess `#<ply>` link:** the `ply` values equal the number of half-moves played according to each position's FEN for all 2,000 positions; that the Lichess page opens at that half-move was not confirmed (lichess.org answered the test browser with a bot check).
+
 ### 14.1 Progress log of the continuation session (2026-11-03, a machine with network, podman 5.8.2 machine, Chrome)
 
 Updated at the end of every task (CONTINUE.md order). Evidence is in the commit messages and `CHANGELOG.md`.
