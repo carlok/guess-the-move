@@ -8,6 +8,20 @@ const { defineConfig } = require('@playwright/test');
 
 const external = process.env.GTM_BASE_URL;
 
+/* Firefox and WebKit (Safari's engine), only when GTM_OTHER_BROWSERS is set (`make other-browsers`, the "Firefox and WebKit" CI job): they
+ * are downloads (`npx playwright install firefox webkit`), and the Chrome run above stays what `make ci` does. Desktop size for both,
+ * and WebKit again with a touch phone (the closest thing to Safari on an iPhone that runs without one). */
+function otherBrowsers() {
+  return [
+    { name: 'firefox', testIgnore: /touch\.spec/, use: { browserName: 'firefox', channel: undefined, viewport: { width: 1280, height: 800 } } },
+    { name: 'webkit', testIgnore: /touch\.spec/, use: { browserName: 'webkit', channel: undefined, viewport: { width: 1280, height: 800 } } },
+    {
+      name: 'webkit-phone', testIgnore: /input\.spec/,
+      use: { browserName: 'webkit', channel: undefined, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+    },
+  ];
+}
+
 module.exports = defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
@@ -19,6 +33,7 @@ module.exports = defineConfig({
     reuseExistingServer: true,
   },
   projects: [
+    ...(process.env.GTM_OTHER_BROWSERS ? otherBrowsers() : []),
     { name: 'desktop', testIgnore: /touch\.spec/, use: { viewport: { width: 1280, height: 800 } } },
     { name: 'tablet', testIgnore: /touch\.spec/, use: { viewport: { width: 768, height: 1024 } } },
     {

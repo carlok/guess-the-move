@@ -15,7 +15,7 @@ OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
 .DEFAULT_GOAL := run   # plain `make` serves the site; `make help` lists the targets
-.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e lighthouse web-image builder-image api-image api-weights run run-api stop dataset
+.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e other-browsers lighthouse web-image builder-image api-image api-weights run run-api stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
@@ -74,6 +74,10 @@ dist-check: dist
 
 e2e:
 	cd web && npx playwright test
+
+# The same specs in Firefox and WebKit (needs `cd web && npx playwright install firefox webkit` once); the Chrome projects are skipped.
+other-browsers:
+	cd web && GTM_OTHER_BROWSERS=1 npx playwright test --project=firefox --project=webkit --project=webkit-phone
 
 # Lighthouse (mobile) against the running container (`make run`); writes docs/lighthouse/mobile.report.{json,html}.
 lighthouse:
