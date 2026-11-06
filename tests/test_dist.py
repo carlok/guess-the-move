@@ -167,7 +167,7 @@ def test_the_lazy_parts_are_not_in_the_first_load_but_are_built_stamped_and_prec
     out, r = built
     html = (out / "index.html").read_text(encoding="utf-8")
     sw = (out / "sw.js").read_text(encoding="utf-8")
-    assert sorted(r["lazy"]) == ["backup.js", "pwa.js", "share.js", "statscharts.js"]
+    assert sorted(r["lazy"]) == ["backup.js", "pwa.js", "report.js", "share.js", "statscharts.js"]
     for name in r["lazy"]:
         assert (out / name).is_file()
         assert re.search(r'<script type="text/lazy" src="%s\?v=%s"></script>' % (re.escape(name), r["build"]), html), f"{name} is listed, inert and stamped"

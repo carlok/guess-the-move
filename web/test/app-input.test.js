@@ -2032,7 +2032,7 @@ test('at the start only what the first move needs is loaded: no image saving, no
   assert.equal($(w, 'timer').textContent, '0:00');
   assert.match($(w, 'progress').textContent, /Streak 0/, 'the streak line works from the small stats module');
   assert.deepEqual(w.__lazyLoads, []);
-  assert.equal(w.document.querySelectorAll('script[type="text/lazy"]').length, 4, 'the four lazy parts stay listed in the page');
+  assert.equal(w.document.querySelectorAll('script[type="text/lazy"]').length, 5, 'the five lazy parts stay listed in the page');
 });
 
 test('the service worker part is fetched after the page has loaded, not before, and runs its setup', async () => {
@@ -2042,6 +2042,23 @@ test('the service worker part is fetched after the page has loaded, not before, 
   await tick();
   assert.deepEqual(w.__lazyLoads, ['pwa.js']);
   assert.equal(typeof w.GTM_PWA.setup, 'function');
+});
+
+test('the session report loads its part when the first session ends, and says so when it cannot', async () => {
+  const w = await boot(dataOf(ROOK, CAPTURE), lazyOn());
+  click(w, 'sessionBtn');
+  play(w, 'a1', 'a8');
+  assert.deepEqual(w.__lazyLoads, [], 'nothing about the report is fetched while playing');
+  click(w, 'sessionEnd'); await tick();
+  assert.deepEqual(w.__lazyLoads, ['report.js']);
+  assert.equal($(w, 'reportView').hidden, false);
+  assert.match($(w, 'reportBody').textContent, /\S/, 'the report is drawn');
+  click(w, 'reportCopy'); await tick();
+  const bad = await boot(dataOf(ROOK, CAPTURE), lazyOn({ fail: ['report.js'] }));
+  click(bad, 'sessionBtn'); play(bad, 'a1', 'a8');
+  click(bad, 'sessionEnd'); await tick();
+  assert.equal($(bad, 'reportView').hidden, true, 'the board stays');
+  assert.equal($(bad, 'linkMsg').textContent, 'That part of the page could not be loaded. Check your connection and try again.');
 });
 
 test('the stats page loads its charts the first time, shows a loading line meanwhile, and draws at once afterwards', async () => {
