@@ -40,3 +40,20 @@ def test_the_in_app_credits_name_everything_notice_lists_and_link_to_it():
     assert 'id="authorLink"' in credits and "Carlo Perassi" in credits and "https://github.com/carlok" in credits, "the author and their GitHub"
     assert "2026" in credits, "the year"
     assert "Copyright (C) 2026 Carlo Perassi" in read("NOTICE")
+
+
+BUYMEACOFFEE = "https://buymeacoffee.com/carlok"
+SATISPAY = "https://web.satispay.com/download/qrcode/S6Y-CON--974A8B11-B631-4E2D-8A11-ED1CA5F3749B?locale=it"
+
+
+def test_the_about_page_and_the_footer_link_to_the_donation_pages_safely():
+    html = read("web/index.html")
+    about = html[html.index('id="aboutSupport"'):html.index("</section>", html.index('id="aboutSupport"'))]
+    footer = html[html.index("<footer>"):html.index("</footer>")]
+    for part, ids in ((about, ("coffeeLink", "satispayLink")), (footer, ("footCoffee", "footSatispay"))):
+        for url in (BUYMEACOFFEE, SATISPAY):
+            assert f'href="{url}"' in part, url
+        for id_ in ids:
+            tag = re.search(r'<a id="%s"[^>]*>' % id_, part).group(0)
+            assert 'rel="noopener noreferrer"' in tag and 'target="_blank"' in tag, id_
+    assert "no ads" in about and "never required" in about, "it says plainly that giving is optional"
