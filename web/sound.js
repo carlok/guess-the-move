@@ -23,7 +23,8 @@
     bad: [{ f: 262, f2: 196, d: 0.28, type: 'triangle', g: 0.25 }],
     error: [{ f: 150, d: 0.1, type: 'square', g: 0.06 }],
     next: [{ f: 500, f2: 700, d: 0.06, g: 0.1 }],
-    tick: [{ f: 880, d: 0.03, g: 0.06 }]
+    tick: [{ f: 880, d: 0.03, g: 0.06 }],
+    minute: [{ f: 1047, d: 0.18, g: 0.14 }]
   };
 
   function voice(ctx, v, at) {

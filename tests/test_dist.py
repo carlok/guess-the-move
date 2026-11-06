@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_dist as D  # noqa: E402
 
 FIRST_LOAD_GZIP_BUDGET = 60 * 1024    # scripts and styles the page loads at the start, gzipped (the budget the Lighthouse run was held to)
-CODE_GZIP_BUDGET = 72 * 1024          # all of them, with the parts that load on first use (save image, stats file, stats charts)
+CODE_GZIP_BUDGET = 74 * 1024          # all of them, with the parts that load on first use (save image, stats file, stats charts, the worker setup); 72 -> 74 for the minute beep, the Share button and the update-bar check, with the first load well inside its own 60 KB
 DATA_GZIP_BUDGET = 1600 * 1024        # the shipped dataset, gzipped
 
 
