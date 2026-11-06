@@ -33,10 +33,10 @@ def test_every_make_target_the_workflow_calls_exists(wf):
 
 def test_ci_runs_the_same_steps_as_make_ci(wf):
     ci = re.search(r"^ci:(.*?)(?=^\S)", (ROOT / "Makefile").read_text(), flags=re.M | re.S).group(0)
-    for needed in ("coverage-python", "coverage-js", "npm test", "playwright test", "containers-check"):
+    for needed in ("coverage-python", "coverage-js", "npm test", "playwright test", "lighthouse-check", "containers-check"):
         assert needed in ci, needed
     workflow_text = WORKFLOW.read_text()
-    for needed in ("make coverage-python", "make coverage-js", "npm test", "npx playwright test", "make containers-check"):
+    for needed in ("make coverage-python", "make coverage-js", "npm test", "npx playwright test", "make lighthouse-check", "make containers-check"):
         assert needed in workflow_text, needed
 
 
@@ -54,3 +54,10 @@ def test_the_container_check_script_is_executable_and_strict():
     text = script.read_text()
     assert "set -euo pipefail" in text and "trap cleanup EXIT" in text
     assert "Stockfish 19" in text, "it must notice an engine regression"
+
+
+def test_the_firefox_and_webkit_job_is_a_real_gate(wf):
+    job = wf["jobs"]["other-browsers"]
+    assert not job.get("continue-on-error"), "a failure there must fail the run"
+    runs = " ".join(step.get("run", "") for step in job["steps"])
+    assert "playwright install --with-deps firefox webkit" in runs and "make other-browsers" in runs

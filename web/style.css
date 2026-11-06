@@ -323,3 +323,13 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4p
   #gameMain { grid-template-columns: var(--board-size) minmax(300px, var(--panel-max)); }
 }
 @media (min-width: 2000px) { :root { --board-max: 1260px; --panel-max: 800px; } }
+
+/* The opening line and the chips fill in when the first position arrives. On the stacked layout (phone and tablet) their rows are kept,
+ * and the position line is two lines tall on a phone, so the board does not jump down by about 100 px at that moment: the layout shift
+ * Lighthouse measured on the real build. Not on the two-column desktop layout, where the board is sized to the window height and every
+ * row above it takes board size. */
+@media (max-width: 899px) {
+  .openingline { min-height: 21px; } .chips { min-height: 31px; }
+  html:not(.focus-mode) .stage .openingline[hidden], html:not(.focus-mode) .stage .chips[hidden] { display: block !important; visibility: hidden; }
+}
+@media (max-width: 480px) { .posinfo { min-height: 5rem; } }

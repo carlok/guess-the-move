@@ -53,6 +53,14 @@ jobs:
         working-directory: web
       - run: npx playwright test
         working-directory: web
+      - run: make lighthouse-check  # Lighthouse (mobile) on the real build; fails below the budgets in tools/lighthouse_check.js
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: lighthouse-report
+          path: test-results/lighthouse-report.json
+          retention-days: 7
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -60,12 +68,11 @@ jobs:
           path: web/test-results
           retention-days: 7
 
-  # The same browser specs in Firefox and WebKit. Reported but not yet required (continue-on-error) until the first runs are clean.
+  # The same browser specs in Firefox and WebKit (Safari's engine). Playwright retries a failing test once in these projects.
   other-browsers:
     name: Firefox and WebKit browser tests
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
