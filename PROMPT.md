@@ -283,7 +283,7 @@ Sections 14 and 14.1 are a dated log and are kept as written. Several statements
 - **Input:** moves are made by tapping, by dragging, or with the keyboard (arrows, Home, Enter or Space, Escape, `n`, and more; see `README.md`). The "click-source-then-click-destination only" and "`n` and `Escape` only" limits above are gone.
 - **Containers:** both images, the api image and the web image build and answer in GitHub Actions on every pull request ("Container images build and answer"); the `podman build` UNTESTED note above no longer holds for them. The Quadlet unit, SELinux `:Z`, Safari and Firefox, and screen readers are still not verified.
 - **Maia:** the shipped data and the api use Maia-3 (23M). The Maia-2 path is untested and a candidate for removal (backlog item 10).
-- **Lichess `#<ply>` link:** the `ply` values equal the number of half-moves played according to each position's FEN for all 2,000 positions; that the Lichess page opens at that half-move was not confirmed (lichess.org answered the test browser with a bot check).
+- **Lichess `#<ply>` link:** the `ply` values equal the number of half-moves played according to each position's FEN for all 2,000 positions, and the link was checked by hand on one game (2026-11-06, by a person driving a normal browser; lichess.org shows a bot check to automated ones): `https://lichess.org/wJ6pj09u#45` opened at the position `2kr4/1pp3pp/p3pp2/8/1bP2PP1/1P5P/P3KB2/3R4 b - - 2 23` (after 23. Bf2), exactly the FEN of the dataset position with `ply` 45; `#0` and the bare link both open at the start position. One game is one data point, not a survey.
 
 ### 14.1 Progress log of the continuation session (2026-11-03, a machine with network, podman 5.8.2 machine, Chrome)
 
