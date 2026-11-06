@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SD = window.GTM_SEED, SRS = window.GTM_SRS, RP = window.GTM_REPORT;
+  var T = window.GTM_STRINGS, G = window.GTM, B = window.GTM_BOARD, CL = window.GTM_CLASSIFY, TV = window.GTM_TIERVIEW, SD = window.GTM_SEED, SRS = window.GTM_SRS;
   var SPRITE = 'pieces.svg#';
   var DASH = { you: 'dotted', best: 'solid', real: 'dashed', maia: 'dashdot', preview: 'solid' };
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
@@ -893,6 +893,10 @@
   function reportOpen() { return !$('reportView').hidden; }
 
   function openReport(partial) {
+    lazy('report.js', 'GTM_REPORT', function (RP) { showReport(RP, partial); }, function () { $('linkMsg').textContent = T.lazyFailed; });
+  }
+
+  function showReport(RP, partial) {
     var rows = S.session.rows;
     var sum = RP.summarize(rows);
     store.set(LAST_KEY, { t: nowMs(), n: sum.n, quality: Math.round(sum.quality), found: sum.found });
@@ -1166,7 +1170,7 @@
 
   /* The scripts this one needs. If one did not load (a 404 from a stale image or a bad deploy, a blocked request) say so
    * plainly instead of failing on the first move with a console error. GTM_SOUND is optional (the page works without it). */
-  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SEED', 'GTM_SRS', 'GTM_REPORT', 'GTM_STATS', 'GTM_LEVEL'];
+  var REQUIRED = ['GTM_STRINGS', 'GTM', 'GTM_BOARD', 'GTM_CLASSIFY', 'GTM_TIERVIEW', 'GTM_SEED', 'GTM_SRS', 'GTM_STATS', 'GTM_LEVEL'];
 
   function missingScripts() { return REQUIRED.filter(function (k) { return !window[k]; }); }
 
@@ -1270,7 +1274,7 @@
     $('reportAgain').addEventListener('click', function () { closeReport(false); startSession(); });
     $('reportCopy').addEventListener('click', function () {
       if (!S.session) return;
-      var ch = S.session.challenge;
+      var ch = S.session.challenge, RP = window.GTM_REPORT;
       if (ch) copyText(RP.challengeText(S.session.rows, T, challengeTitle(ch), challengeLink(ch)), $('reportMsg'), T.challenge.copied);
       else copyText(RP.text(S.session.rows, T, window.location.origin + window.location.pathname), $('reportMsg'), T.session.copied);
     });
