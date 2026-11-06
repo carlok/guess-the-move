@@ -2172,6 +2172,32 @@ test('the focus button is on the board, labelled, and toggles the mode, its labe
   assert.equal(inFocus(w), false); assert.equal(b.getAttribute('aria-label'), 'Focus on the board');
 });
 
+test('the late "left full screen" event after Esc does not switch off a focus mode started in the meantime', async () => {
+  const w = await boot(dataOf(ROOK)), fs = fakeFullscreen(w);
+  click(w, 'focusBtn'); await tick();
+  docKey(w, 'Escape'); await tick();
+  assert.equal(inFocus(w), false); assert.equal(fs.exit, 1);
+  rootOf(w).requestFullscreen = () => new Promise(() => {}); // the browser is still busy leaving: the new request is pending
+  docKey(w, 'f');
+  assert.equal(inFocus(w), true);
+  w.document.dispatchEvent(new w.Event('fullscreenchange')); // the event for our own exit arrives late
+  assert.equal(inFocus(w), true, 'our own exit does not undo the new focus mode');
+  w.document.dispatchEvent(new w.Event('fullscreenchange')); // a second event with no full screen is the person leaving it
+  assert.equal(inFocus(w), false, 'a real Esc in the browser still ends it');
+});
+
+test('a refused exit does not make the next real Esc get ignored', async () => {
+  const w = await boot(dataOf(ROOK)), fs = fakeFullscreen(w);
+  click(w, 'focusBtn'); await tick();
+  w.document.exitFullscreen = () => Promise.reject(new Error('refused'));
+  click(w, 'focusBtn'); await tick();
+  assert.equal(inFocus(w), false);
+  click(w, 'focusBtn'); await tick();
+  assert.equal(inFocus(w), true);
+  fs.end();
+  assert.equal(inFocus(w), false, 'the person\'s Esc counts');
+});
+
 test('it asks the browser for full screen too, and leaves it again; a refusal keeps the page-level mode', async () => {
   const w = await boot(dataOf(ROOK)), fs = fakeFullscreen(w);
   click(w, 'focusBtn'); await tick();
