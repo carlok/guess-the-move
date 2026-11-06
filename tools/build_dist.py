@@ -26,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
 NGINX = ROOT / "containers" / "web" / "nginx.conf"
-EXTRAS = ("pieces.svg", "data/positions.json", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "sw.js")  # fetched by the scripts or the browser, not referenced by index.html
+EXTRAS = ("pieces.svg", "data/first.json", "data/positions.json", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "sw.js")  # fetched by the scripts or the browser, not referenced by index.html
 ATTR = re.compile(r'(<script\b[^>]*\bsrc="|<link\b[^>]*\bhref=")([^"#:?]+\.(?:js|css|svg|webmanifest|png))(\?[^"]*)?(")')
 
 

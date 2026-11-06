@@ -24,7 +24,7 @@ Read `PROMPT.md` for the full engineering brief (goals, decisions, scoring spec,
 python3 -m http.server -d web 8000     # then open http://localhost:8000
 ```
 
-`web/data/positions.json` ships 2,000 real positions: Lichess standard rated games of 2026-09 (CC0), players rated 1200 to 2000, every legal move evaluated by Stockfish 19 at 400,000 nodes, with Maia-3 move probabilities (details in `PROMPT.md` section 14.1). All of them come from one date, so a larger and fresher set is on the backlog. Build your own set below.
+`web/data/positions.json` ships 2,000 real positions: Lichess standard rated games of 2026-09 (CC0), players rated 1200 to 2000, every legal move evaluated by Stockfish 19 at 400,000 nodes, with Maia-3 move probabilities (details in `PROMPT.md` section 14.1). All of them come from one date, so a larger and fresher set is on the backlog. The page loads `web/data/first.json` first (24 of them, about 20 KB gzipped, made by `tools/make_first.py`; `make dataset` refreshes it) so the first position can be played at once, and swaps in the full file when it arrives. Build your own set below.
 
 ## Playing
 
@@ -162,7 +162,7 @@ PROMPT.md            engineering brief (single source of truth)
 CONTINUE.md          ready-to-paste prompt for the next session (needs network + podman)
 compose.yaml, Makefile, containers/, deploy/quadlet/   podman packaging
 pipeline/            PGN sampler, engine/Maia backends, tags, dataset builder, demo games
-web/                 static app: index.html, app.js, scoring.js, style.css, data/positions.json
+web/                 static app: index.html, app.js, scoring.js, style.css, data/positions.json (+ data/first.json, the sample loaded first)
 tests/               pytest suite + vectors.json (shared with the JS tests)
 tools/engine-node/   Stockfish (npm), git-ignored
 ```

@@ -563,6 +563,99 @@ test('the beep setting is remembered and restored', async () => {
   assert.equal($(w, 'beepToggle').checked, false);
 });
 
+/* ---------- the data arrives in two steps: a small sample first, then the full file ---------- */
+
+function twoSteps({ first, full, failFirst = false, failFull = false, holdFirst = false, holdFull = true }) {
+  const gates = {}, urls = [];
+  const wait = (name, hold) => (hold ? new Promise((r) => { gates[name] = r; }) : Promise.resolve());
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    if (!/(first|positions)\.json$/.test(url)) return { ok: false, status: 404, json: async () => ({}) }; // the api probe and anything else
+    const isFirst = /first\.json$/.test(url);
+    await wait(isFirst ? 'first' : 'full', isFirst ? holdFirst : holdFull);
+    if (isFirst ? failFirst : failFull) return { ok: false, status: 503, json: async () => ({}) };
+    return { ok: true, json: async () => (isFirst ? first : full) };
+  };
+  return { fetchImpl, urls, release: (name) => gates[name] && gates[name]() };
+}
+const sample = (positions, of) => ({ schema: 1, meta: { demo: false, partial: { of } }, positions });
+const matchText = (w) => $(w, 'matchCount').textContent;
+
+test('the first position is playable from the sample while the full file is still on its way, and the full file then arrives without changing the board', async () => {
+  const t = twoSteps({ first: sample([ROOK], 3), full: dataOf(ROOK, CAPTURE, EP) });
+  const w = await boot(dataOf(ROOK), { fetchImpl: t.fetchImpl });
+  assert.deepEqual(t.urls.slice(0, 2).sort(), ['data/first.json', 'data/positions.json']);
+  assert.equal(matchText(w), '1 position match');
+  assert.equal($(w, 'skeleton').hidden, true); assert.ok(w.document.querySelectorAll('[data-sq]').length === 64, 'the board is drawn');
+  assert.equal($(w, 'dailyBtn').disabled, true); assert.equal($(w, 'friendBtn').disabled, true, 'challenges pick from every position');
+  play(w, 'a1', 'a8');
+  assert.equal($(w, 'result').hidden, false, 'a move can be answered from the sample');
+  const info = $(w, 'posInfo').textContent;
+  t.release('full'); await tick();
+  assert.equal(matchText(w), '2 positions match', 'all three now, minus the one just answered (the unseen filter is on)');
+  assert.equal($(w, 'dailyBtn').disabled, false); assert.equal($(w, 'friendBtn').disabled, false);
+  assert.equal($(w, 'result').hidden, false, 'the answer on the board is still there');
+  assert.equal($(w, 'posInfo').textContent, info, 'and so is the position');
+});
+
+test('when the full file arrives first the sample is ignored', async () => {
+  const t = twoSteps({ first: sample([ROOK], 3), full: dataOf(ROOK, CAPTURE, EP), holdFull: false, holdFirst: true });
+  const w = await boot(dataOf(ROOK), { fetchImpl: t.fetchImpl });
+  assert.equal(matchText(w), '3 positions match');
+  t.release('first'); await tick();
+  assert.equal(matchText(w), '3 positions match', 'a late sample does not replace the full data');
+  assert.equal($(w, 'dailyBtn').disabled, false);
+});
+
+test('with no sample file the page waits for the full one, silently', async () => {
+  const t = twoSteps({ first: null, full: dataOf(ROOK, CAPTURE), failFirst: true, holdFull: false });
+  const w = await boot(dataOf(ROOK), { fetchImpl: t.fetchImpl });
+  assert.equal(matchText(w), '2 positions match');
+  assert.equal($(w, 'prompt').textContent.includes('Could not load'), false);
+});
+
+test('a link to a position in the sample opens at once; a link to another one waits for the full file, then opens', async () => {
+  const inSample = twoSteps({ first: sample([HA], 2), full: dataOf(HA, HB) });
+  const a = await boot(dataOf(HA), { fetchImpl: inSample.fetchImpl, hash: '#p=' + HA.id });
+  assert.equal($(a, 'skeleton').hidden, true);
+  assert.ok(a.document.getElementById('posInfo').textContent.length > 0, 'opened from the sample');
+  const later = twoSteps({ first: sample([HA], 2), full: dataOf(HA, HB) });
+  const b = await boot(dataOf(HA), { fetchImpl: later.fetchImpl, hash: '#p=' + HB.id });
+  assert.equal(b.document.getElementById('posInfo').textContent, '', 'nothing is shown, and no "not in this dataset" yet');
+  assert.equal($(b, 'prompt').textContent.includes('not in this dataset'), false);
+  later.release('full'); await tick();
+  assert.equal($(b, 'prompt').textContent.includes('not in this dataset'), false);
+  assert.equal(b.document.getElementById('posInfo').textContent.includes('to move'), true, 'opened once the full file is here');
+  assert.equal(b.document.querySelector('[data-sq="a1"] , [data-sq="e5"]') !== null, true);
+});
+
+test('a challenge link waits for the full file too', async () => {
+  const t = twoSteps({ first: sample([ROOK], 12), full: chData() });
+  const w = await boot(dataOf(ROOK), { fetchImpl: t.fetchImpl, hash: '#c=abc123.0000' });
+  assert.equal($(w, 'sessionChip').hidden, true, 'not started on the sample');
+  assert.equal($(w, 'posInfo').textContent, '', 'and no position is shown yet');
+  t.release('full'); await tick();
+  assert.equal($(w, 'posInfo').textContent.includes('to move'), true, 'the link is followed once the full file is here');
+});
+
+test('if the full file cannot be loaded the sample stays playable and the page says so', async () => {
+  const t = twoSteps({ first: sample([ROOK], 3), full: null, failFull: true, holdFull: false });
+  const w = await boot(dataOf(ROOK), { fetchImpl: t.fetchImpl });
+  assert.equal(matchText(w), '1 position match');
+  assert.equal($(w, 'linkMsg').textContent, 'Could not load all the positions, so you are playing a small sample. Reload to try again.');
+  assert.equal($(w, 'dailyBtn').disabled, true);
+});
+
+test('the menus keep the chosen filter when the full file replaces the sample', async () => {
+  const withTag = (p) => ({ ...p, tags: ['hard_find'] });
+  const t = twoSteps({ first: sample([withTag(ROOK)], 3), full: dataOf(withTag(ROOK), withTag(CAPTURE), CAPTURE) });
+  const w = await boot(dataOf(ROOK), { fetchImpl: t.fetchImpl });
+  $(w, 'tag').value = 'hard_find'; $(w, 'tag').dispatchEvent(new w.Event('change', { bubbles: true }));
+  t.release('full'); await tick();
+  assert.equal($(w, 'tag').value, 'hard_find');
+  assert.match($(w, 'tag').selectedOptions[0].textContent, /\(\d\)/);
+});
+
 test('a capture and en passant sound heavier; a poor move ends on the low tone; a middling one on the neutral pair', async () => {
   const cap = fakeAudio();
   let w = await boot(dataOf(CAPTURE), { audio: cap.Ctx });

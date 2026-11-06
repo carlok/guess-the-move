@@ -141,3 +141,4 @@ dataset: builder-image
 	mkdir -p $(IN) $(OUT)
 	$(PODMAN) run --rm -v $(IN):/in:ro,Z -v $(OUT):/out:Z $(BUILDER_IMG) \
 	  --pgn $(PGN) --out /out/positions.json $(ARGS)
+	python3 tools/make_first.py --src $(OUT)/positions.json --out $(OUT)/first.json   # the small file the page loads first
