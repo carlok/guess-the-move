@@ -15,13 +15,15 @@ const zlib = require('node:zlib');
 const cp = require('node:child_process');
 
 const LIGHTHOUSE = 'lighthouse@13.6.0';
-/* Scores are 0 to 1, metrics are in ms (layout shift unitless). The performance score and the metrics that depend on the runner's
- * CPU (blocking time, interactive) are reported and not gated: the same build scored 92 on a Mac and 49 on a GitHub runner, because
- * parsing the 4.8 MB dataset at start-up took 340 ms against 1,650 ms of blocking time. They can be gated once the dataset is
- * split into shards (backlog item 5). Largest paint and layout shift are what the start-up fixes address, and they hold on both. */
+/* Scores are 0 to 1 (layout shift is unitless). Only what does not depend on the machine is gated. The performance score, the largest
+ * paint and the blocking time are reported, not gated: the same build gave 92, 0.9 s and 340 ms on a Mac and 49, 8.3 s and 1,650 ms
+ * on a GitHub runner. Lighthouse's simulation makes the page's first script run wait for every request that had finished before it
+ * started in the observed load; on the slower runner the 1.3 MB dataset had, so the simulated largest paint (the first-run tour,
+ * painted by that script) waited for a download that in a real load it does not wait for. Gate them once the dataset is split into
+ * shards (backlog item 5) and the file is small. */
 const BUDGET = {
   categories: { accessibility: 0.95, 'best-practices': 0.95 },
-  metrics: { 'largest-contentful-paint': 2500, 'cumulative-layout-shift': 0.1 }
+  metrics: { 'cumulative-layout-shift': 0.1 }
 };
 const REPORTED = ['first-contentful-paint', 'largest-contentful-paint', 'cumulative-layout-shift', 'total-blocking-time', 'speed-index', 'total-byte-weight'];
 

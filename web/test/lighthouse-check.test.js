@@ -26,13 +26,13 @@ test('a build inside its budgets passes, and the summary keeps the scores and th
   assert.deepEqual([r.summary.tool, r.summary.formFactor, r.summary.throttling], ['lighthouse 13.6.0', 'mobile', 'simulate']);
 });
 
-test('a low score, a slow largest paint and a layout shift are each reported', () => {
+test('a low accessibility score and a layout shift are reported; a slow largest paint and a low performance score are not', () => {
   const bad = lhr({ categories: { performance: { score: 0.49 }, accessibility: { score: 0.9 }, 'best-practices': { score: 0.96 } } });
   bad.audits['largest-contentful-paint'].numericValue = 8400; bad.audits['cumulative-layout-shift'].numericValue = 0.136;
   const f = evaluate(bad).failures.join('\n');
   assert.doesNotMatch(f, /performance/, 'the performance score is reported, not gated (it differs a lot between machines)');
   assert.match(f, /accessibility score 90 is below 95/);
-  assert.match(f, /largest-contentful-paint 8400 is above 2500/);
+  assert.doesNotMatch(f, /largest-contentful-paint/, 'the largest paint is reported, not gated (it depends on the machine)');
   assert.match(f, /cumulative-layout-shift 0\.136 is above 0\.1/);
   assert.doesNotMatch(f, /best-practices/);
 });
@@ -44,7 +44,7 @@ test('a missing category or metric fails instead of passing by default; blocking
   assert.match(f, /cumulative-layout-shift missing/);
   const slow = lhr(); slow.audits['total-blocking-time'].numericValue = 5000;
   assert.deepEqual(evaluate(slow).failures, []);
-  assert.deepEqual(Object.keys(BUDGET.metrics), ['largest-contentful-paint', 'cumulative-layout-shift']);
+  assert.deepEqual(Object.keys(BUDGET.metrics), ['cumulative-layout-shift']);
   assert.deepEqual(Object.keys(BUDGET.categories), ['accessibility', 'best-practices']);
 });
 
