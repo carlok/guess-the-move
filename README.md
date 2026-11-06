@@ -24,7 +24,7 @@ Read `PROMPT.md` for the full engineering brief (goals, decisions, scoring spec,
 python3 -m http.server -d web 8000     # then open http://localhost:8000
 ```
 
-`web/data/positions.json` ships as **demo data** (three public-domain historical games, no ratings, so no Maia data). Build a real set below.
+`web/data/positions.json` ships 2,000 real positions: Lichess standard rated games of 2026-09 (CC0), players rated 1200 to 2000, every legal move evaluated by Stockfish 19 at 400,000 nodes, with Maia-3 move probabilities (details in `PROMPT.md` section 14.1). All of them come from one date, so a larger and fresher set is on the backlog. Build your own set below.
 
 ## Playing
 
@@ -87,7 +87,7 @@ podman compose --profile build run --rm builder --help
 GTM_BASE_URL=http://127.0.0.1:8080 make e2e   # the browser tests against the running container
 ```
 
-Pieces: `containers/web` (nginx-unprivileged, strict CSP, `/healthz`), `containers/builder` (Python + Debian Stockfish; `WITH_MAIA=1` adds CPU torch + maia2), `compose.yaml`, `Makefile`, `deploy/quadlet/` (systemd user unit). Planned services (`api`, optional Valkey) are in `PROMPT.md` section 4.1.
+Pieces: `containers/web` (nginx-unprivileged, strict CSP, `/healthz`), `containers/builder` (Python + the official Stockfish 19 build; `WITH_MAIA=1` adds CPU torch + Maia-3), `compose.yaml`, `Makefile`, `deploy/quadlet/` (systemd user unit). The optional analysis service is `containers/api` (see "The api service" below); an optional Valkey cache is described in `PROMPT.md` section 4.1 and is not built.
 
 What the first real runs showed (details in `PROMPT.md` 14.1):
 - The web container runs as uid 101 with `--read-only --tmpfs /tmp --cap-drop=all --security-opt no-new-privileges`: nginx-unprivileged needs nothing writable beyond `/tmp`.
@@ -129,10 +129,10 @@ Safety: FENs are validated with python-chess (length cap, legal and reachable po
    .venv/bin/python -m pipeline.build_dataset \
      --pgn lichess_db_standard_rated_2026-09.pgn.zst --out web/data/positions.json \
      --min-elo 1200 --max-elo 2000 --time-controls Rapid,Classical --max-games 200000 \
-     --candidates 1500 --keep 400 --nodes 400000 --maia maia2
+     --candidates 1500 --keep 400 --nodes 400000 --maia maia3
    ```
    Cost: about 2.5 s per position at 400k nodes on one core (every legal move is evaluated with MultiPV).
-4. **Maia** (`--maia maia2`) needs `pip install maia2` (Python 3.10-3.12, pulls torch) and network access to download its weights. This path is **untested** in the environment that built v1; the pipeline fails loudly if the model returns anything other than legal UCI moves. Use `--maia none` (default) to build without human-model data.
+4. **Maia** (`--maia maia3`, the model of the shipped set; `--maia-model maia3-23m` is the default size) needs the packages in `requirements-maia3.txt` (Python up to 3.12, pulls torch) and network access to download its weights. The older `--maia maia2` path is **untested** and is a candidate for removal; the pipeline fails loudly if a model returns anything other than legal UCI moves. Use `--maia none` (default) to build without human-model data.
 
 Useful flags: `--per-game`, `--min-ply/--max-ply`, `--max-abs-cp` (drop already-decided positions), `--keep-trivial`, `--seed`, `--allow-missing-elo`.
 
@@ -169,4 +169,4 @@ tools/engine-node/   Stockfish (npm), git-ignored
 
 ## Status
 
-v1: pipeline + static app + demo data + podman packaging (images not yet built anywhere). Not yet done: real-game dataset, Maia path run for real, level estimator (see roadmap in `PROMPT.md`). Licensed AGPL-3.0-or-later (see Licence).
+The static app, the pipeline, a 2,000-position real dataset with Maia-3 data, the in-browser level estimate, the optional analysis service and the podman images are built, and GitHub Actions builds and probes the images on every pull request. Not verified: Safari, Firefox, real phones and screen readers. What is next is the ranked backlog in `CHANGELOG.md` and the roadmap in `PROMPT.md`. Licensed AGPL-3.0-or-later (see Licence).
