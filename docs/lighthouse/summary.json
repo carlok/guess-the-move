@@ -1,19 +1,19 @@
 {
+  "target": "dist/ served with gzip by tools/lighthouse_check.js, shipped dataset (2000 positions), headless Chrome, one run, 2026-11-06",
   "tool": "lighthouse 13.6.0",
   "formFactor": "mobile",
   "throttling": "simulate",
-  "target": "nginx container, demo dataset (90 positions), headless Chrome, one run, 2026-11-03",
   "scores": {
-    "performance": 100,
+    "performance": 92,
     "accessibility": 100,
     "best-practices": 100
   },
   "metrics": {
-    "first-contentful-paint": "0.9\u00a0s",
-    "largest-contentful-paint": "1.4\u00a0s",
-    "cumulative-layout-shift": "0.003",
-    "total-blocking-time": "0\u00a0ms",
-    "speed-index": "0.9\u00a0s",
-    "total-byte-weight": "Total size was 59\u00a0KiB"
+    "first-contentful-paint": "0.9 s",
+    "largest-contentful-paint": "0.9 s",
+    "cumulative-layout-shift": "0.002",
+    "total-blocking-time": "340 ms",
+    "speed-index": "1.0 s",
+    "total-byte-weight": "Total size was 1,380 KiB"
   }
 }

@@ -15,13 +15,14 @@ OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
 .DEFAULT_GOAL := run   # plain `make` serves the site; `make help` lists the targets
-.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e lighthouse web-image builder-image api-image api-weights run run-api stop dataset
+.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e lighthouse lighthouse-check web-image builder-image api-image api-weights run run-api stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
 	@echo "make ci               what GitHub Actions runs: coverage, all tests, browser tests, container checks"
 	@echo "make containers-check build the images and probe them (podman)"
 	@echo "make mutation        mutation spot-check (mutmut on winpct/tags, Stryker on scoring.js); not a gate"
+	@echo "make lighthouse-check Lighthouse on the real build; fails below the budgets (part of make ci)"
 	@echo "make lighthouse      Lighthouse mobile run against the container from `make run` (adjust the Chrome path on Linux)"
 	@echo "make e2e             browser tests in Chrome; GTM_BASE_URL=http://127.0.0.1:8080 targets a running container"
 	@echo "make web-image       build $(WEB_IMG)"
@@ -55,6 +56,7 @@ ci: coverage-python coverage-js
 	cd web && npm test
 	cd web && npx playwright test
 	$(MAKE) dist-check
+	$(MAKE) lighthouse-check
 	$(MAKE) containers-check
 
 # Stryker edits web/scoring.js in place and restores it: run on a clean tree (git status).
@@ -74,6 +76,12 @@ dist-check: dist
 
 e2e:
 	cd web && npx playwright test
+
+# Lighthouse (mobile) on `make dist` with the shipped dataset, served by the tool itself (gzip, like nginx); fails below the budgets in
+# tools/lighthouse_check.js. Needs Chrome (CHROME_PATH, or the macOS default). Refresh the kept numbers with
+#   node tools/lighthouse_check.js --write docs/lighthouse/summary.json
+lighthouse-check: dist
+	node tools/lighthouse_check.js
 
 # Lighthouse (mobile) against the running container (`make run`); writes docs/lighthouse/mobile.report.{json,html}.
 lighthouse:

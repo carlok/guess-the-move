@@ -49,6 +49,24 @@ test('a loading skeleton shows while the data loads, then the board replaces it'
   await expect(page.locator('#skeleton')).toBeHidden();
 });
 
+test('the board does not jump when the first position arrives (the opening line and chips have their rows reserved)', async ({ page }) => {
+  test.skip(page.viewportSize().width >= 900, 'the stacked layout only: on the desktop grid the rows are not reserved, to keep the board large');
+  await preset(page);
+  await page.route('**/data/positions.json', async (route) => {
+    await new Promise((r) => setTimeout(r, 1200));
+    await route.fulfill({ json: { schema: 1, meta: { demo: false }, positions: [{ ...ROOK, game: { opening: 'Scandinavian Defense', eco: 'B01' } }] } });
+  });
+  await page.addInitScript(() => {
+    window.__cls = 0;
+    new PerformanceObserver((list) => { for (const e of list.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: 'layout-shift', buffered: true });
+  });
+  await page.goto('/');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await expect(page.locator('#openingLine')).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__cls), 'cumulative layout shift while the data arrives').toBeLessThan(0.02);
+});
+
 test('a failed load explains itself and offers a retry that works', async ({ page }) => {
   await preset(page);
   let fail = true;

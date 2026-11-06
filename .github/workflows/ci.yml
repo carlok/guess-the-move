@@ -53,6 +53,7 @@ jobs:
         working-directory: web
       - run: npx playwright test
         working-directory: web
+      - run: make lighthouse-check  # Lighthouse (mobile) on the real build; fails below the budgets in tools/lighthouse_check.js
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
