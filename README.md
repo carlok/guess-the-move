@@ -138,7 +138,7 @@ Useful flags: `--per-game`, `--min-ply/--max-ply`, `--max-abs-cp` (drop already-
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` (GitHub Actions) runs three jobs on every push to `main` and every pull request: Python tests with coverage, the web tests (jsdom, coverage, the click-every-position test, the browser tests in Chrome), and the container check. Each step is a `make` target, so the same thing runs on your machine first:
+`.github/workflows/ci.yml` (GitHub Actions) runs four jobs on every push to `main` and every pull request: Python tests with coverage, the web tests (jsdom, coverage, the click-every-position test, the browser tests in Chrome, Lighthouse on the real build), the same browser tests in Firefox and WebKit (`make other-browsers`; run `cd web && npx playwright install firefox webkit` once to use it locally), and the container check. Each step is a `make` target, so the same thing runs on your machine first:
 
 ```bash
 make ci                  # coverage, all tests, browser tests, container check: about 2 minutes here
@@ -169,4 +169,4 @@ tools/engine-node/   Stockfish (npm), git-ignored
 
 ## Status
 
-The static app, the pipeline, a 2,000-position real dataset with Maia-3 data, the in-browser level estimate, the optional analysis service and the podman images are built, and GitHub Actions builds and probes the images on every pull request. Not verified: Safari, Firefox, real phones and screen readers. What is next is the ranked backlog in `CHANGELOG.md` and the roadmap in `PROMPT.md`. Licensed AGPL-3.0-or-later (see Licence).
+The static app, the pipeline, a 2,000-position real dataset with Maia-3 data, the in-browser level estimate, the optional analysis service and the podman images are built, and GitHub Actions builds and probes the images on every pull request. Firefox and WebKit (Safari's engine) run the browser tests in CI; real Safari, real phones and screen readers are not verified. What is next is the ranked backlog in `CHANGELOG.md` and the roadmap in `PROMPT.md`. Licensed AGPL-3.0-or-later (see Licence).

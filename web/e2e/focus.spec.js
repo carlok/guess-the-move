@@ -15,18 +15,21 @@ const boardBox = (page) => page.locator('#boardWrap').boundingBox();
 
 test('the board grows to the largest square the screen allows, the rest of the page steps aside, and a move brings it back', async ({ page }) => {
   await open(page);
-  const vp = page.viewportSize();
   const before = await boardBox(page);
   await page.locator('#focusBtn').click();
   await expect(page.locator('html')).toHaveClass(/focus-mode/);
   for (const sel of ['.topbar', '.panel', '.actionbar', 'footer']) await expect(page.locator(sel).first(), sel).toBeHidden();
   await expect(page.locator('#timer')).toBeVisible();
   await expect(page.locator('#posInfo')).toBeVisible();
-  const after = await boardBox(page);
+  // A browser that really enters full screen (Firefox, even headless) is still resizing for a moment after the class appears, and the
+  // screen it fills is not the test's viewport (768 high, not 800): measure against the window the page has now.
+  const screen = () => page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  await expect.poll(async () => { const v = await screen(); return (await boardBox(page)).width - (Math.min(v.width, v.height - 56) - 4); },
+    'using nearly all of the shorter side (3.5rem is left for the line above)').toBeGreaterThan(0);
+  const after = await boardBox(page), now = await screen();
   expect(after.width, 'the board is not smaller').toBeGreaterThanOrEqual(before.width - 1);
-  expect(after.width, 'and is a square that fits the screen').toBeLessThanOrEqual(Math.min(vp.width, vp.height) + 1);
-  expect(after.width, 'using nearly all of the shorter side (3.5rem is left for the line above)').toBeGreaterThan(Math.min(vp.width, vp.height - 56) - 4);
-  expect(after.y + after.height, 'it fits without scrolling').toBeLessThanOrEqual(vp.height + 1);
+  expect(after.width, 'and is a square that fits the screen').toBeLessThanOrEqual(Math.min(now.width, now.height) + 1);
+  expect(after.y + after.height, 'it fits without scrolling').toBeLessThanOrEqual(now.height + 1);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth), 'no scrollbars').toBe(true);
   await clickMove(page, 'a1a8');
   await expect(page.locator('html')).not.toHaveClass(/focus-mode/);

@@ -54,10 +54,16 @@ test.describe('drag and drop', () => {
   test('the ghost really moves with the pointer', async ({ page }) => {
     await open(page);
     await mouseDrag(page, 'a1', 'c3', { release: false });
-    const ghost = page.locator('#gGhost > *').first();
-    const g = await ghost.boundingBox(), t = await square(page, 'c3').boundingBox();
-    expect(Math.abs(g.x + g.width / 2 - (t.x + t.width / 2))).toBeLessThan(t.width / 2);
-    expect(Math.abs(g.y + g.height / 2 - (t.y + t.height / 2))).toBeLessThan(t.height / 2);
+    // The ghost is an SVG <use>; Firefox's getBoundingClientRect for one is not where it is drawn, so take its x and y (board units) through
+    // the board's own screen transform instead, which works in every browser.
+    const g = await page.evaluate(() => {
+      const el = document.querySelector('#gGhost > *'), m = document.getElementById('boardSvg').getScreenCTM();
+      const p = new DOMPoint(+el.getAttribute('x') + 60, +el.getAttribute('y') + 60).matrixTransform(m);
+      return { cx: p.x, cy: p.y };
+    });
+    const t = await square(page, 'c3').boundingBox();
+    expect(Math.abs(g.cx - (t.x + t.width / 2))).toBeLessThan(t.width / 2);
+    expect(Math.abs(g.cy - (t.y + t.height / 2))).toBeLessThan(t.height / 2);
     await page.mouse.up();
   });
 

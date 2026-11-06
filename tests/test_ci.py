@@ -54,3 +54,10 @@ def test_the_container_check_script_is_executable_and_strict():
     text = script.read_text()
     assert "set -euo pipefail" in text and "trap cleanup EXIT" in text
     assert "Stockfish 19" in text, "it must notice an engine regression"
+
+
+def test_the_firefox_and_webkit_job_is_a_real_gate(wf):
+    job = wf["jobs"]["other-browsers"]
+    assert not job.get("continue-on-error"), "a failure there must fail the run"
+    runs = " ".join(step.get("run", "") for step in job["steps"])
+    assert "playwright install --with-deps firefox webkit" in runs and "make other-browsers" in runs

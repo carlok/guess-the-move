@@ -15,13 +15,14 @@ OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
 .DEFAULT_GOAL := run   # plain `make` serves the site; `make help` lists the targets
-.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e lighthouse lighthouse-check web-image builder-image api-image api-weights run run-api stop dataset
+.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e other-browsers lighthouse lighthouse-check web-image builder-image api-image api-weights run run-api stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
 	@echo "make ci               what GitHub Actions runs: coverage, all tests, browser tests, container checks"
 	@echo "make containers-check build the images and probe them (podman)"
 	@echo "make mutation        mutation spot-check (mutmut on winpct/tags, Stryker on scoring.js); not a gate"
+	@echo "make other-browsers  the browser tests in Firefox and WebKit (run once: cd web && npx playwright install firefox webkit)"
 	@echo "make lighthouse-check Lighthouse on the real build; fails below the budgets (part of make ci)"
 	@echo "make lighthouse      Lighthouse mobile run against the container from `make run` (adjust the Chrome path on Linux)"
 	@echo "make e2e             browser tests in Chrome; GTM_BASE_URL=http://127.0.0.1:8080 targets a running container"
@@ -76,6 +77,10 @@ dist-check: dist
 
 e2e:
 	cd web && npx playwright test
+
+# The same specs in Firefox and WebKit (needs `cd web && npx playwright install firefox webkit` once); the Chrome projects are skipped.
+other-browsers:
+	cd web && GTM_OTHER_BROWSERS=1 npx playwright test --project=firefox --project=webkit --project=webkit-phone
 
 # Lighthouse (mobile) on `make dist` with the shipped dataset, served by the tool itself (gzip, like nginx); fails below the budgets in
 # tools/lighthouse_check.js. Needs Chrome (CHROME_PATH, or the macOS default). Refresh the kept numbers with
