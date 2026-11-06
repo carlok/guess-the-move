@@ -276,6 +276,13 @@
     return /^https:\/\/lichess\.org\/[A-Za-z0-9]{8,12}$/.test(p.site) && Number.isInteger(p.ply) ? p.site + '#' + p.ply : p.site;
   }
 
+  /* The comparison rows from the best move to the worst (lowest cost first), so it is easy to see where yours stands. At equal cost:
+   * Stockfish, then you, then the real player, then Maia. */
+  var ROW_ORDER = ['best', 'you', 'real', 'maia'];
+  function byQuality(rows) {
+    return rows.slice().sort(function (a, b) { return a.cost - b.cost || ROW_ORDER.indexOf(a.key) - ROW_ORDER.indexOf(b.key); });
+  }
+
   function renderResult() {
     var r = S.result, p = S.pos, box = $('result'), real = r.refs[1];
     var head, detail;
@@ -288,9 +295,9 @@
     }
     var sum = CL.summary(p, r.you.uci), marks = {};
     S.tiers = sum;
-    var rows = [{ key: 'you', uci: r.you.uci, san: r.you.san, cost: r.you.cost, plaus: r.you.plaus, sim: null }].concat(r.refs.map(function (x) {
+    var rows = byQuality([{ key: 'you', uci: r.you.uci, san: r.you.san, cost: r.you.cost, plaus: r.you.plaus, sim: null }].concat(r.refs.map(function (x) {
       return { key: x.key, uci: x.uci, san: x.san, cost: x.cost, plaus: x.plaus, sim: x };
-    }));
+    })));
     rows.forEach(function (row) { (marks[row.uci] = marks[row.uci] || []).push(row.key); });
     var hasMaia = !!p.maia, c = T.result.cols;
     var html = '<p class="headline">' + head + '</p><p class="tier-line">' + TV.badge(sum.yours.tier, T) + ' ' + esc(T.tiers.better(sum.betterThan)) + '</p><p class="detail">' + detail + '</p>' +
@@ -1124,9 +1131,9 @@
   function cardModel(symbols) {
     var r = S.result, p = S.pos, sum = S.tiers, C = T.share.card, round = function (n) { return Math.round(n); };
     var head = r.mode === 'predict' ? (r.matched.real ? C.exact : C.closeness(round(r.score))) : C.quality(round(r.score)) + ' · ' + C.gave(fmt(r.you.cost));
-    var rows = [{ key: 'you', label: T.roles.you, san: r.you.san, cost: fmt(r.you.cost) }].concat(r.refs.map(function (x) {
-      return { key: x.key, san: x.san, cost: fmt(x.cost), label: x.key === 'maia' ? T.result.maiaAt(p.maia.elo) : (x.key === 'real' && p.player_elo ? T.result.realAt(p.player_elo) : T.roles[x.key]) };
-    }));
+    var rows = byQuality([{ key: 'you', label: T.roles.you, san: r.you.san, cost: r.you.cost }].concat(r.refs.map(function (x) {
+      return { key: x.key, san: x.san, cost: x.cost, label: x.key === 'maia' ? T.result.maiaAt(p.maia.elo) : (x.key === 'real' && p.player_elo ? T.result.realAt(p.player_elo) : T.roles[x.key]) };
+    }))).map(function (x) { return Object.assign({}, x, { cost: fmt(x.cost) }); });
     return {
       fen: p.fen, flipped: S.flipped, board: S.parsed.board, symbols: symbols, posLine: T.posInfo(p), ratingLine: '',
       opening: p.game && p.game.opening ? T.openingLine(p.game.opening, p.game.eco) : '', yourSan: r.you.san, tier: sum.yours.tier,
