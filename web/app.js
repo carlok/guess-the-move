@@ -13,7 +13,7 @@
   var WIDTH = { best: 15, real: 12, maia: 11, you: 10, preview: 8 };
   var HISTORY_KEY = 'gtm.v1.history', SEEN_KEY = 'gtm.v1.seen', CONFIRM_KEY = 'gtm.v1.confirm';
   var TRAIL_MAX = 100, LAST_KEY = 'gtm.v1.lastSession', SESSION_LEN = 10, CHALLENGE_LEN = 5, CHALLENGES_KEY = 'gtm.v1.challenges', CHALLENGES_MAX = 60, GOAL_KEY = 'gtm.v1.goal', GOALDAY_KEY = 'gtm.v1.goalday', ORIENT_KEY = 'gtm.v1.orientation', COORDS_KEY = 'gtm.v1.coords', SRS_KEY = 'gtm.v1.srs', PLAYS_KEY = 'gtm.v1.plays', SRS_ON_KEY = 'gtm.v1.srson', RETRY_GAP = 2, ADAPTIVE_KEY = 'gtm.v1.adaptive', PICKER_KEY = 'gtm.v1.picker', LEVEL_MIN = 5, LEVEL_WINDOW = 40;
-  var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer';
+  var ONBOARD_KEY = 'gtm.v1.onboarded', HISTORY_MAX = 500, SOUND_KEY = 'gtm.v1.sound', TIMER_KEY = 'gtm.v1.timer', BEEP_KEY = 'gtm.v1.beep';
   var ARROW_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1 };
 
   var S = {
@@ -53,7 +53,7 @@
 
   /* ---------- timer: counts up while a position is open, pauses off-screen, restarts with each position ---------- */
 
-  var timer = { acc: 0, since: null };
+  var timer = { acc: 0, since: null, beeped: 0 }; // beeped: whole minutes already announced on this position
   function nowMs() { return window.Date.now(); }
   function elapsedMs() { return timer.acc + (timer.since === null ? 0 : nowMs() - timer.since); }
   /* Parts of the page that are loaded when first used (index.html lists them as type="text/lazy": the browser neither fetches nor runs
@@ -76,10 +76,10 @@
 
   function clockText(ms) { return window.GTM_STATS.clock(ms / 1000); }
   function renderTimer() { $('timer').textContent = clockText(elapsedMs()); }
-  function timerStart() { timer.acc = 0; timer.since = nowMs(); renderTimer(); }
+  function timerStart() { timer.acc = 0; timer.beeped = 0; timer.since = nowMs(); renderTimer(); }
   function timerPause() { if (timer.since !== null) { timer.acc += nowMs() - timer.since; timer.since = null; } }
   function timerStop() { timerPause(); renderTimer(); }
-  function timerReset() { timer.acc = 0; timer.since = null; renderTimer(); }
+  function timerReset() { timer.acc = 0; timer.beeped = 0; timer.since = null; renderTimer(); }
   function overlayOpen() { return pageIsOpen() || !$('reportView').hidden || document.hidden === true; }
   function timerResume() { if (S.pos && !S.revealed && timer.since === null && !overlayOpen()) timer.since = nowMs(); }
 
@@ -1198,6 +1198,7 @@
     $('picker').value = S.picker;
     S.showTimer = store.get(TIMER_KEY, true) !== false;
     $('timerToggle').checked = S.showTimer; $('timer').hidden = !S.showTimer;
+    S.beep = store.get(BEEP_KEY, true) !== false; $('beepToggle').checked = S.beep;
     snd = window.GTM_SOUND ? window.GTM_SOUND.create(window.AudioContext || window.webkitAudioContext, store.get(SOUND_KEY, true) !== false) : null;
     updateSoundButton();
     S.route = parseHash();
@@ -1293,6 +1294,7 @@
       if (b) togglePreview(b.getAttribute('data-uci'));
     });
     $('statsBody').addEventListener('click', function (e) { if (e.target && e.target.id === 'suggestBtn') suggestAndGo(); if (e.target && e.target.id === 'retryNowBtn') retryNow(); });
+    $('beepToggle').addEventListener('change', function () { S.beep = $('beepToggle').checked; store.set(BEEP_KEY, S.beep); });
     $('timerToggle').addEventListener('change', function () { S.showTimer = $('timerToggle').checked; store.set(TIMER_KEY, S.showTimer); $('timer').hidden = !S.showTimer; });
     PAGES.forEach(function (n) {
       $(n + 'Back').addEventListener('click', closePage);
@@ -1321,7 +1323,12 @@
     });
     $('linkBtn').addEventListener('click', function () { copyLink(null); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) timerPause(); else timerResume(); });
-    window.setInterval(function () { if (timer.since !== null) renderTimer(); }, 250);
+    window.setInterval(function () {
+      if (timer.since === null) return;
+      renderTimer();
+      var minutes = Math.floor(elapsedMs() / 60000); // time spent thinking only: paused time does not count
+      if (minutes > timer.beeped) { timer.beeped = minutes; if (S.beep) sfx('minute'); }
+    }, 250);
     $('analyseBtn').addEventListener('click', analyseCustom);
     $('estimateBtn').addEventListener('click', estimateLevel);
     $('tourBtn').addEventListener('click', function () { closePage(); $('onboarding').hidden = false; });
