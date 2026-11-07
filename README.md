@@ -2,6 +2,8 @@
 
 A small free-software chess trainer for learning to see a position through another player's eyes.
 
+**Play it: <https://carlok.github.io/guess-the-move/>** (a static page: no account, your history stays in your browser, and the page's security policy allows no request to any other site; it runs from GitHub Pages, so the optional analysis service below is not part of it).
+
 | The answer: tiers, the scale, every move | Your level, with its limits |
 |---|---|
 | ![The answer card: the move's tier, a bar showing how the position's legal moves split across the tiers, and the list of all legal moves](docs/screens/tiers-desktop.png) | ![The level card: an estimate with its 80% range, the density, and the estimate as you play](docs/screens/level-card-desktop.png) |
@@ -140,14 +142,14 @@ Useful flags: `--per-game`, `--min-ply/--max-ply`, `--max-abs-cp` (drop already-
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` (GitHub Actions) runs four jobs on every push to `main` and every pull request: Python tests with coverage, the web tests (jsdom, coverage, the click-every-position test, the browser tests in Chrome, Lighthouse on the real build), the same browser tests in Firefox and WebKit (`make other-browsers`; run `cd web && npx playwright install firefox webkit` once to use it locally), and the container check. Each step is a `make` target, so the same thing runs on your machine first:
+`.github/workflows/ci.yml` (GitHub Actions) runs four jobs on every push to `main` and every pull request, and a fifth, which publishes the site to GitHub Pages, only after those pass on a push to `main`: Python tests with coverage, the web tests (jsdom, coverage, the click-every-position test, the browser tests in Chrome, Lighthouse on the real build), the same browser tests in Firefox and WebKit (`make other-browsers`; run `cd web && npx playwright install firefox webkit` once to use it locally), and the container check. Each step is a `make` target, so the same thing runs on your machine first:
 
 ```bash
 make ci                  # coverage, all tests, browser tests, container check: about 2 minutes here
 make containers-check    # only the images: builds web, builder and api, starts web + api on a private network, probes them
 ```
 
-`make ci` passes locally (2026-11-04). On GitHub (`ubuntu-24.04`) the four jobs pass on every merged pull request; the counts change with each change, so read them in the Actions tab instead of from a figure written here. Getting the browser tests to pass there needed one fix to how they script a touch drag (see `PROMPT.md` 14.1). To run the workflow file itself locally you need [`act`](https://github.com/nektos/act) (not installed here), which executes the jobs in containers; the `containers` job needs podman or Docker inside that, so `make containers-check` is the faithful local check for that job. The workflow reads the code and nothing else (no secrets, read-only token), and its actions are pinned to major versions.
+`make ci` passes locally (2026-11-07). On GitHub (`ubuntu-24.04`) the four jobs pass on every merged pull request; the counts change with each change, so read them in the Actions tab instead of from a figure written here. Getting the browser tests to pass there needed one fix to how they script a touch drag (see `PROMPT.md` 14.1). To run the workflow file itself locally you need [`act`](https://github.com/nektos/act) (not installed here), which executes the jobs in containers; the `containers` job needs podman or Docker inside that, so `make containers-check` is the faithful local check for that job. The workflow uses no secrets and a read-only token everywhere except the `deploy` job, which also gets `pages: write` and `id-token: write` (what GitHub Pages needs) and runs only on a push to `main`; its actions are pinned to major versions.
 
 ## Contributing and security
 

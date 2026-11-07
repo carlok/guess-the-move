@@ -121,6 +121,25 @@ def test_meta_csp_is_the_nginx_policy_without_frame_ancestors_and_is_off_by_defa
     assert html.index("Content-Security-Policy") < html.index("<script"), "the policy comes before any script"
     nginx = D.csp_from_nginx()
     assert set(m.group(1).split("; ")) == set(nginx.split("; ")) - {"frame-ancestors 'none'"}
+    assert '<meta name="referrer" content="no-referrer">' in html, "nginx sends Referrer-Policy: no-referrer; a host without headers gets the meta tag"
+    assert 'name="referrer"' not in (tmp_path / "plain" / "index.html").read_text(encoding="utf-8")
+
+
+def test_pages_build_has_the_meta_policy_and_the_no_api_answer_but_the_same_build_id(tmp_path):
+    """A host that only serves files (GitHub Pages): no response headers, and no /api/healthz to ask."""
+    plain = D.build(D.WEB, tmp_path / "plain")
+    pages = D.build(D.WEB, tmp_path / "pages", pages=True)
+    out = tmp_path / "pages"
+    html = (out / "index.html").read_text(encoding="utf-8")
+    assert "Content-Security-Policy" in html and 'name="referrer"' in html, "pages implies the meta tags"
+    assert json.loads((out / "api" / "healthz").read_text(encoding="utf-8")) == {"status": "unavailable"}, "what nginx answers with no api"
+    assert not (tmp_path / "plain" / "api").exists(), "the normal build is unchanged: only a host with no api needs the stub"
+    version = json.loads((out / "version.json").read_text(encoding="utf-8"))
+    assert "api/healthz" not in version["files"], "the stub is not part of the build: the update bar compares builds"
+    assert "api/healthz" not in (out / "sw.js").read_text(encoding="utf-8"), "and the worker never caches the api path"
+    assert pages["build"] == plain["build"], "the build id comes from the sources, not from the option"
+    D.build(D.WEB, tmp_path / "pages", pages=True)  # a rebuild keeps the stub and wipes nothing else
+    assert (out / "api" / "healthz").is_file()
 
 
 def test_it_refuses_to_wipe_a_directory_that_is_not_a_previous_dist_and_reports_missing_files(tmp_path):

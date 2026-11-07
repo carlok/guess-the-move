@@ -42,6 +42,26 @@ with that content). The api (Stockfish and Maia in a container, see the README) 
 somewhere that can run containers and route `/api/` to it from the same origin, because the api refuses cross-origin POSTs
 by design.
 
+## GitHub Pages
+
+`https://carlok.github.io/guess-the-move/` is served by GitHub Pages, deployed by the `deploy` job of `.github/workflows/ci.yml`
+(after every other job passed, on a push to `main`; Settings > Pages > Source must be "GitHub Actions"). It runs `make pages`,
+that is `python3 tools/build_dist.py --out dist-pages --pages`, and uploads `dist-pages/`. Pages sends no headers of our own, so
+the build differs from `make dist` in three ways:
+
+- The content security policy is a `<meta http-equiv>` tag (as `--meta-csp`) and the referrer policy a `<meta name="referrer">`.
+  A `<meta>` policy cannot carry `frame-ancestors`, so the page can be framed there; the container's nginx still sends it. `nosniff`
+  cannot be sent either (every file is ours, so the risk is low).
+- `api/healthz` is a file that answers `{"status":"unavailable"}`, what nginx answers with no api, so the page hides the analysis
+  panel and the browser logs no 404. It is not part of the build (not in `version.json` or the worker's list).
+- Pages sends `Cache-Control: max-age=600`. The worker fetches its files with `cache: 'reload'` so a new build never caches the
+  previous build's files, and the "new version" bar compares builds through `version.json` fetched with `no-store`. Reload always
+  gets the newest page; an ordinary visit in the first ten minutes after a deploy can still show the previous one.
+
+`make pages-check` runs the page, layout, offline and sub-path browser tests (`web/e2e/subpath.spec.js`) against that build, served
+the way Pages serves it (`GTM_PAGES=1` makes `web/e2e/serve.js` also answer under `/guess-the-move/` and stop faking the api
+answer). It is part of `make ci` and of the web job. Not tested: real Safari and phones, and the live site until the first deploy.
+
 ## Sub-paths
 
 Every URL in the page is relative, so the site works from a sub-path (`https://example.org/guess-the-move/`) as well as from a

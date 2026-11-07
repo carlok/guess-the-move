@@ -53,6 +53,7 @@ jobs:
         working-directory: web
       - run: npx playwright test
         working-directory: web
+      - run: make pages-check  # the GitHub Pages build, served like a host with no headers and no api, also under /guess-the-move/
       - run: make lighthouse-check  # Lighthouse (mobile) on the real build; fails below the budgets in tools/lighthouse_check.js
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -100,3 +101,31 @@ jobs:
       - uses: actions/checkout@v4
       - run: podman --version
       - run: make containers-check
+
+  # GitHub Pages: https://carlok.github.io/guess-the-move/. Only after every other job passed, only for a push to main. `make pages-check`
+  # (in the web job) has already run the browser tests on this commit's Pages build; this job builds it again from the same sources.
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [python, web, other-browsers, containers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - run: make pages
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist-pages
+      - id: deployment
+        uses: actions/deploy-pages@v5
