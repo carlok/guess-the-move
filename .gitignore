@@ -27,3 +27,7 @@ docs/lighthouse/mobile.report.*
 maia2_models/
 hf_cache/
 /dist/
+
+# local secrets and agent instructions: never published
+.env
+CLAUDE.md

@@ -26,6 +26,8 @@ python3 -m http.server -d web 8000     # then open http://localhost:8000
 
 `web/data/positions.json` ships 2,000 real positions: Lichess standard rated games of 2026-09 (CC0), players rated 1200 to 2000, every legal move evaluated by Stockfish 19 at 400,000 nodes, with Maia-3 move probabilities (details in `PROMPT.md` section 14.1). All of them come from one date, so a larger and fresher set is on the backlog. The page loads `web/data/first.json` first (24 of them, about 20 KB gzipped, made by `tools/make_first.py`; `make dataset` refreshes it) so the first position can be played at once, and swaps in the full file when it arrives. Build your own set below.
 
+**About the data.** The source is the Lichess open database (CC0). The file stores no player names (`provenance.players_stored` is `false`), but every position keeps the link to its Lichess game, so the players can be looked up on Lichess. To have a game taken out of the set, open an issue with the position id.
+
 ## Playing
 
 Move a piece by **tapping it and then its destination**, by **dragging it**, or with the **keyboard** (Tab to the board, arrows move a cursor, Home jumps to the corner nearest you, Enter or Space selects and then moves, Escape cancels, `n` for the next position). Screen readers get each step announced.
@@ -145,7 +147,7 @@ make ci                  # coverage, all tests, browser tests, container check: 
 make containers-check    # only the images: builds web, builder and api, starts web + api on a private network, probes them
 ```
 
-`make ci` passes locally (2026-11-04). On GitHub (private repo, `ubuntu-24.04`) all three jobs pass (run 41683889843: 226 Python tests, 91 browser tests, the container check); getting there needed one fix to how the browser tests script a touch drag (see `PROMPT.md` 14.1). To run the workflow file itself locally you need [`act`](https://github.com/nektos/act) (not installed here), which executes the jobs in containers; the `containers` job needs podman or Docker inside that, so `make containers-check` is the faithful local check for that job. The workflow reads the code and nothing else (no secrets, read-only token), and its actions are pinned to major versions.
+`make ci` passes locally (2026-11-04). On GitHub (`ubuntu-24.04`) the four jobs pass on every merged pull request; the counts change with each change, so read them in the Actions tab instead of from a figure written here. Getting the browser tests to pass there needed one fix to how they script a touch drag (see `PROMPT.md` 14.1). To run the workflow file itself locally you need [`act`](https://github.com/nektos/act) (not installed here), which executes the jobs in containers; the `containers` job needs podman or Docker inside that, so `make containers-check` is the faithful local check for that job. The workflow reads the code and nothing else (no secrets, read-only token), and its actions are pinned to major versions.
 
 ## Contributing and security
 
@@ -153,7 +155,7 @@ See `CONTRIBUTING.md` (how to run the tests, the rules the project keeps) and `S
 
 ## Licence
 
-GNU Affero General Public License, version 3 or (at your option) any later version: see `LICENSE`. The reason is Maia-3, whose code and weights are AGPL-3.0: running it in the `api` service, or shipping it to browsers, is what the AGPL's network clause is about. If you run a modified version of the `api` for other people, you must offer them its source. Third-party material and its licences are in `NOTICE`. The dataset's game positions come from the Lichess open database (CC0).
+GNU Affero General Public License, version 3 or (at your option) any later version: see `LICENSE`. The reason is Maia-3, whose code is AGPL-3.0 and whose weights this project treats as AGPL-3.0 (`NOTICE` says what was checked and what is a reading): running it in the `api` service, or shipping it to browsers, is what the AGPL's network clause is about. If you run a modified version of the `api` for other people, you must offer them its source. Third-party material and its licences are in `NOTICE`. The dataset's game positions come from the Lichess open database (CC0).
 
 ## Layout
 

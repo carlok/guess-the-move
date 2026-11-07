@@ -1,14 +1,15 @@
 {
   "name": "engine-node",
   "version": "1.0.0",
-  "description": "",
+  "description": "Stockfish (npm build) used by the tools in this repository",
+  "private": true,
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Carlo Perassi",
+  "license": "AGPL-3.0-or-later",
   "dependencies": {
     "stockfish": "^19.0.1"
   }
