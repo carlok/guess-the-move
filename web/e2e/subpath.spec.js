@@ -47,6 +47,24 @@ test('the manifest, its icons and the worker all resolve under the sub-path', as
   expect(m.worker).toBe(BASE);
 });
 
+test('the page names its link-preview card, and the picture it names is served from the sub-path', async ({ page, request }) => {
+  await preset(page);
+  await serveSubset(page);
+  await page.goto(BASE);
+  const content = (selector) => page.locator(selector).getAttribute('content');
+  const site = 'https://carlok.github.io/guess-the-move/';
+  expect(await content('meta[property="og:url"]')).toBe(site);
+  expect(await content('meta[property="og:image"]')).toBe(site + 'og-image.png');
+  expect(await content('meta[property="og:title"]')).toBe(await page.title());
+  expect(await content('meta[property="og:description"]')).toBe(await content('meta[name="description"]'));
+  expect(await content('meta[name="twitter:card"]')).toBe('summary_large_image');
+  /* The tags name the public address; this run is served from another origin, so ask for the same path here. */
+  const picture = await request.get(new URL(await content('meta[property="og:image"]')).pathname);
+  expect(picture.ok(), 'the picture is served at the path the tag names').toBe(true);
+  expect(picture.headers()['content-type']).toBe('image/png');
+  expect((await picture.body()).length).toBeGreaterThan(5000);
+});
+
 test('a copied link to a position keeps the sub-path', async ({ page }) => {
   await preset(page, { confirm: false });
   await serveSubset(page);
