@@ -3,9 +3,33 @@
 /* Offline use, against a built dist/ (make dist-check sets GTM_ROOT). The source tree's worker does nothing on purpose,
  * so there is nothing to test there. */
 const { test, expect } = require('@playwright/test');
-const { preset } = require('./helpers');
+const { preset, watchProblems } = require('./helpers');
 
 test.skip(!process.env.GTM_ROOT, 'needs a built dist/ (run make dist-check)');
+
+test('with the worker in control, a reload uses the data preloads: one request per file and a quiet console', async ({ page }) => {
+  /* The two <link rel="preload"> tags in index.html are matched by the page's own fetch() when the URL, the credentials mode and the
+   * script world agree. If one stops agreeing (a crossorigin mismatch, a changed URL), Chrome warns "A preload ... is found, but is not
+   * used", and the data is requested twice. Chrome 156 under Playwright does neither; the app's built-in browser pane does warn, with
+   * "cross-world service worker resource mismatch" (Chromium's Resource::CanReuse: the preload and the request come from different
+   * script worlds), which a page with one script world cannot cause. */
+  await preset(page, { confirm: false });
+  const watch = watchProblems(page);
+  await page.goto('/');
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), 'the page is now controlled by the worker').toBe(true);
+  await page.reload();
+  await expect(page.locator('[data-sq]')).toHaveCount(64);
+  await page.waitForLoadState('networkidle');
+  const asked = await page.evaluate(() => {
+    const names = performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname);
+    return { first: names.filter((n) => n.endsWith('/data/first.json')).length, full: names.filter((n) => n.endsWith('/data/positions.json')).length };
+  });
+  expect(asked, 'each data file is requested once: the preload is the request the page uses').toEqual({ first: 1, full: 1 });
+  expect(watch.problems, 'console problems').toEqual([]);
+});
 
 test('the worker caches the build, and the page then opens and plays with the network off', async ({ page, context }) => {
   await preset(page, { confirm: false });
