@@ -11,9 +11,9 @@ const SOURCE = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 
 function scope({ build = 'abc123', files = ['index.html', 'app.js?v=abc123'], network = {}, offline = false, existing = {} } = {}) {
   const store = Object.fromEntries(Object.entries(existing).map(([k, v]) => [k, new Map(Object.entries(v))]));
-  const listeners = {}, fetched = [], state = { skipped: false, claimed: false };
+  const listeners = {}, fetched = [], state = { skipped: false, claimed: false, precacheModes: [] };
   const cacheOf = (name) => ({
-    addAll: async (urls) => { const m = store[name]; urls.forEach((u) => m.set(new URL(u, 'https://x.test/app/sw.js').href, { body: 'precached ' + u, ok: true })); },
+    addAll: async (reqs) => { const m = store[name]; reqs.forEach((r) => { state.precacheModes.push(r.cache); m.set(new URL(r.raw, 'https://x.test/app/sw.js').href, { body: 'precached ' + r.raw, ok: true }); }); },
     put: async (req, res) => { store[name].set(typeof req === 'string' ? req : req.url, res); },
     match: async (req) => store[name].get(typeof req === 'string' ? req : req.url)
   });
@@ -33,7 +33,8 @@ function scope({ build = 'abc123', files = ['index.html', 'app.js?v=abc123'], ne
     return body === undefined ? { ok: false, status: 404, clone() { return this; } } : { ok: true, body, clone() { return this; } };
   };
   const code = SOURCE.replace("'__BUILD__'", JSON.stringify(build)).replace('var FILES = []; // @FILES@', 'var FILES = ' + JSON.stringify(files) + ';');
-  vm.runInNewContext(code, { self, caches, fetch: fetchFn, URL, Promise, Object, Array, RegExp });
+  class FakeRequest { constructor(url, init) { this.raw = url; this.url = new URL(url, 'https://x.test/app/sw.js').href; this.cache = init && init.cache; } }
+  vm.runInNewContext(code, { self, caches, fetch: fetchFn, Request: FakeRequest, URL, Promise, Object, Array, RegExp });
   const dispatch = async (type, event) => { let done; event.waitUntil = (p) => { done = p; }; event.respondWith = (p) => { event.response = p; }; listeners[type](event); if (done) await done; return event; };
   const get = async (url, mode = 'no-cors') => dispatch('fetch', { request: { method: 'GET', url, mode } });
   return { store, state, fetched, dispatch, get, listeners };
@@ -44,6 +45,12 @@ test('install precaches the build\'s files into a cache named after the build', 
   await s.dispatch('install', {});
   assert.deepEqual(Object.keys(s.store), ['gtm-abc123']);
   assert.deepEqual([...s.store['gtm-abc123'].keys()], ['https://x.test/app/index.html', 'https://x.test/app/app.js?v=abc123', 'https://x.test/app/data/positions.json']);
+});
+
+test('install fetches every file past the browser\'s HTTP cache, so a host with a max-age cannot put the previous build\'s files into the new build\'s cache', async () => {
+  const s = scope({ files: ['index.html', 'app.js?v=abc123', 'data/positions.json'] });
+  await s.dispatch('install', {});
+  assert.deepEqual(s.state.precacheModes, ['reload', 'reload', 'reload']);
 });
 
 test('activate deletes the caches of other builds, keeps foreign ones, and takes over the open pages', async () => {

@@ -18,7 +18,8 @@ var DEV = BUILD.indexOf('__') === 0;
 
 self.addEventListener('install', function (event) {
   if (DEV) return;
-  event.waitUntil(caches.open(CACHE).then(function (cache) { return cache.addAll(FILES); }));
+  // cache: 'reload' skips the HTTP cache: a host that sends max-age (GitHub Pages: 10 minutes) must not hand this build's cache the previous build's files
+  event.waitUntil(caches.open(CACHE).then(function (cache) { return cache.addAll(FILES.map(function (u) { return new Request(u, { cache: 'reload' }); })); }));
 });
 
 self.addEventListener('activate', function (event) {

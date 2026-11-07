@@ -15,7 +15,7 @@ OUT         ?= $(CURDIR)/web/data
 PYTHON      ?= .venv/bin/python
 
 .DEFAULT_GOAL := run   # plain `make` serves the site; `make help` lists the targets
-.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check ci mutation e2e other-browsers lighthouse lighthouse-check web-image builder-image api-image api-weights run run-api stop dataset
+.PHONY: help test coverage coverage-python coverage-js containers-check dist dist-check pages pages-check ci mutation e2e other-browsers lighthouse lighthouse-check web-image builder-image api-image api-weights run run-api stop dataset
 help:
 	@echo "make test            host tests (pytest + node)"
 	@echo "make coverage        tests with coverage; fails below the thresholds (tools/check_coverage.py, web/package.json)"
@@ -57,6 +57,7 @@ ci: coverage-python coverage-js
 	cd web && npm test
 	cd web && npx playwright test
 	$(MAKE) dist-check
+	$(MAKE) pages-check
 	$(MAKE) lighthouse-check
 	$(MAKE) containers-check
 
@@ -74,6 +75,15 @@ dist:
 
 dist-check: dist
 	cd web && GTM_ROOT=../dist npx playwright test smoke csp ui pwa
+
+# The Pages build (GitHub Pages: a host that only serves files, no response headers, no api): the policy as a <meta> tag and an
+# api/healthz file that answers "unavailable". pages-check serves it the way that host does (also under /guess-the-move/) and runs
+# the page, layout, offline and sub-path browser tests against it.
+pages:
+	$(DISTPY) tools/build_dist.py --out dist-pages --pages
+
+pages-check: pages
+	cd web && GTM_ROOT=../dist-pages GTM_PAGES=1 npx playwright test smoke ui pwa subpath
 
 e2e:
 	cd web && npx playwright test

@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Build `dist/`: the static site, and nothing else, ready to be copied to any web host.
 
-    python tools/build_dist.py [--out dist] [--meta-csp]
+    python tools/build_dist.py [--out dist] [--meta-csp] [--pages]
 
 It copies exactly the files web/index.html loads (scripts, style sheet) plus the two the scripts fetch (pieces.svg and
 data/positions.json), so no test, config or node_modules file can leak into a deploy. Every file's SHA-256 goes into
 dist/version.json together with a build id (the hash of those hashes, so the same inputs always give the same id), and
 the script and style references in the copied index.html get `?v=<build id>`: an old browser cache cannot pair an old app.js
 with a new index.html. `--meta-csp` adds the content security policy (the one containers/web/nginx.conf sends) as a <meta>
-tag, for hosts that cannot set response headers; browsers ignore `frame-ancestors` there, so it is left out of the tag.
+tag (and the referrer policy as a <meta name="referrer">), for hosts that cannot set response headers; browsers ignore
+`frame-ancestors` there, so it is left out of the tag. `--pages` is `--meta-csp` plus the file api/healthz (see `build`).
 See docs/deploy.md for the headers a host should send.
 """
 
@@ -66,6 +67,10 @@ def meta_csp() -> str:
     return f'<meta http-equiv="Content-Security-Policy" content="{policy}">'
 
 
+REFERRER_META = '<meta name="referrer" content="no-referrer">'  # what nginx sends as the Referrer-Policy header
+HEALTHZ_STUB = b'{"status":"unavailable"}\n'  # what nginx answers on /api/healthz when there is no api (containers/web/nginx.conf)
+
+
 def stamp_worker(source: str, build_id: str, assets: list[str], plain: list[str]) -> str:
     """sw.js with its build id and the exact URLs of this build: the stamped references index.html makes, the page itself, and the rest."""
     files = ["index.html"] + [f"{a}?v={build_id}" for a in assets] + plain
@@ -98,7 +103,11 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def build(src: Path = WEB, out: Path = ROOT / "dist", with_meta_csp: bool = False) -> dict:
+def build(src: Path = WEB, out: Path = ROOT / "dist", with_meta_csp: bool = False, pages: bool = False) -> dict:
+    """`pages`: for a host that only serves files (GitHub Pages). It implies the meta tags and adds api/healthz, a file that answers
+    "unavailable", so the browser does not log a 404 for the page's question "is there an api?". The file is not part of the build:
+    it is not in version.json or the worker's list."""
+    with_meta_csp = with_meta_csp or pages
     html = (src / "index.html").read_text(encoding="utf-8")
     assets = local_assets(html)
     wanted = ["index.html"] + assets + [e for e in EXTRAS if e not in assets]
@@ -111,12 +120,14 @@ def build(src: Path = WEB, out: Path = ROOT / "dist", with_meta_csp: bool = Fals
     build_id = sha256("\n".join(f"{a}:{sha256(blobs[a])}" for a in sorted(blobs)).encode())[:10]
     stamped = ATTR.sub(lambda m: f"{m.group(1)}{m.group(2)}?v={build_id}{m.group(4)}", html)  # any query already there is replaced
     if with_meta_csp:
-        stamped = stamped.replace("<head>", "<head>\n  " + meta_csp(), 1) if "<head>" in stamped else stamped
+        stamped = stamped.replace("<head>", "<head>\n  " + meta_csp() + "\n  " + REFERRER_META, 1) if "<head>" in stamped else stamped
     blobs["index.html"] = stamped.encode("utf-8")  # what is served differs from the source: hash what is written
     blobs["sw.js"] = stamp_worker(blobs["sw.js"].decode("utf-8"), build_id, assets, [e for e in wanted if e != "index.html" and e not in assets and e != "sw.js"]).encode("utf-8")
 
     files = {a: {"bytes": len(d), "sha256": sha256(d)} for a, d in sorted(blobs.items())}
     blobs["version.json"] = (json.dumps({"build": build_id, "files": files}, indent=1) + "\n").encode("utf-8")
+    if pages:
+        blobs["api/healthz"] = HEALTHZ_STUB
     sync(out, blobs)
 
     def gz(names) -> int:
@@ -133,8 +144,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=ROOT / "dist")
     ap.add_argument("--meta-csp", action="store_true", help="add the content security policy as a <meta> tag")
+    ap.add_argument("--pages", action="store_true", help="for a host that only serves files (GitHub Pages): --meta-csp, and an api/healthz file that answers \"unavailable\"")
     args = ap.parse_args(argv)
-    r = build(WEB, args.out, args.meta_csp)
+    r = build(WEB, args.out, args.meta_csp, args.pages)
     print(f"dist {r['build']}: {r['files']} files, {r['bytes'] / 1024:.0f} KB; scripts and styles {r['code_gzip'] / 1024:.0f} KB gzipped "
           f"({r['first_load_gzip'] / 1024:.0f} KB at the first load, {len(r['lazy'])} parts loaded on use), "
           f"dataset {r['data_gzip'] / 1024:.0f} KB gzipped -> {r['out']}", file=sys.stderr)
