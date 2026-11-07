@@ -4,6 +4,7 @@
 import hashlib
 import json
 import re
+import struct
 import sys
 from pathlib import Path
 
@@ -140,6 +141,65 @@ def test_pages_build_has_the_meta_policy_and_the_no_api_answer_but_the_same_buil
     assert pages["build"] == plain["build"], "the build id comes from the sources, not from the option"
     D.build(D.WEB, tmp_path / "pages", pages=True)  # a rebuild keeps the stub and wipes nothing else
     assert (out / "api" / "healthz").is_file()
+
+
+def _social_tags(html: str) -> dict[str, str]:
+    return dict(re.findall(r'<meta (?:property|name)="((?:og|twitter):[^"]+)" content="([^"]*)">', html))
+
+
+def test_pages_build_adds_the_link_preview_tags_and_the_image_but_the_normal_build_does_not(tmp_path):
+    """A pasted link shows a card (title, description, picture) only if the page names an absolute address for the picture, and only the
+    build for the public site knows that address. The normal build and the container have no tags and no image."""
+    D.build(D.WEB, tmp_path / "plain")
+    pages = D.build(D.WEB, tmp_path / "pages", pages=True)
+    plain_html = (tmp_path / "plain" / "index.html").read_text(encoding="utf-8")
+    assert "og:" not in plain_html and "twitter:" not in plain_html and not (tmp_path / "plain" / "og-image.png").exists()
+
+    src = (D.WEB / "index.html").read_text(encoding="utf-8")
+    tags = _social_tags((tmp_path / "pages" / "index.html").read_text(encoding="utf-8"))
+    site = "https://carlok.github.io/guess-the-move/"
+    assert D.PAGES_URL == site
+    assert tags["og:type"] == "website" and tags["og:site_name"] == "Guess the Move"
+    assert tags["og:url"] == site and tags["og:image"] == site + "og-image.png", "the picture is named by an absolute address: crawlers do not resolve a relative one"
+    assert tags["og:title"] == re.search(r"<title>(.*?)</title>", src).group(1), "the card says what the page says"
+    assert tags["og:description"] == re.search(r'<meta name="description" content="([^"]*)">', src).group(1)
+    assert tags["og:image:alt"] and tags["og:image:type"] == "image/png" and tags["twitter:card"] == "summary_large_image"
+    html = (tmp_path / "pages" / "index.html").read_text(encoding="utf-8")
+    assert len(html[:html.index('<meta charset="utf-8">')].encode("utf-8")) + len('<meta charset="utf-8">') <= 1024, "the HTML spec wants the encoding declaration inside the first 1024 bytes: the tags go after it"
+    assert html.index('<meta property="og:type"') > html.index('<meta name="description"'), "the card tags follow the description, they do not push the page's own head down"
+
+    png = (tmp_path / "pages" / "og-image.png").read_bytes()
+    assert png[:8] == b"\x89PNG\r\n\x1a\n" and png == (D.WEB / "og-image.png").read_bytes()
+    width, height = struct.unpack(">II", png[16:24])
+    assert (width, height) == (1200, 630), "the size the large card is drawn for (1.91:1)"
+    assert (tags["og:image:width"], tags["og:image:height"]) == (str(width), str(height)), "the declared size is the real one"
+    assert len(png) < 250 * 1024, f"the picture is {len(png) / 1024:.0f} KB: a crawler may give up on a heavy one"
+
+    version = json.loads((tmp_path / "pages" / "version.json").read_text(encoding="utf-8"))
+    assert "og-image.png" not in version["files"] and "og-image.png" not in (tmp_path / "pages" / "sw.js").read_text(encoding="utf-8"), "not part of the build, and never precached: the page does not use it"
+    assert pages["build"] == D.build(D.WEB, tmp_path / "plain")["build"]
+
+
+def test_the_public_address_can_be_changed_for_a_fork_and_gets_its_trailing_slash(tmp_path):
+    D.build(D.WEB, tmp_path / "fork", pages=True, site_url="https://example.org/play")
+    tags = _social_tags((tmp_path / "fork" / "index.html").read_text(encoding="utf-8"))
+    assert tags["og:url"] == "https://example.org/play/" and tags["og:image"] == "https://example.org/play/og-image.png"
+    assert D.main(["--out", str(tmp_path / "cli"), "--pages", "--site-url", "https://example.org/x/"]) == 0
+    assert _social_tags((tmp_path / "cli" / "index.html").read_text(encoding="utf-8"))["og:url"] == "https://example.org/x/"
+
+
+def test_a_pages_build_without_the_preview_image_stops_and_says_so(tmp_path):
+    src = tmp_path / "web"
+    src.mkdir()
+    for p in D.WEB.iterdir():
+        if p.is_file() and p.name != "og-image.png":
+            (src / p.name).write_bytes(p.read_bytes())
+    (src / "data").mkdir()
+    for name in ("positions.json", "first.json"):
+        (src / "data" / name).write_bytes((D.WEB / "data" / name).read_bytes())
+    D.build(src, tmp_path / "ok")  # the normal build does not need it
+    with pytest.raises(SystemExit, match="og-image.png"):
+        D.build(src, tmp_path / "pages", pages=True)
 
 
 def test_it_refuses_to_wipe_a_directory_that_is_not_a_previous_dist_and_reports_missing_files(tmp_path):

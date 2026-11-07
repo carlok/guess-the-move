@@ -47,20 +47,26 @@ by design.
 `https://carlok.github.io/guess-the-move/` is served by GitHub Pages, deployed by the `deploy` job of `.github/workflows/ci.yml`
 (after every other job passed, on a push to `main`; Settings > Pages > Source must be "GitHub Actions"). It runs `make pages`,
 that is `python3 tools/build_dist.py --out dist-pages --pages`, and uploads `dist-pages/`. Pages sends no headers of our own, so
-the build differs from `make dist` in three ways:
+the build differs from `make dist` in four ways:
 
 - The content security policy is a `<meta http-equiv>` tag (as `--meta-csp`) and the referrer policy a `<meta name="referrer">`.
   A `<meta>` policy cannot carry `frame-ancestors`, so the page can be framed there; the container's nginx still sends it. `nosniff`
   cannot be sent either (every file is ours, so the risk is low).
 - `api/healthz` is a file that answers `{"status":"unavailable"}`, what nginx answers with no api, so the page hides the analysis
   panel and the browser logs no 404. It is not part of the build (not in `version.json` or the worker's list).
+- A pasted link shows a card (title, description, a 1200x630 picture): `index.html` gets Open Graph and Twitter tags after its
+  description, and `og-image.png` is copied next to it (not part of the build either, and never precached). The picture's address
+  must be absolute, so the tags name `PAGES_URL` in `tools/build_dist.py`; a fork changes it with `--site-url`. The title and
+  description are the page's own, read from `index.html`. `web/og-image.png` is drawn by `node tools/make_og.js` (it needs Chrome); the
+  other builds and the container have no tags and no picture.
 - Pages sends `Cache-Control: max-age=600`. The worker fetches its files with `cache: 'reload'` so a new build never caches the
   previous build's files, and the "new version" bar compares builds through `version.json` fetched with `no-store`. Reload always
   gets the newest page; an ordinary visit in the first ten minutes after a deploy can still show the previous one.
 
 `make pages-check` runs the page, layout, offline and sub-path browser tests (`web/e2e/subpath.spec.js`) against that build, served
 the way Pages serves it (`GTM_PAGES=1` makes `web/e2e/serve.js` also answer under `/guess-the-move/` and stop faking the api
-answer). It is part of `make ci` and of the web job. Not tested: real Safari and phones, and the live site until the first deploy.
+answer). It is part of `make ci` and of the web job. Not tested: real Safari and phones, and how Slack, X, Facebook and the others
+draw the card (what is checked: the tags, the picture's format and size, and that it is served at the address the tag names).
 
 ## Sub-paths
 
