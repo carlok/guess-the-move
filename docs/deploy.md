@@ -35,8 +35,10 @@ revalidated, not skipped), so that a new build is noticed; everything else is ca
 
 ## The optional api
 
-The page asks `api/healthz`. Without an answer (a 404 is fine) it hides the "Analyse any position" panel and everything else
-works. The api (Stockfish and Maia in a container, see the README) cannot run on a static host; if you want it, run it
+The page asks `api/healthz`. Without an answer it hides the "Analyse any position" panel and everything else works. A 404 is harmless to the page (the
+error is caught) but the browser still logs it in the console, which the browser tests treat as a failure; if you can, answer
+`200 {"status":"unavailable"}` like the nginx image does (on a host that only serves files, publish a file named `api/healthz`
+with that content). The api (Stockfish and Maia in a container, see the README) cannot run on a static host; if you want it, run it
 somewhere that can run containers and route `/api/` to it from the same origin, because the api refuses cross-origin POSTs
 by design.
 

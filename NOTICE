@@ -38,6 +38,13 @@ Stockfish (https://github.com/official-stockfish/Stockfish, GPL-3.0) is installe
 
 Maia-3 (https://github.com/CSSLab/maia3, GNU AGPL v3): the `maia3` package and the Maia-3 weights are downloaded at install and run
   time, not stored in this repository. Using them in the api service is why this project is under the AGPL (see below).
+  What was checked (2026-11): the repository's LICENSE is the AGPL v3 text, and the 79M model card says "AGPLv3". The 5M and 23M
+  cards (the 23M model made the shipped dataset) say "CC BY 4.0 (paper); see repo for code/weights license" and name no weights
+  licence of their own, so this project treats all Maia-3 weights as AGPL-3.0. That is a reading, not a statement by the authors.
+  The dataset stores only move probabilities computed with the model, not the weights.
+
+Not bundled, used when you run the pipeline or the api yourself (each keeps its own licence): python-chess (GPL-3.0-or-later),
+  PyTorch (BSD-3-Clause), Starlette (BSD-3-Clause), uvicorn (BSD-3-Clause), and for the browser tests Playwright (Apache-2.0).
 
 Maia-2 (https://github.com/CSSLab/maia2, MIT): optional alternative backend; its weights have no stated licence and are downloaded, not bundled.
 
