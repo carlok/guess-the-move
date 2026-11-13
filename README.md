@@ -153,7 +153,7 @@ make containers-check    # only the images: builds web, builder and api, starts 
 
 ## Contributing and security
 
-See `CONTRIBUTING.md` (how to run the tests, the rules the project keeps) and `SECURITY.md` (how to report a vulnerability privately). Every answer card has a "Report a problem with this position" link that opens a pre-filled issue.
+See `CONTRIBUTING.md` (how to run the tests, the rules the project keeps), `CODE_OF_CONDUCT.md`, `AGENT.md` (runbook for coding agents), and `SECURITY.md` (how to report a vulnerability privately). Every answer card has a "Report a problem with this position" link that opens a pre-filled issue.
 
 ## Licence
 
@@ -163,6 +163,7 @@ GNU Affero General Public License, version 3 or (at your option) any later versi
 
 ```
 PROMPT.md            engineering brief (single source of truth)
+AGENT.md             runbook for coding agents (setup, coverage, conventions)
 CONTINUE.md          ready-to-paste prompt for the next session (needs network + podman)
 compose.yaml, Makefile, containers/, deploy/quadlet/   podman packaging
 pipeline/            PGN sampler, engine/Maia backends, tags, dataset builder, demo games
