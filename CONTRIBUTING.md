@@ -2,6 +2,10 @@
 
 Thanks for looking. This is a small free-software chess trainer; changes are welcome when they keep it small, honest and tested.
 
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By participating, you agree to uphold it. Reports go to [@carlok on GitHub](https://github.com/carlok), not by email.
+
+Automated coding agents should read `AGENT.md` first (setup, coverage commands, layout).
+
 ## Run it and the tests
 
 ```bash
