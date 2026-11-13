@@ -55,14 +55,14 @@ jobs:
         working-directory: web
       - run: make pages-check  # the GitHub Pages build, served like a host with no headers and no api, also under /guess-the-move/
       - run: make lighthouse-check  # Lighthouse (mobile) on the real build; fails below the budgets in tools/lighthouse_check.js
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: lighthouse-report
           path: test-results/lighthouse-report.json
           retention-days: 7
           if-no-files-found: ignore
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-traces
@@ -86,7 +86,7 @@ jobs:
       - run: npx playwright install --with-deps firefox webkit
         working-directory: web
       - run: make other-browsers
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-traces-other-browsers
