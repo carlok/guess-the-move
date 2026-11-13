@@ -2,4 +2,4 @@
 # Install CPU-only torch first:  pip install --index-url https://download.pytorch.org/whl/cpu torch
 # Weights (5M, 23M, 79M parameters) are downloaded from Hugging Face on first use into the cache directory you pass.
 https://github.com/CSSLab/maia3/archive/1e13597c42d4858b7cfd7cfdae01e297263364b2.tar.gz
-huggingface-hub>=0.23
+huggingface-hub>=2.4.0
