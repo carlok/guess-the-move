@@ -60,8 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at
-**[@carlok on GitHub](https://github.com/carlok)** (open an issue or discussion,
-or send a private message if the platform allows).
+**carlo.perassi@gmail.com**.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
