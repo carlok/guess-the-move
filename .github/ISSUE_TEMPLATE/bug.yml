@@ -1,5 +1,5 @@
 name: Report a bug
-description: Something in the app does not work as described.
+description: Something in the app does not work as described (not a security issue — see SECURITY.md).
 labels: ["bug"]
 body:
   - type: textarea

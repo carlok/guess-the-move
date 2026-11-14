@@ -2,8 +2,9 @@
 
 ## Reporting a vulnerability
 
-Please do not open a public issue for a security problem. Use GitHub's private vulnerability reporting on this repository
-(Security tab, "Report a vulnerability"). Say what you found, how to reproduce it, and which version (the commit or the build id in
+Please do not open a public issue for a security problem. Report it privately through
+[GitHub private vulnerability reporting](https://github.com/carlok/guess-the-move/security/advisories/new)
+(the repository **Security** tab → **Report a vulnerability**). Say what you found, how to reproduce it, and which version (the commit or the build id in
 `version.json` of a `make dist` build).
 
 ## What is in scope

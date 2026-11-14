@@ -10,7 +10,7 @@ read = lambda rel: (ROOT / rel).read_text(encoding="utf-8")
 
 def test_contributing_names_the_real_commands_and_the_licence():
     text = read("CONTRIBUTING.md")
-    for needle in ("make ci", "make test", "strings.js", "AGPL", "SPDX-License-Identifier: AGPL-3.0-or-later", "python tools/add_spdx.py", "CHANGELOG.md"):
+    for needle in ("make ci", "make test", "strings.js", "AGPL", "SPDX-License-Identifier: AGPL-3.0-or-later", "python tools/add_spdx.py", "CHANGELOG.md", "SECURITY.md"):
         assert needle in text, needle
     makefile = read("Makefile")
     assert re.search(r"^ci:", makefile, flags=re.M) and re.search(r"^test:", makefile, flags=re.M), "the commands CONTRIBUTING names exist"
@@ -19,7 +19,14 @@ def test_contributing_names_the_real_commands_and_the_licence():
 def test_security_policy_says_how_to_report_privately_and_publishes_no_address():
     text = read("SECURITY.md")
     assert "private vulnerability reporting" in text
+    assert "security/advisories/new" in text
     assert not re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", text), "no personal email address is published"
+
+
+def test_code_of_conduct_names_the_enforcement_contact():
+    text = read("CODE_OF_CONDUCT.md")
+    assert "carlo.perassi@gmail.com" in text
+    assert "carlok on GitHub" not in text
 
 
 def test_the_position_issue_form_has_the_fields_the_report_link_fills_in():

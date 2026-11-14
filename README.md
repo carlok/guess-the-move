@@ -153,7 +153,7 @@ make containers-check    # only the images: builds web, builder and api, starts 
 
 ## Contributing and security
 
-See `CONTRIBUTING.md` (how to run the tests, the rules the project keeps), `CODE_OF_CONDUCT.md`, `AGENT.md` (runbook for coding agents), and `SECURITY.md` (how to report a vulnerability privately). Every answer card has a "Report a problem with this position" link that opens a pre-filled issue.
+See `CONTRIBUTING.md` (how to run the tests, the rules the project keeps), `CODE_OF_CONDUCT.md`, `AGENT.md` (runbook for coding agents), and `SECURITY.md` (private vulnerability reporting — not via public issues). Every answer card has a "Report a problem with this position" link that opens a pre-filled issue for chess-content problems, not security issues.
 
 ## Licence
 
