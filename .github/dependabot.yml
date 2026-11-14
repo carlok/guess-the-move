@@ -13,15 +13,36 @@ updates:
         update-types:
           - minor
           - patch
+      python-major:
+        patterns:
+          - "*"
+        update-types:
+          - major
 
   - package-ecosystem: npm
     directory: /web
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      npm-web-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      npm-web-major:
+        patterns:
+          - "*"
+        update-types:
+          - major
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    groups:
+      actions:
+        patterns:
+          - "*"
